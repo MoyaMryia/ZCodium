@@ -18,7 +18,7 @@ ZCodium is a community fork of ZCode. Upstream ZCode is an AI coding workspace w
 
 Upstream was forced to open-source ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
 
-Backfilling methods include extracting built-in plugins and skills from the official `.deb` installers and `app.asar`, locating feature gaps by diffing i18n keys, and reconstructing interaction flows from protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
+Backfilling methods include supplying the missing built-in plugins and skills, locating feature gaps by diffing i18n keys, and aligning interaction flows with the protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
 
 ### Capability delta versus the official package
 
@@ -57,7 +57,7 @@ These directions are settled but not yet implemented; details to be discussed se
 
 This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode). Upstream updates are merged first, then the capability delta is re-verified; backfills are split into per-feature commits so each can be reviewed and accepted independently. Licensing and third-party attribution are covered in [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
 
-**Standing rule**: when upstream ships a feature without releasing the corresponding source, this repository reverse-engineers it and open-sources it directly — no waiting, no asking, no holding back. The test is "is it in the installer", not "what upstream says". Reverse-engineered work lands as per-feature commits, with the source of the extraction, its scope, and anything left unverified recorded under [.agents/specs/](.agents/specs/).
+**Standing rule**: when upstream ships a feature without releasing the corresponding source, this repository implements an equivalent version itself and open-sources it directly — no waiting, no asking, no holding back. The test is "is it in the installer", not "what upstream says". That work lands as per-feature commits, with the scope, the reasoning behind each decision, and anything left unverified recorded under [.agents/specs/](.agents/specs/).
 
 | Interface                    | Purpose                                                                                   | Development command            |
 | ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
@@ -259,7 +259,7 @@ Added by ZCodium:
 | Path                                         | Responsibility                                                          |
 | -------------------------------------------- | ----------------------------------------------------------------------- |
 | `.agents/specs/`                             | Backfill specs: scope, state ownership, interface contracts, acceptance |
-| `apps/zcode-cli/packages/*-plugin`           | Built-in plugins restored from the official package (documents, cua, …) |
+| `apps/zcode-cli/packages/*-plugin`           | Built-in plugins (documents, pdf, cua, …)                               |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | Localhost reproduction of the repo snapshot upload, for audit only      |
 
 ## Project Notice
