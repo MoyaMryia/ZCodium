@@ -1,0 +1,33 @@
+{
+  "name": "image-search",
+  "version": "0.1.2",
+  "description": "Image search MCP server for finding illustrations and reference images.",
+  "description_i18n": {
+    "en": "Image search MCP server for finding illustrations and reference images.",
+    "zh-CN": "搜图 MCP 服务，用于查找插图与参考配图。"
+  },
+  "author": {
+    "name": "ZCodium"
+  },
+  "license": "Apache-2.0",
+  "userConfig": {
+    "imageSearchBaseUrl": {
+      "type": "string",
+      "default": "http://127.0.0.1:8787",
+      "required": false,
+      "title": "Image search backend base URL",
+      "description": "Base URL of the image_search MCP backend. Defaults to a local loopback address. Set it to the official API origin (for example https://api.z.ai) to use the hosted service again."
+    }
+  },
+  "mcpServers": {
+    "image_search": {
+      "type": "http",
+      "url": "${user_config.imageSearchBaseUrl}/api/v1/mcp/server/image_search",
+      "auth": {
+        "type": "zcode_official",
+        "provider": "jwt_token"
+      },
+      "timeoutMs": 90000
+    }
+  }
+}
