@@ -90,6 +90,36 @@ const browserUseRequiredRuntimePaths = [
   "skills/control-browser/SKILL.md",
   "skills/web-gui-tester/SKILL.md",
 ];
+// 纯内容内置插件：无 dist、无 workspace 依赖、无 runtime 构建，staging 只搬运
+// skills/agents/commands/docs 等白名单顶层项。契约见 .agents/specs/builtin-plugin-parity.md。
+// 新增条目必须同步 packages/desktop/scripts/prepare-agent-node-bundle.mjs 的桌面 seed 清单与
+// packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts 的远端合同。
+const builtinContentPluginPackages = [
+  "documents-plugin",
+  "pdf-plugin",
+  "presentations-plugin",
+  "spreadsheets-plugin",
+  "skill-creator-plugin",
+  "plugin-creator-plugin",
+  "image-search-plugin",
+  "restore-legacy-sessions-plugin",
+  "zcode-guide-plugin",
+].map((directory) => ({
+  packageName: `@zcode/${directory}`,
+  relativePath: `apps/zcode-cli/packages/${directory}`,
+  stagedPath: `packages/${directory}`,
+}));
+
+// computer-use 与上面几项同属内容型，但它有必填 seed 合同（见
+// apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts 的
+// OFFICIAL_CUA_REQUIRED_SEED_PATHS）：缺任一项都会 seed 出没有 client 的残缺插件，
+// 模型因此看得见 computer-use 却调不到任何方法。原生 runtime 仍不 staged。
+const cuaPluginPackage = {
+  packageName: "@zcode/zcode-cua-plugin",
+  relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
+  stagedPath: "packages/zcode-cua-plugin",
+};
+
 const remoteOfficialPluginPackages = [
   // 44b25ed46c「remove bundled plugins except browser use and cua」删掉了其余
   // 内置插件源码，但漏改这份清单，bootstrap:with-remote 在 staging 第一个 manifest 就抛
@@ -116,6 +146,11 @@ const remoteOfficialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+  // 纯内容插件：无 dist、无 workspace 依赖，staging 只搬运 skills/agents/commands/docs。
+  // 契约见 .agents/specs/builtin-plugin-parity.md；新增条目必须同步
+  // prepare-agent-node-bundle.mjs 与 zcodeAgentOfficialPluginAssets.ts。
+  ...builtinContentPluginPackages,
+  cuaPluginPackage,
 ];
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -147,6 +182,13 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
 const remoteOfficialPluginRequiredPaths = [
   "packages/browser-use-plugin/.zcode-plugin/plugin.json",
   "packages/node-repl-host/.zcode-plugin/plugin.json",
+  // computer-use 的 client / skill / 文档三项，缺一即 seed 出不可用插件。
+  "packages/zcode-cua-plugin/scripts/computer-use-client.mjs",
+  "packages/zcode-cua-plugin/skills/computer-use/SKILL.md",
+  "packages/zcode-cua-plugin/docs/computer-use.md",
+  ...builtinContentPluginPackages.map(
+    ({ stagedPath }) => `${stagedPath}/.zcode-plugin/plugin.json`,
+  ),
 ];
 
 function readZCodeAgentRuntimeVersion() {
