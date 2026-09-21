@@ -45,9 +45,27 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 - 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
 - 遥测端点注入。上游发布包仍内嵌 ARMS RUM 与 OTLP 端点及 license key（`chunk-HH7N2YVI.js`，3.14.0 与 3.14.1 逐字节相同），而本仓库的构建配置不注入这些变量，自建产物不带遥测。
 
+### 已定的补全路线
+
+以下方向已确定，尚未动工，细节后续单独讨论：
+
+- **`bots` 走 AstrBot 插件，不逐个平台重写。** 闭源的 258 个 `bots` 键对应
+  Telegram / 飞书 / Lark / 企业微信四套机器人通知链路。逐平台重写意味着四份
+  平台适配、四套凭证管理和四套消息格式。改为接入 [AstrBot](https://github.com/AstrBotDevs/AstrBot)
+  ——它本身是开源的多平台 LLM 聊天机器人框架，已支持这些平台——由 ZCodium 侧
+  写一个 AstrBot 插件作为桥接层，把 Agent 的事件推到用户自己的 Bot。
+  这样平台适配由 AstrBot 承担，本仓库只维护桥接契约。
+- **Computer Use 通用化**：见 [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md)，
+  按 Actuator 接口分层实现，当前基础设施（broker/bridge）已齐备且本来就是通用的。
+- **image-search 默认指向本地**：已改为 `http://127.0.0.1:8787`，见
+  [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md)；
+  仓库内暂无本地搜图后端，需要自行部署。
+
 ### 与上游的关系
 
 本仓库跟踪上游 [zai-org/ZCode](https://github.com/zai-org/ZCode)。上游更新时先合并，再重新核对能力差异；补全内容按功能拆成独立提交，方便逐项审查与取舍。许可证与第三方版权归属见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)。
+
+**既定规则**：上游发布新功能但不随开源仓库放出对应源码时，本仓库直接逆向该功能并开源，不等待、不申请、不保留。判断依据是「安装包里有没有」，不是「上游说了什么」。逆向产物按功能单独提交，并在 [.agents/specs/](.agents/specs/) 下记录逆向来源、范围与未验证部分。
 
 | 入口                 | 用途                                                           | 开发命令                       |
 | -------------------- | -------------------------------------------------------------- | ------------------------------ |

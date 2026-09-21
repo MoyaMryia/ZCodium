@@ -45,9 +45,19 @@ Verified against 3.14.1.
 - Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
 - Telemetry endpoint injection. Upstream installers still embed ARMS RUM and OTLP endpoints plus a license key (`chunk-HH7N2YVI.js`, byte-identical between 3.14.0 and 3.14.1), while this repository's build configuration does not inject those variables, so locally built artifacts carry no telemetry.
 
+### Decided backfill routes
+
+These directions are settled but not yet implemented; details to be discussed separately:
+
+- **`bots` goes through an AstrBot plugin rather than per-platform rewrites.** The 258 closed-source `bots` keys map to four separate bot notification stacks: Telegram, Feishu, Lark, and WeCom. Rewriting each one means four platform adapters, four credential stores, and four message formats. Instead the plan is to integrate [AstrBot](https://github.com/AstrBotDevs/AstrBot) — itself an open-source multi-platform LLM chatbot framework that already covers these platforms — and write an AstrBot plugin in this repository as the bridge that pushes Agent events to the user's own bots. Platform adapters are then AstrBot's responsibility; only the bridge contract is maintained here.
+- **Generic Computer Use**: see [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md). Layered behind an Actuator interface; the existing infrastructure (broker/bridge) is already in place and was generic to begin with.
+- **image-search defaults to a local backend**: changed to `http://127.0.0.1:8787`, see [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md). No local image-search backend ships in this repository yet; you deploy your own.
+
 ### Relationship to upstream
 
 This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode). Upstream updates are merged first, then the capability delta is re-verified; backfills are split into per-feature commits so each can be reviewed and accepted independently. Licensing and third-party attribution are covered in [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
+
+**Standing rule**: when upstream ships a feature without releasing the corresponding source, this repository reverse-engineers it and open-sources it directly — no waiting, no asking, no holding back. The test is "is it in the installer", not "what upstream says". Reverse-engineered work lands as per-feature commits, with the source of the extraction, its scope, and anything left unverified recorded under [.agents/specs/](.agents/specs/).
 
 | Interface                    | Purpose                                                                                   | Development command            |
 | ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
