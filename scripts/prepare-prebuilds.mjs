@@ -182,8 +182,12 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
 const remoteOfficialPluginRequiredPaths = [
   "packages/browser-use-plugin/.zcode-plugin/plugin.json",
   "packages/node-repl-host/.zcode-plugin/plugin.json",
-  // computer-use 的 client / skill / 文档三项，缺一即 seed 出不可用插件。
+  // computer-use 的 client 及其四个依赖模块 / skill / 文档，缺一即 seed 出不可用插件。
   "packages/zcode-cua-plugin/scripts/computer-use-client.mjs",
+  "packages/zcode-cua-plugin/scripts/computer-use-errors.mjs",
+  "packages/zcode-cua-plugin/scripts/computer-use-envelope.mjs",
+  "packages/zcode-cua-plugin/scripts/computer-use-keys.mjs",
+  "packages/zcode-cua-plugin/scripts/computer-use-target.mjs",
   "packages/zcode-cua-plugin/skills/computer-use/SKILL.md",
   "packages/zcode-cua-plugin/docs/computer-use.md",
   ...builtinContentPluginPackages.map(

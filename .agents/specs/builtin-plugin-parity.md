@@ -90,9 +90,28 @@ CLI lint 的失败**全部为既有基线失败**，与本变更无关：已用
 
 新增的 10 个插件包**不声明 `lint` script**，因此不进 turbo lint 图——与仓库既有约定
 一致（`browser-use-plugin` 的 lint 也只覆盖 `src`，不覆盖 `skills/` 与 `docs/`）。
-其中的 vendored 长文件（`zcode-cua-plugin/scripts/computer-use-client.mjs` 1208 行、
-`restore-legacy-sessions-plugin/skills/restore-legacy-sessions/scripts/restore-conversation.mjs`
-577 行）是闭源产物原样搬运，拆分会破坏与上游的逐字对齐，故保留原样。
+
+`zcode-cua-plugin/scripts/computer-use-client.mjs` 原先是一个 1208 行的单文件
+（vendored 长文件）。2026-09-21 的等价重写按 `apps/zcode-cli/AGENTS.md` 的 400 行
+上限拆成五个模块，`client` 变为 340 行的装配层：
+
+| 文件                        | 职责                                   |
+| --------------------------- | -------------------------------------- |
+| `computer-use-client.mjs`   | 装配、绑定、逃逸口、documentation 转交 |
+| `computer-use-errors.mjs`   | 错误对象、broker 码映射、重试策略      |
+| `computer-use-envelope.mjs` | MCP 结果读取、冷启动重试、投影给宿主   |
+| `computer-use-target.mjs`   | App / Window 交互面与目标解析          |
+| `computer-use-keys.mjs`     | 键位输入侧规范化                       |
+
+拆模块的连带改动：`bootstrap` 的 `OFFICIAL_CUA_REQUIRED_SEED_PATHS` 与
+`scripts/prepare-prebuilds.mjs` 的 `remoteOfficialPluginRequiredPaths` 都从 3 项
+扩到 7 项。只 seed `client` 会装出一个看得见 computer-use、首次调用即
+`ERR_MODULE_NOT_FOUND` 的残缺插件。
+
+等价性用同一个 mock bridge 同时驱动新旧实现、逐场景比对全部可观测行为（bridge 收到的
+调用、`nodeRepl.write`、`emitStructuredResult`、返回值、抛出的错误）来验证：49 个场景
+× 3 个平台全部零差异。测试还对单个行为做了变异（`click_count` 默认值、重试策略、
+broker 码映射）以确认它真能抓出差异。
 
 ## Computer Use 执行链分层核对（2026-09-21）
 

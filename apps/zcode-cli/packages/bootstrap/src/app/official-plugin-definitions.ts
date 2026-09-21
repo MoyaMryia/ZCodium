@@ -73,7 +73,13 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
   "docs/computer-use.md",
+  // SDK 入口及其四个依赖模块。entry 单独 import 它们，少任何一个都会得到
+  // 一个看得见 computer-use 却在第一次调用时 ERR_MODULE_NOT_FOUND 的插件。
   "scripts/computer-use-client.mjs",
+  "scripts/computer-use-errors.mjs",
+  "scripts/computer-use-envelope.mjs",
+  "scripts/computer-use-keys.mjs",
+  "scripts/computer-use-target.mjs",
   "skills/computer-use/SKILL.md",
 ] as const;
 
