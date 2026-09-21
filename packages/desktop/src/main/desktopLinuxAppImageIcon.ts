@@ -10,7 +10,7 @@ import {
 // 从 desktopLinuxDeepLinkRegistration 拆出的 AppImage 用户级图标安装逻辑：
 // 图标集成是可选的桌面增强，与 deep link 协议注册分属不同关注点，独立成模块便于各自演进。
 
-const LINUX_APP_ICON_NAME = "zcode";
+const LINUX_APP_ICON_NAME = "zcodium";
 const LINUX_APP_ICON_SIZE = "512x512";
 
 function resolveLinuxUserIconFilePath(dataDir: string): string {
