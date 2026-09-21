@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@zcode/documents-plugin",
+  "version": "0.1.7",
+  "private": true,
+  "license": "SEE LICENSE IN skills/docx/LICENSE.txt",
+  "description": "DOCX document production skills, published as an official ZCode plugin."
+}
