@@ -1,8 +1,8 @@
 {
   "name": "@zcode/desktop",
   "private": true,
-  "description": "ZCode Desktop App",
-  "author": "ZCode",
+  "description": "ZCodium Desktop App",
+  "author": "ZCodium",
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
