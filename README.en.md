@@ -11,6 +11,11 @@
   <a href="README.md">简体中文</a> | English
 </p>
 
+<p align="center">
+  <em>"Why are we so committed to open source? Because this vision itself demands it. Without this vision, you cannot bring people together. Take Zhipu, for example — they also open source, but their open source is not the same as ours. Theirs has a sense of being forced; they feel it is not their original intent. But for us, this is our intent."</em><br />
+  <em>— Liang Wenfeng, CEO of DeepSeek</em>
+</p>
+
 ZCodium is a community fork of ZCode. Upstream ZCode is an AI coding workspace with desktop, browser, and terminal interfaces; this repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
 ## What this repository is
