@@ -166,7 +166,11 @@ test("manifest 与 state 落盘后可读回", async (t) => {
 
   const statePath = statePathFor(workspacesRoot, keyHash);
   await rm(statePath, { force: true });
-  const initial = await readState(statePath, manifest.workspacePath, manifest.workspaceKey);
+  // 修复依据：RepoSnapshotManifest 只携带 workspaceKey，没有 workspacePath 字段。
+  // 原先写 manifest.workspacePath 运行时是 undefined，readState 会把它原样存进 state，
+  // 而此处断言只查 failureCount / lastAcceptedManifestHash，所以错误被掩盖、tsc 才报 TS2339。
+  // 扫描时的入参 dir 才是真正的 workspace 路径。
+  const initial = await readState(statePath, dir, manifest.workspaceKey);
   assert.equal(initial.failureCount, 0);
   assert.equal(initial.lastAcceptedManifestHash, undefined);
 });

@@ -1,7 +1,7 @@
-# ZCode
+# ZCodium
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="ZCodium" width="128" height="128" />
 </div>
 <p align="center">
   <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
@@ -11,7 +11,42 @@
   <a href="README.md">简体中文</a> | English
 </p>
 
-ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+ZCodium is a community fork of ZCode. Upstream ZCode is an AI coding workspace with desktop, browser, and terminal interfaces; this repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+
+## What this repository is
+
+Upstream open-sourced the ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
+
+Backfilling methods include extracting built-in plugins and skills from the official `.deb` installers and `app.asar`, locating feature gaps by diffing i18n keys, and reconstructing interaction flows from protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
+
+### Capability delta versus the official package
+
+Verified against 3.14.1.
+
+**Backfilled** (see [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)):
+
+- Nine built-in plugins: documents, pdf, presentations, spreadsheets, skill-creator, plugin-creator, image-search, restore-legacy-sessions, zcode-guide. Open-source commit `44b25ed46c` removed their sources while the official package still ships them.
+- The Computer Use model-visible surface: `scripts/computer-use-client.mjs`, skill, and docs. The native runtime (koffi/sharp, roughly 20 MiB) is not published with the package, matching upstream's `runtimeTopLevelPaths: []`.
+
+**Not yet backfilled** (located via i18n key gaps, 528 keys total):
+
+| Area               | Gap      | Notes                                                                                            |
+| ------------------ | -------- | ------------------------------------------------------------------------------------------------ |
+| `bots`             | 258 keys | Telegram / Feishu / Lark / WeCom bot notifications                                               |
+| `webRemoteControl` | 104 keys | Phone remote control of the desktop app                                                          |
+| `manualClaimPlan`  | 53 keys  | Benefit claiming and captcha flow                                                                |
+| `mode`             | 38 keys  | Session mode extensions                                                                          |
+| `settings`         | 24 keys  | Includes Claude model slot mapping and Anthropic/OpenAI/Gemini multi-protocol endpoint templates |
+| Other              | 51 keys  | `server`, `appHeader`, `rewards`, `onboarding`, and others                                       |
+
+**Deliberately not backfilled**:
+
+- Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
+- Telemetry endpoint injection. Upstream installers still embed ARMS RUM and OTLP endpoints plus a license key (`chunk-HH7N2YVI.js`, byte-identical between 3.14.0 and 3.14.1), while this repository's build configuration does not inject those variables, so locally built artifacts carry no telemetry.
+
+### Relationship to upstream
+
+This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode). Upstream updates are merged first, then the capability delta is re-verified; backfills are split into per-feature commits so each can be reviewed and accepted independently. Licensing and third-party attribution are covered in [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
 
 | Interface                    | Purpose                                                                                   | Development command            |
 | ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
@@ -207,6 +242,14 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 | `packages/provider`, `packages/provider-node`        | Common provider capabilities and Node implementations                                   |
 | `apps/zcode-cli`                                     | Agent CLI, TUI, runtime, and tools                                                      |
 | `scripts`, `config`, `third-party`                   | Build and maintenance scripts, built-in configuration, and third-party notice materials |
+
+Added by ZCodium:
+
+| Path                                         | Responsibility                                                          |
+| -------------------------------------------- | ----------------------------------------------------------------------- |
+| `.agents/specs/`                             | Backfill specs: scope, state ownership, interface contracts, acceptance |
+| `apps/zcode-cli/packages/*-plugin`           | Built-in plugins restored from the official package (documents, cua, …) |
+| `apps/zcode-cli/tools/repo-snapshot-parody/` | Localhost reproduction of the repo snapshot upload, for audit only      |
 
 ## Project Notice
 

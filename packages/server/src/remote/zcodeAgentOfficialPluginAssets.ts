@@ -2,7 +2,59 @@ import { posix } from "node:path";
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
 
-export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = ["browser-use-plugin"] as const;
+/**
+ * 纯内容内置插件：只有 skills/agents/commands/docs，没有 dist runtime 也没有系统依赖，
+ * 因此可以安全进入远端工作区。与 scripts/prepare-prebuilds.mjs、
+ * packages/desktop/scripts/prepare-agent-node-bundle.mjs 的清单同源同序，
+ * 契约见 .agents/specs/builtin-plugin-parity.md。
+ */
+const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
+  "documents-plugin": ["agents/visual-judge.md", "skills/docx/SKILL.md"],
+  "pdf-plugin": ["agents/visual-judge.md", "skills/pdf/SKILL.md"],
+  "presentations-plugin": ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
+  "spreadsheets-plugin": ["agents/visual-judge.md", "skills/xlsx/SKILL.md"],
+  "image-search-plugin": [".mcp.json"],
+  "plugin-creator-plugin": [
+    "skills/plugin-creator/SKILL.md",
+    "skills/plugin-creator/scripts/create-basic-plugin.mjs",
+    "skills/plugin-creator/scripts/marketplace-files.mjs",
+    "skills/plugin-creator/scripts/upsert-dev-marketplace.mjs",
+    "skills/plugin-creator/scripts/scaffold-files.mjs",
+    "skills/plugin-creator/scripts/validate-plugin.mjs",
+    "skills/plugin-creator/references/plugin-json-spec.md",
+    "skills/plugin-creator/references/installing-and-updating.md",
+  ],
+  "zcode-guide-plugin": [
+    "commands/workflow.md",
+    "skills/dynamic-workflows/SKILL.md",
+    "skills/dynamic-workflows/examples.md",
+    "skills/dynamic-workflows/patterns.md",
+  ],
+  // skill-creator 与 restore-legacy-sessions 在 bootstrap 定义里没有 requiredSeedPaths，
+  // 远端侧同样只校验 manifest，保持与桌面/远端既有语义一致。
+  "skill-creator-plugin": [],
+  "restore-legacy-sessions-plugin": [],
+} as const satisfies Record<
+  (typeof REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES)[number],
+  readonly string[]
+>;
+
+const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES = [
+  "documents-plugin",
+  "pdf-plugin",
+  "presentations-plugin",
+  "spreadsheets-plugin",
+  "skill-creator-plugin",
+  "plugin-creator-plugin",
+  "image-search-plugin",
+  "restore-legacy-sessions-plugin",
+  "zcode-guide-plugin",
+] as const;
+
+export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = [
+  "browser-use-plugin",
+  ...REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES,
+] as const;
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS = [
   ".mcp.json",
@@ -45,7 +97,17 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   "browser-use-plugin/scripts/browser-client.mjs",
   "browser-use-plugin/skills/control-browser/SKILL.md",
   "browser-use-plugin/skills/web-gui-tester/SKILL.md",
+  // 内容插件的技能正文：只校验 manifest 会发现不了技能被裁成空壳。
+  // 取值与 bootstrap 的 requiredSeedPaths 对齐，缺项即拒绝 seed。
+  ...REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES.flatMap((packageName) => {
+    const requiredSeedPaths = REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS[packageName];
+    return requiredSeedPaths.map((relativePath) => `${packageName}/${relativePath}`);
+  }),
   // 仅校验 manifest 无法发现文档插件缺少技能正文或视觉评审 Agent。
+  //
+  // computer-use 有意不进这份远端合同：它的原生执行依赖 node-repl-host 的
+  // dist/mcp/server.js，而宿主 runtime 不向远端工作区发布（见上方说明）。
+  // 把 zcode-cua-plugin 加进来只会 seed 出一个看得见 computer-use 却调不到任何方法的残缺插件。
 ] as const;
 
 export function buildRemoteAgentOfficialPluginDir(remoteProviderDir: string): string {

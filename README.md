@@ -1,7 +1,7 @@
-# ZCode
+# ZCodium
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="ZCodium" width="128" height="128" />
 </div>
 <p align="center">
   <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">飞书社群</a> ·
@@ -11,7 +11,42 @@
   简体中文 | <a href="README.en.md">English</a>
 </p>
 
-ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent；本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+
+## 这个仓库是什么
+
+上游在 2026-09 将 ZCode 客户端开源，但开源出来的源码与他们实际发布的安装包并不等价：发布包里带有一批开源代码中没有的功能。ZCodium 的做法是**跟进上游官方仓库，同时把这些"只在发布包里存在"的功能以各种方式补全**，让自建的源码能够构建出与官方包能力对等的产物。
+
+补全手段包括：从官方 `.deb` 安装包和 `app.asar` 中提取内置插件与技能、比对 i18n 键定位功能缺口、按协议与设置 schema 复原交互链路。所有补全都记录在 [.agents/specs/](.agents/specs/) 下的 spec 中，包含范围、状态所有者、接口契约与验收场景。
+
+### 与官方包的能力差异
+
+以下为截至 3.14.1 的核对结果。
+
+**已补全**（见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)）：
+
+- 9 个内置插件：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide。开源提交 `44b25ed46c` 删掉了它们的源码，但官方包仍在打包。
+- Computer Use 的模型可见面：`scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
+
+**尚未补全**（按 i18n 键缺口定位，共 528 个键）：
+
+| 领域               | 缺口   | 说明                                                           |
+| ------------------ | ------ | -------------------------------------------------------------- |
+| `bots`             | 258 键 | Telegram / 飞书 / Lark / 企业微信 机器人通知                   |
+| `webRemoteControl` | 104 键 | 手机远控桌面                                                   |
+| `manualClaimPlan`  | 53 键  | 权益领取与验证码流程                                           |
+| `mode`             | 38 键  | 会话模式扩展                                                   |
+| `settings`         | 24 键  | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 多协议端点模板 |
+| 其他               | 51 键  | `server`、`appHeader`、`rewards`、`onboarding` 等              |
+
+**有意不补全**：
+
+- 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
+- 遥测端点注入。上游发布包仍内嵌 ARMS RUM 与 OTLP 端点及 license key（`chunk-HH7N2YVI.js`，3.14.0 与 3.14.1 逐字节相同），而本仓库的构建配置不注入这些变量，自建产物不带遥测。
+
+### 与上游的关系
+
+本仓库跟踪上游 [zai-org/ZCode](https://github.com/zai-org/ZCode)。上游更新时先合并，再重新核对能力差异；补全内容按功能拆成独立提交，方便逐项审查与取舍。许可证与第三方版权归属见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)。
 
 | 入口                 | 用途                                                           | 开发命令                       |
 | -------------------- | -------------------------------------------------------------- | ------------------------------ |
@@ -217,6 +252,14 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 | `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现              |
 | `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具               |
 | `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料     |
+
+ZCodium 新增的内容：
+
+| 路径                                         | 职责                                                  |
+| -------------------------------------------- | ----------------------------------------------------- |
+| `.agents/specs/`                             | 能力补全的 spec：范围、状态所有者、接口契约与验收场景 |
+| `apps/zcode-cli/packages/*-plugin`           | 从官方包恢复的内置插件（documents、pdf、cua 等）      |
+| `apps/zcode-cli/tools/repo-snapshot-parody/` | 仓库快照上传的 localhost 复现，仅用于审计对照         |
 
 ## 项目声明
 
