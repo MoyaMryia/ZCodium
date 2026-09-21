@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@zcode/plugin-creator-plugin",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Built-in ZCode plugin authoring skill and scaffolding helpers.",
+  "license": "MIT",
+  "type": "module"
+}
