@@ -20,7 +20,7 @@ ZCodium is a community fork of ZCode. Upstream ZCode is an AI coding workspace w
 
 ## What this repository is
 
-Upstream open-sourced the ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
+Upstream was forced to open-source ZCode client in September 2026, but the released source is not equivalent to the installers they actually ship: the published packages contain a set of features that the open-source tree does not. ZCodium tracks the upstream repository and **backfills those "installer-only" features by various means**, so a build from this tree can match the official package's capabilities.
 
 Backfilling methods include extracting built-in plugins and skills from the official `.deb` installers and `app.asar`, locating feature gaps by diffing i18n keys, and reconstructing interaction flows from protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
 
