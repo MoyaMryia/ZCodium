@@ -94,6 +94,54 @@ CLI lint 的失败**全部为既有基线失败**，与本变更无关：已用
 `restore-legacy-sessions-plugin/skills/restore-legacy-sessions/scripts/restore-conversation.mjs`
 577 行）是闭源产物原样搬运，拆分会破坏与上游的逐字对齐，故保留原样。
 
+## Computer Use 执行链分层核对（2026-09-21）
+
+用户要求优先补全 Computer Use。逐层核对后确认：**可补全的部分已全部补完，
+剩余缺口无法从官方安装包补全，且在当前平台不成立。**
+
+| 层                                             | 开源仓库                   | 官方 3.14.1    | 缺口         |
+| ---------------------------------------------- | -------------------------- | -------------- | ------------ |
+| 模型可见面 `computer-use-client.mjs`           | 已移植                     | 有             | 无           |
+| skill + docs                                   | 已移植                     | 有             | 无           |
+| host bridge `node-repl-host/src/cua-bridge.ts` | **真实现**（204 行）       | 有             | 无           |
+| host broker `node-repl-host/src/cua-broker.ts` | **真实现**（181 行）       | 有             | 无           |
+| host 接线 `server.ts`                          | 有                         | 有             | 无           |
+| 构建身份 `__ZCODE_CUA_HELPER_BUILD_ID__`       | 有（`tsup.config.ts:108`） | 有             | 无           |
+| `@zcode/zcode-cua` runtime                     | **fail-closed 占位**       | 真实现 1.34 MB | **唯一缺口** |
+| Helper 二进制 `ZCode Computer Use.app`         | 无                         | 安装包内也没有 | 不可移植     |
+
+### 为什么剩余缺口补不了
+
+真实现位于闭源 `node-repl-host/dist/mcp/server.js`，esbuild 模块边界
+`node_modules/@zcode/zcode-cua/dist/index.js` 起于偏移 3,643,400，终于 4,982,852，
+共 **1,339,452 字节 / 35,613 行**。已提取核对，内容是 **Helper 管理层**：
+`helperInstaller`、`helperVerifier`、`helperRuntimeTrustPolicy`、`helperLauncher`、
+`helperLocalDevAuthorization`、`redactHelperDownloadUrl`、`helperLaunchGuard`、
+`CuaHelperError`（47 处）。它自己**不做原生调用**——无 koffi、无 CGDisplay/XLib/
+SetCursorPos，`sharp` 是 `loadSharp()` 懒加载软依赖（取不到就继续）。
+
+三条硬约束使其无法成为有效补全：
+
+1. **仅支持 macOS**。`resolveCuaHelperInstallPlan` 首行即
+   `if (platform !== "darwin") throw new CuaHelperError("install_failed", …)`。
+   当前开发平台为 Linux，补进来也必然抛错。
+2. **Helper 是捆绑产物，不是下载**。安装计划解析出
+   `{ kind: "bundled", appPath }`；官方 Linux 安装包里同样没有这个 `.app`
+   （全包唯一可执行文件是 `semver/bin/semver.js`）。
+3. **要求捆绑的构建身份**。`ZCODE_CUA_HELPER_BUILD_ID` 为空时显式拒绝：
+   "Packaged ZCode is missing its embedded Computer Use Helper build identity;
+   refusing an unpinned Helper install"。该值由 CI 注入，本仓库的 define 是
+   `process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? ""`。
+
+此外它是 **esbuild 构建产物而非源码**：35,613 行单文件，与仓库
+「单文件默认不超过 400 行」的约定冲突，且无法与上游逐行对齐维护。
+
+### 结论
+
+`packages/zcode-cua` 的 fail-closed 占位是**正确且如实**的状态：没有 Helper
+二进制、没有构建身份、平台不支持，此时返回不可用比返回一个跑不通的堆栈更诚实。
+本 spec 范围内 Computer Use 的补全已结束，不再单独立项。
+
 ## 非目标
 
 - 不实现 `chat.agentSwitch`、Claude slot mapping、bot 通知、Rewards 领取等需要
