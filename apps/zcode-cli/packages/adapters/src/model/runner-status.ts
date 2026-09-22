@@ -188,10 +188,9 @@ export async function publishModelStatus(
   options: {
     /**
      * 本次尝试的准入票据：它是该尝试专属的
-     * 状态事件汇，治理器从这里读结果。与 request/telemetry sink 同一条投递纪律（失败只告警）。
+     * 状态事件汇，治理器从这里读结果。与 request sink 同一条投递纪律（失败只告警）。
      */
     admissionTicket?: ModelStatusSink;
-    failureError?: unknown;
     logger?: Logger;
     requestStatusSink?: ModelStatusSink;
     statusSink?: ModelStatusSink;
@@ -209,13 +208,7 @@ export async function publishModelStatus(
     if (options.requestStatusSink && options.requestStatusSink !== options.statusSink) {
       deliveries.push(() => options.requestStatusSink!.publish(event));
     }
-    deliveries.push(() =>
-      event.type === "model_request_failed" &&
-      options.failureError !== undefined &&
-      statusSink.publishFailure
-        ? statusSink.publishFailure(event, options.failureError)
-        : statusSink.publish(event),
-    );
+    deliveries.push(() => statusSink.publish(event));
   } else if (options.requestStatusSink) {
     deliveries.push(() => options.requestStatusSink!.publish(event));
   }
@@ -228,42 +221,10 @@ export async function publishModelStatus(
     if (result.status === "rejected") {
       options.logger?.warn("Model status sink failed", {
         ...modelStatusLogContext(event),
-        errorMessage:
-          result.reason instanceof Error ? result.reason.message : String(result.reason),
         event: "model.status_sink.failed",
         status: "failed",
       });
     }
-  }
-}
-
-/**
- * Provider 流式里程碑只发给进程级 Telemetry Sink，不写 SessionEvent。
- * requestStatusSink 属于对话产品状态，不能被纯观测事件污染。
- */
-export async function publishModelTelemetryMilestone(
-  event: Extract<
-    ModelNetworkStatusEvent,
-    {
-      type: "model_first_provider_event" | "model_first_content" | "model_first_text";
-    }
-  >,
-  options: {
-    logger?: Logger;
-    statusSink?: ModelStatusSink;
-  },
-): Promise<void> {
-  logStatusEvent(event, options.logger);
-  if (!options.statusSink) return;
-  try {
-    await options.statusSink.publish(event);
-  } catch (error) {
-    options.logger?.warn("Model telemetry milestone sink failed", {
-      ...modelStatusLogContext(event),
-      errorMessage: error instanceof Error ? error.message : String(error),
-      event: "model.telemetry_milestone.failed",
-      status: "failed",
-    });
   }
 }
 
@@ -273,25 +234,14 @@ export function modelStatusContextToLogContext(
 ): Record<string, unknown> {
   return {
     attempt,
-    baseURL: statusContext.baseURL,
     maxAttempts: statusContext.maxAttempts,
     // maxAttempts 为 0 表示无上限：maxRetries 同样以 0 表达，而不是 max(0, -1) 巧合得到的 0。
     maxRetries:
       statusContext.maxAttempts === UNBOUNDED_RETRY_MAX_ATTEMPTS
         ? UNBOUNDED_RETRY_MAX_ATTEMPTS
         : Math.max(0, statusContext.maxAttempts - 1),
-    modelId: statusContext.modelId,
-    parentSpanId: statusContext.parentSpanId,
-    providerId: statusContext.providerId,
-    providerKind: statusContext.providerKind,
-    queryId: statusContext.queryId,
     querySource: statusContext.querySource,
-    requestId: statusContext.requestId,
-    sessionId: statusContext.sessionId,
-    spanId: statusContext.spanId,
-    traceId: statusContext.traceId,
     transport: statusContext.transport,
-    turnId: statusContext.turnId,
   };
 }
 
@@ -345,7 +295,6 @@ function logStatusEvent(event: ModelNetworkStatusEvent, logger?: Logger): void {
         reason: event.reason,
         status: "waiting",
         statusCode: event.statusCode,
-        statusMessage: event.message,
       });
       return;
 
@@ -358,7 +307,6 @@ function logStatusEvent(event: ModelNetworkStatusEvent, logger?: Logger): void {
         retryable: event.retryable,
         status: event.reason === ModelFailureReasonValue.Cancelled ? "cancelled" : "failed",
         statusCode: event.statusCode,
-        statusMessage: event.message,
       });
       return;
 
@@ -368,20 +316,29 @@ function logStatusEvent(event: ModelNetworkStatusEvent, logger?: Logger): void {
         event: "model.stream.stalled",
         idleMs: event.idleMs,
         status: "waiting",
-        statusMessage: event.message,
         timeoutMs: event.timeoutMs,
       });
       return;
-
-    case "model_first_provider_event":
-    case "model_first_content":
-    case "model_first_text":
-      logger?.debug("Model telemetry milestone observed", {
-        ...modelStatusLogContext(event),
-        elapsedMs: event.elapsedMs,
-        event: event.type,
-        status: "completed",
-      });
-      return;
   }
+}
+
+/** 本地流式时序；不投递业务状态 sink，也不复制请求身份或内容。 */
+export function logModelMilestone(
+  logger: Logger | undefined,
+  event: "model_first_provider_event" | "model_first_content" | "model_first_text",
+  attempt: number,
+  elapsedMs: number,
+): void {
+  logger?.debug("Model stream milestone observed", {
+    event,
+    attempt,
+    elapsedMs,
+    stage:
+      event === "model_first_provider_event"
+        ? "provider_event"
+        : event === "model_first_content"
+          ? "content"
+          : "text",
+    status: "completed",
+  });
 }

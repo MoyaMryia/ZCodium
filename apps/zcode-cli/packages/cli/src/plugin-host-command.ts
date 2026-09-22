@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -72,7 +73,7 @@ export async function runPluginHostCommand(ctx: RunContext, argv: string[]): Pro
 
     return 0;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = JSON.stringify(safeLogArgs([error]));
     ctx.stderr.write(`Plugin host failed: ${message}\n`);
     return 1;
   }

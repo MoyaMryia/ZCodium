@@ -248,7 +248,7 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
     }
     try {
       const parsed = zcodeProtocolMessageSchema.parse(JSON.parse(line));
-      // 协议帧分发曾同步查询系统进程表，telemetry/streaming 高峰会阻塞
+      // 协议帧分发曾同步查询系统进程表，流式消息高峰会阻塞
       // Host event loop 并让 subagent 面板无输出。运行期 data plane 只做解析和转发；
       // 完整进程树查询严格留在 dispose cleanup 边界。
       this.messageEmitter.fire(parsed);

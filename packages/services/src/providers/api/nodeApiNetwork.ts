@@ -97,7 +97,7 @@ export function createHostApiNetworkTransport(
   dependencies: HostApiNetworkTransportDependencies = {},
 ): HostApiNetworkTransport {
   // Host 是独立 Node 进程，Electron Session.setProxy 不会影响它的 globalThis.fetch；
-  // 在 NodeApiClient 出口按请求注入 dispatcher，避免把 telemetry 等其它裸 fetch 全局改道。
+  // 在 NodeApiClient 出口按请求注入 dispatcher，避免把其它裸 fetch 全局改道。
   let optionsPromise: Promise<HostApiNetworkOptions> | undefined;
   const dispatcherPromises = new Map<string, Promise<Dispatcher>>();
   let disposed = false;

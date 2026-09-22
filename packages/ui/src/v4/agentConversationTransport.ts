@@ -1,5 +1,5 @@
 import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
-import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
+import { getLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
 import { calibrateLocalTtftClock, localTtftNow } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
 // ConversationTransport 的 desktop/host 实现：桥到 IZCodeAgentService 的 v4 转发面

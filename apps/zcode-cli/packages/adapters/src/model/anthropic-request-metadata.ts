@@ -1,35 +1,4 @@
-import { ensureCliDeviceMid } from "../device/cli-device-mid.js";
-import type { EnvRecord } from "./model-execution.js";
-import { normalizeModelSessionIdForAttribution, type ModelStatusContext } from "./runner-status.js";
-
 const REDACTED_METADATA_USER_ID = "[REDACTED]";
-
-function createAnthropicRequestMetadataUserId(input: {
-  deviceMid: string;
-  sessionId?: ModelStatusContext["sessionId"];
-}): string {
-  return JSON.stringify({
-    device_id: input.deviceMid,
-    account_uuid: "",
-    session_id: normalizeModelSessionIdForAttribution(input.sessionId) ?? "",
-  });
-}
-
-export async function resolveAnthropicRequestMetadataUserId(input: {
-  env: EnvRecord;
-  providerKind: string | undefined;
-  sessionId?: ModelStatusContext["sessionId"];
-}): Promise<string | undefined> {
-  if (input.providerKind !== "anthropic") {
-    return undefined;
-  }
-
-  const deviceMid = await ensureCliDeviceMid({ env: input.env });
-  return createAnthropicRequestMetadataUserId({
-    deviceMid,
-    sessionId: input.sessionId,
-  });
-}
 
 export function redactAnthropicRequestMetadata(value: unknown): unknown {
   if (typeof value === "string") {

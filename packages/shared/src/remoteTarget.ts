@@ -40,3 +40,5 @@ export function stripRemoteTargetSecrets(target: RemoteTarget): RemoteTarget {
 
   return target;
 }
+
+export type RemoteWorkspaceConnectTrigger = "new" | "reconnect" | "restore";

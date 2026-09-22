@@ -48,7 +48,7 @@ import {
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
+
 import { formatCommandShortcutLabel, matchesPrimaryShortcut } from "@/lib/keyboardShortcuts.js";
 import { logger } from "@/logger.js";
 import {
@@ -1284,18 +1284,13 @@ export function GitActionMenu({
       return;
     }
 
-    runUserAction({
-      input: { featureId: "workbench.git", action: "open", trigger: "button" },
-      operation: () => {
-        if (primaryActionId === "push") {
-          openPushDialog();
-          return;
-        }
-        void openCommitDialog();
-      },
-      completed: { resultSource: "local_commit" },
-      failureStage: "git_action_open",
-    });
+    (() => {
+      if (primaryActionId === "push") {
+        openPushDialog();
+        return;
+      }
+      void openCommitDialog();
+    })();
   }, [openCommitDialog, openPushDialog, primaryActionId, primaryActionDisabled]);
 
   const handleStatusRowContainerClick = useCallback(() => {

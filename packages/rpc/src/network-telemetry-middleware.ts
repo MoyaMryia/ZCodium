@@ -1,5 +1,5 @@
 /**
- * RPC 调用网络遥测：记录 channel.command 级成功率与耗时，供桌面主进程聚合上报 ARMS。
+ * RPC 调用网络遥测：记录 channel.command 级成功率与耗时，供桌面主进程进行本地诊断。
  */
 import type { IChannelServer, IChannelClient, IChannel, IServerChannel } from "./channels.js";
 import type { CancellationToken } from "./foundation.js";
@@ -54,15 +54,15 @@ function classifyErrorKind(error: unknown): string {
 }
 
 function emitRpcObservation(
-  channelName: string,
-  command: string,
+  _channelName: string,
+  _command: string,
   durationMs: number,
   ok: boolean,
   error?: unknown,
 ): void {
   emitNetworkTelemetryObservation({
     transport: "rpc",
-    interface: `${channelName}.${command}`,
+    interface: "rpc.call",
     durationMs: Math.max(0, Math.round(durationMs)),
     ok,
     errorKind: ok ? undefined : classifyErrorKind(error),

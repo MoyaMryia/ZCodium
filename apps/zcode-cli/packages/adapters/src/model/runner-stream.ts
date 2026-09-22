@@ -14,7 +14,6 @@ import {
   inspectProviderFailure,
   type ClassifiedModelFailure,
 } from "./failure-classifier.js";
-import { resolveAnthropicRequestMetadataUserId } from "./anthropic-request-metadata.js";
 import {
   getErrorCode,
   getHttpResponseStatus,
@@ -40,11 +39,6 @@ import {
 } from "./runner-diagnostics.js";
 import { canRetryEmptyCompletion, scheduleEmptyCompletionRetry } from "./empty-completion-retry.js";
 import { createStreamTextOptions } from "./runner-options.js";
-import {
-  isDevelopmentModelIOEnv,
-  recordStreamTextDebug,
-  shouldRecordModelIO,
-} from "./runner-debug.js";
 import { sanitizeModelNetworkHeaders } from "./runner-network-headers.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
@@ -67,7 +61,7 @@ import {
   createAttemptStatusContext,
   createStatusContext,
   publishModelStatus,
-  publishModelTelemetryMilestone,
+  logModelMilestone,
 } from "./runner-status.js";
 import { StreamingToolCallAssembler } from "./streaming-tool-call-assembler.js";
 import type { ResolvedAiSdkModelRetryOptions } from "./retry-policy.js";
@@ -83,7 +77,7 @@ import {
   modelFailureStatusFields,
   providerRequestIdFromHeaders,
   readModelFailureErrorPhase,
-} from "./runner-telemetry.js";
+} from "./runner-failure-status.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
 
 type StreamFailurePhase = "request_setup" | "response_body";
@@ -91,7 +85,6 @@ type StreamFailurePhase = "request_setup" | "response_body";
 const STREAM_ATTEMPT_CLEANUP_TIMEOUT_MS = 1_000;
 
 export async function* runStreamText(input: {
-  debugDir?: string;
   env: EnvRecord;
   logger?: Logger;
   request: AiSdkModelTextRequest;
@@ -101,7 +94,6 @@ export async function* runStreamText(input: {
   runtime: AiSdkModelRuntime;
   statusSink?: ModelStatusSink;
   streamIdleTimeoutMs: number;
-  modelIoFullRetentionEnabled: boolean;
 }): AsyncGenerator<ModelStreamEvent> {
   // 重试预算档位：只放宽瞬态失败的放弃条件；
   // `emittedRetryBoundaryEvent` 之后不重试的规则不变。状态事件 maxAttempts 以 0 表示无上限。
@@ -114,8 +106,6 @@ export async function* runStreamText(input: {
     resolved: input.resolved,
     transport: ModelTransportKindValue.Sse,
   });
-  const recordModelIO = shouldRecordModelIO(input.env);
-  const isDev = isDevelopmentModelIOEnv(input.env);
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
   let emptyCompletionRetryCount = 0;
@@ -129,8 +119,7 @@ export async function* runStreamText(input: {
     );
     attempt += 1
   ) {
-    const retryBudgetAttempt =
-      attempt - Number(signatureRepairAttempted);
+    const retryBudgetAttempt = attempt - Number(signatureRepairAttempted);
     const startedAt = Date.now();
     // SSE idle timeout 后的重试如果仍固定首请求窗口，容易被同一段 provider 静默窗口反复打断；
     // core recovery 和 adapter 内部 retry 都统一按重试次数每次增加 30s。
@@ -154,9 +143,7 @@ export async function* runStreamText(input: {
     let statusContext = createAttemptStatusContext(
       {
         ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(
-          Number(signatureRepairAttempted),
-        ),
+        maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)),
       },
       attempt,
     );
@@ -166,7 +153,7 @@ export async function* runStreamText(input: {
     let attemptFailed = false;
     let awaitIteratorClose = false;
     let terminalStatusPublished = false;
-    // 提升到 try 外,使 catch 分支也能拿到 options/result 记录失败 model-io。
+    // 流式错误恢复仍需当前请求的 options/result，不创建诊断正文副本。
     let options: ReturnType<typeof createStreamTextOptions> | undefined;
     let result: AiSdkStreamTextResult | undefined;
     let requestHeaders: Record<string, string> = {};
@@ -209,29 +196,11 @@ export async function* runStreamText(input: {
     }): Promise<void> => {
       if (timeToFirstContentMs === undefined && observation.contentMs !== undefined) {
         timeToFirstContentMs = observation.contentMs;
-        await publishModelTelemetryMilestone(
-          {
-            ...statusContext,
-            attempt,
-            elapsedMs: observation.contentMs,
-            timestamp: new Date(startedAt + observation.contentMs).toISOString(),
-            type: "model_first_content",
-          },
-          { logger: input.logger, statusSink: input.statusSink },
-        );
+        logModelMilestone(input.logger, "model_first_content", attempt, observation.contentMs);
       }
       if (timeToFirstTextMs === undefined && observation.textMs !== undefined) {
         timeToFirstTextMs = observation.textMs;
-        await publishModelTelemetryMilestone(
-          {
-            ...statusContext,
-            attempt,
-            elapsedMs: observation.textMs,
-            timestamp: new Date(startedAt + observation.textMs).toISOString(),
-            type: "model_first_text",
-          },
-          { logger: input.logger, statusSink: input.statusSink },
-        );
+        logModelMilestone(input.logger, "model_first_text", attempt, observation.textMs);
       }
     };
 
@@ -267,7 +236,6 @@ export async function* runStreamText(input: {
         },
         {
           ...statusPublishOptions(input),
-          failureError: unwrapRetryError(admitError),
         },
       );
       throw toAdapterError(admitError, admitFailure, statusContext, attempt, {
@@ -281,15 +249,8 @@ export async function* runStreamText(input: {
         request: attemptRequest,
         resolveModel: input.resolveModel,
       });
-      const anthropicMetadataUserId = await resolveAnthropicRequestMetadataUserId({
-        env: input.env,
-        providerKind: resolved.providerKind,
-        sessionId: statusContext.sessionId,
-      });
       options = createStreamTextOptions({
-        anthropicMetadataUserId,
         env: input.env,
-        includeModelIO: recordModelIO,
         request: attemptRequest,
         resolved,
         statusContext,
@@ -340,15 +301,11 @@ export async function* runStreamText(input: {
         }
         if (timeToFirstProviderEventMs === undefined) {
           timeToFirstProviderEventMs = Date.now() - startedAt;
-          await publishModelTelemetryMilestone(
-            {
-              ...statusContext,
-              attempt,
-              elapsedMs: timeToFirstProviderEventMs,
-              timestamp: new Date(startedAt + timeToFirstProviderEventMs).toISOString(),
-              type: "model_first_provider_event",
-            },
-            { logger: input.logger, statusSink: input.statusSink },
+          logModelMilestone(
+            input.logger,
+            "model_first_provider_event",
+            attempt,
+            timeToFirstProviderEventMs,
           );
         }
 
@@ -616,42 +573,9 @@ export async function* runStreamText(input: {
         );
         terminalStatusPublished = true;
       }
-      if (recordModelIO && options) {
-        await recordStreamTextDebug({
-          modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
-          attempt,
-          debugDir: input.debugDir,
-          isDev,
-          normalizedToolCalls: toolCallAssembler.snapshotNormalizedToolCalls(),
-          options,
-          recordModelIO,
-          request: attemptRequest,
-          requestId: statusContext.requestId,
-          resolved,
-          result: streamResult,
-          startedAt,
-        });
-      }
       return;
     } catch (error) {
       attemptFailed = true;
-      if (recordModelIO && options) {
-        await recordStreamTextDebug({
-          modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
-          attempt,
-          debugDir: input.debugDir,
-          error,
-          isDev,
-          normalizedToolCalls: toolCallAssembler.snapshotNormalizedToolCalls(),
-          options,
-          recordModelIO,
-          request: attemptRequest,
-          requestId: statusContext.requestId,
-          resolved,
-          result,
-          startedAt,
-        });
-      }
       if (error instanceof TerminalStreamChunkError) {
         awaitIteratorClose = true;
         throw error.adapterError;
@@ -760,7 +684,6 @@ export async function* runStreamText(input: {
         },
         {
           ...statusPublishOptions(input, admission),
-          failureError: unwrapRetryError(error),
         },
       );
       terminalStatusPublished = true;
@@ -846,7 +769,6 @@ export async function* runStreamText(input: {
           {
             // 退避期间票据已归还：这次取消不属于任何一次尝试，不转投票据。
             ...statusPublishOptions(input),
-            failureError: unwrapRetryError(sleepError),
           },
         );
         terminalStatusPublished = true;
@@ -1267,7 +1189,6 @@ async function handleStreamErrorEvent(
     },
     {
       ...statusPublishOptions(input.input, input.admission),
-      failureError: unwrapRetryError(error),
     },
   );
 

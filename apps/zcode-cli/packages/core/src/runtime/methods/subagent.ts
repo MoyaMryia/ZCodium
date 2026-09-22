@@ -288,11 +288,9 @@ export function createDefaultSubagentPort(
           mcp: childMcpAccess.config,
         },
         {
-          agentTelemetry: this.agentTelemetry.port,
-          agentTelemetryCausation: this.agentTelemetry.captureCausation(),
           // 前台 child 的生命周期被父 Agent Tool await，使用真实父子 Span；后台 child
           // 可能晚于父 Tool/Turn 结束，只能作为独立 Trace 用 Link 保留因果关系。
-          agentTelemetryCausationMode: request.background ? "linked_root" : "child",
+
           eventStore: this.eventStore,
           sessionStore: deps.sessionStore,
           // 子 runtime 继承父的模型请求准入端口：subagent 的请求 provider 同样看得见，

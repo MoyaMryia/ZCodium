@@ -1,6 +1,6 @@
 import {
   createMemorySampleWriteGate,
-  formatMemorySampleLine,
+  memorySampleToDiagnosticRecord,
   MEMORY_SAMPLE_INTERVAL_MS,
   memoryUsageToSampleFields,
   type MemorySample,
@@ -82,7 +82,7 @@ export function startHostMemoryDiagnosticsLog(
       if (!reason) {
         return false;
       }
-      options.logger.info(formatMemorySampleLine(sample, reason));
+      options.logger.info("[memory]", memorySampleToDiagnosticRecord(sample));
       return true;
     } catch {
       // 诊断采样失败只丢当前样本，不能影响 Host 服务。

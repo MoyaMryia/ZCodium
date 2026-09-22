@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { interceptTuiStderr, isTuiInvocation } from "./tui-stderr.js";
 import { interceptKnownRuntimeWarnings } from "./runtime-warnings.js";
 import { installStderrConsoleBoundary } from "./protocol-console.js";
@@ -31,21 +32,18 @@ async function main(): Promise<void> {
   // console.debug 等普通输出不能直接写入 stdout。必须在加载 run/bootstrap 之前将
   // 进程级 console 统一引导到 stderr，否则任意依赖的一行普通日志都会触发传输层 JSON 解析崩溃。
   // TUI 同样独占 stdout；AI SDK 的首条提示使用 console.info，不能绕过 stderr 捕获。
-  const restoreConsole =
-    isProtocol || isTui ? installStderrConsoleBoundary(process.stderr) : undefined;
+  const restoreConsole = installStderrConsoleBoundary(process.stderr);
   const runtimeWarnings = interceptKnownRuntimeWarnings(process.stderr);
   const tuiStderr = isTui ? interceptTuiStderr(process.stderr) : undefined;
   const stderr = tuiStderr?.passthrough ?? process.stderr;
-  const disposeProcessErrorBoundary = isProtocol
-    ? installCliProcessErrorBoundary({
-        stderr,
-        onFatal: (reason) => {
-          if (lifecycle)
-            lifecycle.requestShutdown(new Error("Uncaught process error", { cause: reason }));
-          else process.exit(1);
-        },
-      })
-    : undefined;
+  const disposeProcessErrorBoundary = installCliProcessErrorBoundary({
+    stderr,
+    onFatal: (reason) => {
+      if (lifecycle)
+        lifecycle.requestShutdown(new Error("Uncaught process error", { cause: reason }));
+      else process.exit(1);
+    },
+  });
 
   try {
     if (!argv.includes("--prepare-storage"))
@@ -83,8 +81,7 @@ async function main(): Promise<void> {
 
     process.exitCode = exitCode;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    stderr.write(`${message}\n`);
+    stderr.write(`${JSON.stringify(safeLogArgs(["CLI startup failed", error]))}\n`);
     process.exitCode = 1;
   } finally {
     await waitForPendingWarnings();
@@ -96,14 +93,14 @@ async function main(): Promise<void> {
         tuiStderr.restore();
       }
       runtimeWarnings.restore();
-      disposeProcessErrorBoundary?.();
       // plugin-host 的 main() 在 MCP server.connect() 完成后会返回，但此时
       // stdio handle 正是服务的存活条件。一次性 CLI watchdog 不能把它误判为泄漏并强退。
       const exitCode = normalizeProcessExitCode(process.exitCode);
       if (!isPluginHostInvocation(argv) || exitCode !== 0) {
+        disposeProcessErrorBoundary();
+        restoreConsole();
         scheduleCliExitWatchdog({ exitCode });
       }
-      restoreConsole?.();
     }
   }
 }

@@ -9,7 +9,7 @@ import type {
   PermissionResolvedPayload,
   SessionEvent,
   ToolCallErrorPayload,
-  ToolExecutionTelemetry,
+  ToolExecutionPerformance,
   ToolCallProgressPayload,
   ToolCallResultPayload,
   ToolCallScheduledPayload,
@@ -19,7 +19,6 @@ import type {
   TurnStartedPayload,
 } from "@zcode/contracts";
 import { getModelUsageTotalTokens, SessionEventType } from "@zcode/contracts";
-import { parseAutomationRunId } from "@zcode/shared";
 import { workflowLifecycleFactFromProgress } from "./conversation-telemetry-workflow-facts.js";
 import {
   conversationTelemetryFactSchema,
@@ -83,35 +82,10 @@ function nonNegative(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
-function providerHostname(baseURL: string | undefined): string | undefined {
-  if (!baseURL) return undefined;
-  try {
-    return new URL(baseURL).hostname || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function recordValue(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function skillTelemetryFactFields(
-  toolName: string | undefined,
-  metadata: unknown,
-): Record<string, unknown> {
-  if (toolName !== "Skill") return {};
-  const value = recordValue(metadata);
-  const qualifiedName = optionalString(value.qualifiedName);
-  const pluginId = optionalString(value.pluginId);
-  const source = optionalString(value.source);
-  return {
-    ...(qualifiedName ? { skillQualifiedName: qualifiedName } : {}),
-    ...(pluginId ? { skillPluginId: pluginId } : {}),
-    ...(source ? { skillSource: source } : {}),
-  };
 }
 
 export function streamingParentToolCallId(payload: Record<string, unknown>): string | undefined {
@@ -136,14 +110,12 @@ function mirroredSubagentToolFields(
   const childToolCallId =
     optionalString(payload.childToolCallId) ?? optionalString(display.childToolCallId);
   const agentId = optionalString(payload.agentId) ?? optionalString(display.agentId);
-  const agentType = optionalString(payload.agentType) ?? optionalString(display.agentType);
   const childSessionId =
     optionalString(payload.childSessionId) ?? optionalString(display.childSessionId);
   return {
     ...(parentToolCallId ? { parentToolCallId } : {}),
     ...(childToolCallId ? { childToolCallId } : {}),
     ...(agentId ? { agentId } : {}),
-    ...(agentType ? { agentType } : {}),
     ...(childSessionId ? { childSessionId } : {}),
     ...(payload.background === true ? { background: true } : {}),
   };
@@ -153,32 +125,6 @@ function eventTimestamp(event: SessionEvent): number {
   const value =
     event.timestamp instanceof Date ? event.timestamp.getTime() : Number(event.timestamp);
   return Number.isFinite(value) && value >= 0 ? value : 0;
-}
-
-function automationAdmission(inputId: string | undefined, automationId: string | undefined) {
-  if (!inputId || !automationId) return {};
-  const parsed = parseAutomationRunId(inputId);
-  // inputId 不是本 automation 的 runId（历史入口漏传、异常透传）时不猜触发方式：
-  // 只保留关联 ID，避免把普通输入误标成 schedule 或从无关字符串切出伪 scheduledAt。
-  if (!parsed || parsed.automationId !== automationId) return { automationId };
-  return {
-    automationId,
-    taskTrigger: parsed.trigger,
-    ...(parsed.scheduledAt !== undefined ? { scheduledAt: parsed.scheduledAt } : {}),
-  };
-}
-
-function cronCreateAutomationId(content: unknown): string | undefined {
-  let value = content;
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value) as unknown;
-    } catch {
-      return undefined;
-    }
-  }
-  const parsed = recordValue(value);
-  return optionalString(recordValue(parsed.automation).automationId);
 }
 
 function totalTokensOf(usage: Record<string, unknown>): number {
@@ -197,7 +143,7 @@ type ToolPerformanceFact = NonNullable<
 >;
 
 function toToolPerformanceFact(
-  perf: ToolExecutionTelemetry | undefined,
+  perf: ToolExecutionPerformance | undefined,
 ): ToolPerformanceFact | undefined {
   if (!perf) return undefined;
   const command = perf.detail?.kind === "command" ? perf.detail.command : undefined;
@@ -216,7 +162,6 @@ function toToolPerformanceFact(
     ...(command?.timedOut !== undefined ? { timedOut: command.timedOut } : {}),
     ...(command?.outputBytes !== undefined ? { outputBytes: command.outputBytes } : {}),
     ...(command?.category !== undefined ? { commandCategory: command.category } : {}),
-    ...(command?.name !== undefined ? { commandName: command.name } : {}),
     ...(command?.count !== undefined ? { commandCount: command.count } : {}),
     ...(command?.status !== undefined ? { commandStatus: command.status } : {}),
     ...(filesystem?.readMs !== undefined ? { fsReadMs: filesystem.readMs } : {}),
@@ -236,18 +181,6 @@ function terminalStatus(resultType: string): "success" | "interrupted" | "failed
   if (resultType === "success") return "success";
   if (resultType === "cancelled") return "interrupted";
   return "failed";
-}
-
-interface CompletedModelRequestIdentity {
-  requestId: string;
-  providerId: string;
-  modelId: string;
-  providerKind?: string;
-  providerHostname?: string;
-}
-
-function modelRequestQueueKey(sessionId: string, querySource: string | undefined): string {
-  return `${sessionId}\0${querySource ?? ""}`;
 }
 
 function isStepUsageQuerySource(querySource: string | undefined): boolean {
@@ -290,16 +223,11 @@ export class ConversationTelemetryFactNormalizer {
   private readonly firstStreamChunks = new BoundedKeySet();
   private readonly sourceCommandByTurn = new BoundedValueMap<string>();
   private readonly toolNameByCall = new BoundedValueMap<string>();
-  private readonly modelBySession = new BoundedValueMap<{
-    modelName: string;
-    modelProvider: string;
-  }>();
-  private readonly completedModelRequests = new BoundedValueMap<CompletedModelRequestIdentity[]>();
 
   normalize(
     sessionId: string,
     event: SessionEvent,
-    runtimeMetadata?: { modelName?: string; modelProvider?: string; memoryEnabled?: boolean },
+    runtimeMetadata?: { memoryEnabled?: boolean },
   ): ConversationTelemetryFact | null {
     const turnId = event.turnId ? String(event.turnId) : undefined;
     const turnKey = turnId ? `${sessionId}\0${turnId}` : undefined;
@@ -332,10 +260,6 @@ export class ConversationTelemetryFactNormalizer {
           ...base,
           kind: "turn.started",
           ...(inputId ? { sourceCommandId: inputId } : {}),
-          ...automationAdmission(inputId, optionalString(payload.automationId)),
-          ...(optionalString(payload.offPeakTaskId)
-            ? { offPeakTaskId: optionalString(payload.offPeakTaskId) }
-            : {}),
           ...(payload.offPeakRunType ? { offPeakRunType: payload.offPeakRunType } : {}),
           ...(payload.executionKind ? { executionKind: payload.executionKind } : {}),
           ...(payload.inputSource ? { inputSource: payload.inputSource } : {}),
@@ -349,21 +273,12 @@ export class ConversationTelemetryFactNormalizer {
         if (payload.type === "model_request_queued" || payload.type === "model_request_admitted") {
           return null;
         }
-        const modelProvider = String(payload.providerId);
-        const modelName = String(payload.modelId);
-        this.modelBySession.set(sessionId, { modelName, modelProvider });
         const fact = conversationTelemetryFactSchema.parse({
           ...base,
           kind: "model.request.status",
           ...(sourceCommandId ? { sourceCommandId } : {}),
           requestId: String(payload.requestId),
           status: payload.type,
-          providerId: modelProvider,
-          modelId: modelName,
-          ...(payload.providerKind ? { providerKind: payload.providerKind } : {}),
-          ...(providerHostname(payload.baseURL)
-            ? { providerHostname: providerHostname(payload.baseURL) }
-            : {}),
           transport: payload.transport,
           ...(payload.querySource ? { querySource: payload.querySource } : {}),
           ...(payload.queryId ? { queryId: String(payload.queryId) } : {}),
@@ -394,21 +309,6 @@ export class ConversationTelemetryFactNormalizer {
             ? { idleMs: payload.idleMs, timeoutMs: payload.timeoutMs }
             : {}),
         });
-        const querySource = optionalString(payload.querySource);
-        if (payload.type === "model_request_completed" && isStepUsageQuerySource(querySource)) {
-          const key = modelRequestQueueKey(sessionId, querySource);
-          const queue = this.completedModelRequests.get(key) ?? [];
-          queue.push({
-            requestId: String(payload.requestId),
-            providerId: modelProvider,
-            modelId: modelName,
-            ...(payload.providerKind ? { providerKind: payload.providerKind } : {}),
-            ...(providerHostname(payload.baseURL)
-              ? { providerHostname: providerHostname(payload.baseURL) }
-              : {}),
-          });
-          this.completedModelRequests.set(key, queue);
-        }
         return fact;
       }
       case SessionEventType.ModelStreaming: {
@@ -441,14 +341,17 @@ export class ConversationTelemetryFactNormalizer {
         const payload = event.payload as ToolCallScheduledPayload;
         const rawPayload = recordValue(event.payload);
         const toolCallId = String(payload.toolCallId);
-        this.toolNameByCall.set(`${turnKey ?? sessionId}\0${toolCallId}`, payload.toolName);
+        this.toolNameByCall.set(
+          `${turnKey ?? sessionId}\0${toolCallId}`,
+          diagnosticToolName(payload.toolName),
+        );
         return conversationTelemetryFactSchema.parse({
           ...base,
           kind: "tool.lifecycle",
           ...(sourceCommandId ? { sourceCommandId } : {}),
           phase: "scheduled",
           toolCallId,
-          toolName: payload.toolName,
+          toolName: diagnosticToolName(payload.toolName),
           ...mirroredSubagentToolFields(rawPayload),
         });
       }
@@ -464,14 +367,13 @@ export class ConversationTelemetryFactNormalizer {
         const rawPayload = recordValue(event.payload);
         const toolCallId = String(payload.toolCallId);
         const key = `${turnKey ?? sessionId}\0${toolCallId}`;
-        const explicitName = "toolName" in payload ? optionalString(payload.toolName) : undefined;
+        const explicitName =
+          "toolName" in payload ? diagnosticToolName(payload.toolName) : undefined;
         const toolName = explicitName ?? this.toolNameByCall.get(key);
         const result =
           event.type === SessionEventType.ToolCallResult
             ? (payload as ToolCallResultPayload)
             : null;
-        const error =
-          event.type === SessionEventType.ToolCallError ? (payload as ToolCallErrorPayload) : null;
         const display = recordValue(result?.result.display);
         // runtime 把 perf 改为 nested detail，旧 normalizer 仍把它
         // 原样塞进扁平 strict fact，导致整条工具终态被丢弃。这里必须只做显式白名单映射，
@@ -487,10 +389,6 @@ export class ConversationTelemetryFactNormalizer {
                   ? "failed"
                   : "completed"
                 : "failed";
-        const automationId =
-          phase === "completed" && toolName === "CronCreate"
-            ? cronCreateAutomationId(result?.result.content)
-            : undefined;
         if (phase === "completed" || phase === "failed") this.toolNameByCall.delete(key);
         return conversationTelemetryFactSchema.parse({
           ...base,
@@ -499,15 +397,7 @@ export class ConversationTelemetryFactNormalizer {
           phase,
           toolCallId,
           ...(toolName ? { toolName } : {}),
-          ...(automationId ? { automationId } : {}),
           ...(result ? { durationMs: result.duration } : {}),
-          ...(error ? { errorCode: error.error.code ?? error.error.type } : {}),
-          ...(error ? { errorMessage: error.error.message } : {}),
-          ...(result?.result.error
-            ? { errorCode: result.result.error.code ?? result.result.error.type }
-            : {}),
-          ...(result?.result.error ? { errorMessage: result.result.error.message } : {}),
-          ...skillTelemetryFactFields(toolName, error?.skillMetadata ?? result?.skillMetadata),
           // subagent mirror 把父子关联放在工具事件 payload 顶层，旧 normalizer
           // 只读取 result.display，导致 agent_id 等字段在进入 agent_step 前被静默丢弃。
           ...mirroredSubagentToolFields(rawPayload, display),
@@ -544,9 +434,9 @@ export class ConversationTelemetryFactNormalizer {
             : {}),
           toolCallId: String(payload.toolCallId),
           ...(requested?.toolName
-            ? { toolName: requested.toolName }
+            ? { toolName: diagnosticToolName(requested.toolName) }
             : denied?.toolName
-              ? { toolName: denied.toolName }
+              ? { toolName: diagnosticToolName(denied.toolName) }
               : {}),
           ...(optionalString(rawPayload.childSessionId)
             ? { childSessionId: optionalString(rawPayload.childSessionId) }
@@ -557,17 +447,6 @@ export class ConversationTelemetryFactNormalizer {
       }
       case SessionEventType.ModelComplete: {
         const payload = event.payload as ModelCompletePayload;
-        const requestQueueKey = modelRequestQueueKey(
-          sessionId,
-          optionalString(payload.querySource),
-        );
-        const completedRequests = this.completedModelRequests.get(requestQueueKey) ?? [];
-        const completedRequest = completedRequests.shift();
-        if (completedRequests.length > 0) {
-          this.completedModelRequests.set(requestQueueKey, completedRequests);
-        } else {
-          this.completedModelRequests.delete(requestQueueKey);
-        }
         // 标题 sidecar 沿用当前 turnId，若把它的 ModelComplete 也转成
         // usage.delta，renderer 会把每轮标题的 64/8 tokens 累加进主对话 completion。
         // 本期只放行主轮和 subagent request usage；sidecar/compact/tool_internal 仍不外送。
@@ -577,19 +456,6 @@ export class ConversationTelemetryFactNormalizer {
           ...base,
           kind: "usage.delta",
           ...(sourceCommandId ? { sourceCommandId } : {}),
-          ...(completedRequest
-            ? {
-                requestId: completedRequest.requestId,
-                providerId: completedRequest.providerId,
-                modelId: completedRequest.modelId,
-                ...(completedRequest.providerKind
-                  ? { providerKind: completedRequest.providerKind }
-                  : {}),
-                ...(completedRequest.providerHostname
-                  ? { providerHostname: completedRequest.providerHostname }
-                  : {}),
-              }
-            : {}),
           inputTokens: nonNegative(usage.inputTokens) ?? 0,
           outputTokens: nonNegative(usage.outputTokens) ?? 0,
           totalTokens: totalTokensOf(usage),
@@ -619,19 +485,12 @@ export class ConversationTelemetryFactNormalizer {
           ...(sourceCommandId ? { sourceCommandId } : {}),
           phase: event.type === SessionEventType.SubagentSpawned ? "spawned" : "stopped",
           agentId,
-          ...(optionalString(payload.agentType)
-            ? { agentType: optionalString(payload.agentType) }
-            : {}),
           childSessionId,
           ...(optionalString(payload.parentToolCallId)
             ? { parentToolCallId: optionalString(payload.parentToolCallId) }
             : {}),
           background: payload.background === true,
           ...(optionalString(payload.status) ? { status: optionalString(payload.status) } : {}),
-          // stopped 可独立收口后台埋点；保留 Runtime 已有错误，避免失败汇总丢失原因。
-          ...(event.type === SessionEventType.SubagentStopped && optionalString(payload.error)
-            ? { errorMessage: optionalString(payload.error) }
-            : {}),
         });
       }
       case SessionEventType.TurnComplete: {
@@ -646,12 +505,6 @@ export class ConversationTelemetryFactNormalizer {
           durationMs: payload.duration,
           tokenCount: payload.tokenCount,
           toolCallCount: payload.toolCallCount,
-          ...(payload.resultType === "cancelled"
-            ? {
-                errorCode: "USER_INTERRUPT",
-                errorMessage: "User stopped generation",
-              }
-            : {}),
           ...(payload.backgroundSubagentResultConsumed
             ? { backgroundSubagentResultConsumed: true }
             : {}),
@@ -668,8 +521,6 @@ export class ConversationTelemetryFactNormalizer {
           kind: "turn.terminal",
           ...(directSourceCommandId ? { sourceCommandId: directSourceCommandId } : {}),
           status: "failed",
-          errorCode: payload.error.code ?? payload.error.type,
-          errorMessage: payload.error.message,
           ...(payload.error.retryable !== undefined
             ? { errorRetryable: payload.error.retryable }
             : {}),
@@ -687,15 +538,6 @@ export class ConversationTelemetryFactNormalizer {
         const payload = event.payload as CompactLifecyclePayload;
         const status = compactTerminalStatus(payload.status);
         if (!status) return null;
-        const observedModel = this.modelBySession.get(sessionId);
-        const model =
-          observedModel ??
-          (runtimeMetadata?.modelName || runtimeMetadata?.modelProvider
-            ? {
-                modelName: runtimeMetadata.modelName ?? "",
-                modelProvider: runtimeMetadata.modelProvider ?? "",
-              }
-            : undefined);
         return conversationTelemetryFactSchema.parse({
           ...base,
           kind: "compaction.terminal",
@@ -708,7 +550,6 @@ export class ConversationTelemetryFactNormalizer {
           status,
           trigger: payload.trigger,
           ...(payload.compactReason ? { compactReason: payload.compactReason } : {}),
-          ...(payload.reason ? { reason: payload.reason } : {}),
           ...(payload.attempt !== undefined ? { attempt: payload.attempt } : {}),
           ...(payload.maxAttempts !== undefined ? { maxAttempts: payload.maxAttempts } : {}),
           ...(payload.startedAt !== undefined ? { startedAt: payload.startedAt } : {}),
@@ -722,7 +563,6 @@ export class ConversationTelemetryFactNormalizer {
           ...(payload.truePostCompactTokenCount !== undefined
             ? { truePostCompactTokenCount: payload.truePostCompactTokenCount }
             : {}),
-          ...(model ? model : {}),
         });
       }
       default:
@@ -742,7 +582,24 @@ export class ConversationTelemetryFactNormalizer {
     this.sourceCommandByTurn.deletePrefix(prefix);
     this.firstStreamChunks.deletePrefix(prefix);
     this.toolNameByCall.deletePrefix(prefix);
-    this.modelBySession.delete(sessionId);
-    this.completedModelRequests.deletePrefix(prefix);
+  }
+}
+
+/** 自定义工具名可能包含用户或插件信息，只记录固定的工具类别。 */
+function diagnosticToolName(value: unknown): string {
+  switch (value) {
+    case "Bash":
+    case "Read":
+    case "Write":
+    case "Edit":
+    case "Skill":
+    case "Task":
+    case "AskUserQuestion":
+    case "CronCreate":
+    case "WebFetch":
+    case "WebSearch":
+      return value;
+    default:
+      return "other";
   }
 }

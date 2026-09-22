@@ -1,3 +1,4 @@
+import { logger } from "@/logger.js";
 // sidePaneTerminalSessionRegistry —— side pane terminal 跨 workspace 会话保活的模块级单例。
 //
 // 如果 xterm、PTY 与订阅由 TerminalSession 组件持有，切换 workspace 触发的卸载
@@ -83,7 +84,7 @@ function releaseEntry(key: string): void {
     // 风险：PTY 可能残留，由 terminalService disposeAll 在 host 退出时兜底回收。
     if (typeof console !== "undefined") {
       // eslint-disable-next-line no-console
-      console.warn("[sidePaneTerminalSessionRegistry] release dispose failed", error);
+      logger.warn("[sidePaneTerminalSessionRegistry] release dispose failed", error);
     }
   }
   entry.hostEl.remove();

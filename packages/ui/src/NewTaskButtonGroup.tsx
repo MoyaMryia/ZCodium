@@ -3,7 +3,6 @@ import { TID_TASK_NEW_BUTTON } from "@zcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
 
 export function NewTaskButtonGroup({
   onCreateTask,
@@ -21,12 +20,7 @@ export function NewTaskButtonGroup({
       data-testid={TID_TASK_NEW_BUTTON}
       onClick={() => {
         if (!disabled) {
-          runUserAction({
-            input: { featureId: "task.lifecycle", action: "create", trigger: "button" },
-            operation: onCreateTask,
-            completed: { resultSource: "optimistic_projection" },
-            failureStage: "task_create",
-          });
+          onCreateTask();
         }
       }}
       className={cn(

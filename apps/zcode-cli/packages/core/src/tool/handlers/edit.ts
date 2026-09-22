@@ -43,7 +43,7 @@ import {
 } from "../read-file-state.js";
 import { createReadFileStateMetadataFromEntry } from "../read-file-state-metadata.js";
 import {
-  attachToolExecutionTelemetry,
+  attachToolExecutionPerformance,
   elapsedMsSince,
   fileByteCount,
   workspaceKind,
@@ -536,7 +536,7 @@ async function writeEditResult(input: {
   // perf 里 totalBytes/maxFileBytes 语义相同，缓存结果避免大文件编辑时重复扫描新内容。
   const newContentBytes = fileByteCount(contentToWrite);
 
-  return attachToolExecutionTelemetry(
+  return attachToolExecutionPerformance(
     {
       filePath: input.inputFilePath,
       oldString: input.actualOldString,

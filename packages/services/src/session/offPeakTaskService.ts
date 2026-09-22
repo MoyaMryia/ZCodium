@@ -36,8 +36,6 @@ interface OffPeakTaskServiceDeps {
   client: OffPeakServerClient;
   /** 与 ticket/runtime 共用 resolver 后的脱敏结果，供 renderer 创建门控。 */
   resolveCodingPlanSupport: () => Promise<OffPeakCodingPlanSupport>;
-  /** 只返回安全 hostname；解析失败返回空串，不能影响创建业务结果。 */
-  resolveTelemetryProviderName: () => Promise<string>;
   /** 用当前完整 Registry 解析并校验固定 Off-Peak Provider 的选择。 */
   resolveModelSelection: (input: {
     readonly modelId?: string;
@@ -165,17 +163,10 @@ export class OffPeakTaskService implements IOffPeakTaskService {
 
   /** 创建即取号（取号成功才落库）；失败只返回稳定分类，绝不跨 RPC 返回 raw error。 */
   async createTask(params: ZCodeOffPeakTaskCreateParams): Promise<OffPeakTaskCreateResult> {
-    let providerName = "";
-    try {
-      providerName = await this.deps.resolveTelemetryProviderName();
-    } catch {
-      // provider_name 只是埋点维度；解析失败不得改变创建、toast 或任务执行。
-    }
     if (!isValidCreateParams(params)) {
       return {
         ok: false,
         ...classifyOffPeakCreateFailure(undefined, "client_validation"),
-        providerName,
       };
     }
     const selection = await this.deps.resolveModelSelection({
@@ -188,7 +179,6 @@ export class OffPeakTaskService implements IOffPeakTaskService {
       return {
         ok: false,
         ...classifyOffPeakCreateFailure(undefined, "client_validation"),
-        providerName,
       };
     }
     const normalizedParams: ZCodeOffPeakTaskCreateParams = {
@@ -207,7 +197,7 @@ export class OffPeakTaskService implements IOffPeakTaskService {
         params.boundSessionId,
       ))
     ) {
-      return { ok: false, ...OFF_PEAK_SESSION_BOUND_FAILURE, providerName };
+      return { ok: false, ...OFF_PEAK_SESSION_BOUND_FAILURE };
     }
     const offPeakTaskId = `offpeak-${randomUUID()}`;
     let ticket;
@@ -217,7 +207,6 @@ export class OffPeakTaskService implements IOffPeakTaskService {
       return {
         ok: false,
         ...classifyOffPeakCreateFailure(error, "ticket_request"),
-        providerName,
       };
     }
     let created: ZCodeOffPeakTask;
@@ -238,12 +227,11 @@ export class OffPeakTaskService implements IOffPeakTaskService {
     } catch (error) {
       if (isOffPeakBoundSessionConflict(error)) {
         // 已取的票随任务作废，服务端按过期回收；不为此加释放接口。
-        return { ok: false, ...OFF_PEAK_SESSION_BOUND_FAILURE, providerName };
+        return { ok: false, ...OFF_PEAK_SESSION_BOUND_FAILURE };
       }
       return {
         ok: false,
         ...classifyOffPeakCreateFailure(error, "local_persist"),
-        providerName,
       };
     }
     this.deps.logger.info(
@@ -263,7 +251,6 @@ export class OffPeakTaskService implements IOffPeakTaskService {
       task: created,
       ticketInitialState: ticket.state,
       ...(ticket.position !== undefined ? { queuePosition: ticket.position } : {}),
-      providerName,
     };
   }
 

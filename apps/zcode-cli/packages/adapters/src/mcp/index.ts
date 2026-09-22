@@ -33,7 +33,6 @@ import type {
   OfficialMcpAuthFailureReason,
   OfficialMcpAuthHeadersPort,
   OfficialMcpTrustedOriginRegistry,
-  TraceContext,
 } from "@zcode/contracts";
 import { ZCODE_MCP_SERVER_REQUEST_ID_META_KEY } from "@zcode/contracts";
 import { normalizeMcpToolDescriptor } from "./descriptor.js";
@@ -80,7 +79,7 @@ import { loadCredentialPair } from "./oauth-credentials.js";
 import { createMcpOAuthTokenProvider } from "./oauth-provider.js";
 import { terminateMcpStdioProcessTree } from "./process-tree.js";
 import { ProcessTreeStdioClientTransport } from "./stdio-transport.js";
-import type { McpTelemetryTracker } from "./telemetry.js";
+import type { McpProcessTracker } from "./process-tracker.js";
 import {
   createMcpDeadline,
   McpTimeoutError,
@@ -107,7 +106,7 @@ export interface CreateMcpAdapterOptions {
   connectionContext?: McpConnectionContext;
   env?: NodeJS.ProcessEnv;
   logger?: Logger;
-  telemetry?: McpTelemetryTracker;
+  processTracker?: McpProcessTracker;
   mcpOAuth?: McpOAuthRuntimeOptions;
   network?: NetworkEgressEnvPolicy;
   /**
@@ -163,7 +162,7 @@ export function createMcpAdapterConnectionPool(
 ): McpConnectionPool {
   return createMcpConnectionPool({
     logger: options.logger,
-    telemetry: options.telemetry,
+    processTracker: options.processTracker,
     createAdapter: ({ connectionContext, workingDirectory }) =>
       createMcpAdapter({
         ...options,
@@ -179,11 +178,11 @@ export {
   type McpConnectionPoolOptions,
 } from "./pool.js";
 export {
-  createMcpTelemetryTracker,
+  createMcpProcessTracker,
   resolvePluginName,
-  type McpTelemetryTracker,
+  type McpProcessTracker,
   type McpTrackedProcess,
-} from "./telemetry.js";
+} from "./process-tracker.js";
 
 class NodeMcpAdapter implements McpPort {
   private readonly adapterInstanceId = randomUUID();
@@ -195,7 +194,7 @@ class NodeMcpAdapter implements McpPort {
   private readonly mcpOAuth?: McpOAuthRuntimeOptions;
   private readonly network?: NetworkEgressEnvPolicy;
   private readonly officialMcpAuth?: CreateMcpAdapterOptions["officialMcpAuth"];
-  private readonly telemetry?: McpTelemetryTracker;
+  private readonly processTracker?: McpProcessTracker;
   private readonly connectionGenerations = new Map<string, number>();
   private credentialStore?: SharedZCodeCredentialStore;
   /**
@@ -234,7 +233,7 @@ class NodeMcpAdapter implements McpPort {
     this.mcpOAuth = options.mcpOAuth;
     this.network = options.network;
     this.officialMcpAuth = options.officialMcpAuth;
-    this.telemetry = options.telemetry;
+    this.processTracker = options.processTracker;
     this.workingDirectory = options.workingDirectory;
   }
 
@@ -693,7 +692,7 @@ class NodeMcpAdapter implements McpPort {
         {
           name: request.toolName,
           arguments: request.arguments ?? {},
-          ...((request.trace || request.runtimeScope || request.workspaceKey || request.workspacePath)
+          ...(request.trace || request.runtimeScope || request.workspaceKey || request.workspacePath
             ? { _meta: mcpRequestMeta(request) }
             : {}),
         },
@@ -1108,7 +1107,7 @@ class NodeMcpAdapter implements McpPort {
       const mcpTransportPid = getStdioTransportPid(transport);
       const mcpProcessIdentity =
         mcpTransportPid != null && this.connectionContext
-          ? this.telemetry?.recordProcessStarted({
+          ? this.processTracker?.recordProcessStarted({
               connectionId: this.connectionContext.mcpConnectionId,
               pid: mcpTransportPid,
             })
@@ -1144,7 +1143,7 @@ class NodeMcpAdapter implements McpPort {
           this.connectionContext &&
           (processExit || !isStdioTransportProcessAlive(transport))
         ) {
-          this.telemetry?.recordProcessCrashed({
+          this.processTracker?.recordProcessCrashed({
             connectionId: this.connectionContext.mcpConnectionId,
             exitCode: processExit?.exitCode ?? null,
             signal: processExit?.signal ?? null,
@@ -1650,7 +1649,7 @@ class NodeMcpAdapter implements McpPort {
       transport instanceof ProcessTreeStdioClientTransport &&
       !transport.processAlive
     ) {
-      this.telemetry?.recordProcessClosed({
+      this.processTracker?.recordProcessClosed({
         connectionId: this.connectionContext.mcpConnectionId,
       });
     }

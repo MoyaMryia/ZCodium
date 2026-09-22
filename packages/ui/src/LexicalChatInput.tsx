@@ -1,3 +1,4 @@
+import { recordInputLag } from "./lib/diagnostics/uiPerformance.js";
 /* eslint-disable max-lines */
 /**
  * LexicalChatInput — 基于 Lexical 的聊天输入框
@@ -55,7 +56,7 @@ import {
   PromptMentionNode,
 } from "./mentions/nodes/PromptMentionNode.js";
 import { logger } from "./logger.js";
-import { recordInputLag } from "./lib/uiPerfArmsTelemetry.js";
+
 import { navigatePromptHistory } from "./lib/promptHistory.js";
 import type { MentionItemData } from "@/mentions/mentionTypes.js";
 import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";

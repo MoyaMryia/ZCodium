@@ -1,3 +1,5 @@
+import { safeLogArgs } from "@zcode/shared";
+import { createRemoteDiagnosticConsumer } from "./diagnosticStream.js";
 import { SocketProtocol, ChannelClient } from "@zcode/rpc";
 import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "@zcode/client";
@@ -165,7 +167,7 @@ async function connectRemoteUnchecked(
   const clientId = options?.clientId ?? `desktop-${Date.now()}`;
 
   const log = (...args: unknown[]) =>
-    console.log(formatLogPrefix("connectRemote", process.pid), ...args);
+    console.log(...safeLogArgs([formatLogPrefix("connectRemote", process.pid), ...args]));
 
   // 1. Detect remote environment
   log("detecting remote env...");
@@ -195,11 +197,12 @@ async function connectRemoteUnchecked(
   log("remote server exec started");
 
   // Forward stderr for debugging
-  stream.stderr.on("data", (chunk: Buffer) => {
-    // 远端 zcode-server 的服务日志走 stderr，直接写 host stderr 时可能被结构化日志中继吞掉。
-    // 这里转成 host 的 console 日志，让 remote sqlite 初始化/锁冲突日志能稳定出现在连接日志面板和启动终端。
-    console.log(`[remote] ${chunk.toString().trimEnd()}`);
-  });
+  stream.stderr.on(
+    "data",
+    createRemoteDiagnosticConsumer((args) => {
+      console.log("[remote diagnostic]", ...args);
+    }),
+  );
 
   // 4. Handshake
   log("performing handshake...");

@@ -54,10 +54,7 @@ import { resolveStartPlanEntitlementSummary } from "./StartPlanCard.js";
 import { useCodingPlanProducts } from "./useCodingPlanProducts.js";
 import { useEnterpriseCodingPlanProducts } from "./useEnterpriseCodingPlanProducts.js";
 import { useUsageEntitlement } from "@/hooks/useUsageEntitlement.js";
-import {
-  createCodingPlanFunnelContext,
-  resolveCodingPlanEntryPlanState,
-} from "@/lib/codingPlanFunnelTelemetry.js";
+
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import type { ProviderSettingsView } from "@zcode/services";
@@ -529,7 +526,7 @@ export function ModelProviderSectionDetail({
       statusPanelViewState.displayStatus === "disconnected";
     const handlePurchaseChoiceSelect = (
       audience: PurchaseAudience,
-      options: { initialTeamPlanKey?: string; eventText?: string } = {},
+      options: { initialTeamPlanKey?: string } = {},
     ) => {
       if (resolvePurchaseChoiceSelectionIntent(statusPanelViewState.displayStatus) === "login") {
         // 未登录时个人/团队套餐必须先建立对应 provider 的 OAuth 身份。
@@ -542,31 +539,11 @@ export function ModelProviderSectionDetail({
         );
         return;
       }
-      const nextFunnelContext = createCodingPlanFunnelContext({
-        providerId: selectedNavItem.presetId,
-        upgradeSource:
-          audience === "team" ? "setting_team_plan_banner" : "setting_personal_plan_banner",
-        eventRegion: "app.setting",
-        eventText:
-          options.eventText ??
-          intl.formatMessage({
-            id:
-              audience === "team"
-                ? "settings.modelProvider.codingPlan.purchaseBanner.teamTitle"
-                : "settings.modelProvider.codingPlan.purchaseBanner.personalTitle",
-          }),
-        entryPlanState: resolveCodingPlanEntryPlanState({
-          displayStatus: statusPanelViewState.displayStatus,
-          providerId: selectedNavItem.presetId,
-          planLevel: selectedNavItem.planLevel,
-        }),
-        purchaseAudience: audience,
-      });
+
       openCodingPlanUpgrade({
         providerId: selectedNavItem.presetId,
         initialAudience: audience,
         initialTeamPlanKey: options.initialTeamPlanKey,
-        funnelContext: nextFunnelContext,
       });
     };
     const codingPlanFamilyHeader = (
@@ -683,7 +660,6 @@ export function ModelProviderSectionDetail({
             openCodingPlanUpgrade({
               providerId: selectedNavItem.presetId,
               initialAudience: options.initialAudience,
-              funnelContext: options.funnelContext ?? undefined,
             });
           }}
           upgradePlansVisible={upgradePlansVisible}
@@ -803,7 +779,6 @@ export function ModelProviderSectionDetail({
               openCodingPlanUpgrade({
                 providerId: selectedNavItem.presetId,
                 initialAudience: options.initialAudience,
-                funnelContext: options.funnelContext ?? undefined,
               });
             }}
             upgradePlansVisible={upgradePlansVisible}
@@ -887,10 +862,7 @@ function CodingPlanPurchaseChoiceBanners({
   teamVisible?: boolean;
   soldOutVisible?: boolean;
   accountDisconnected?: boolean;
-  onSelect: (
-    audience: PurchaseAudience,
-    options?: { initialTeamPlanKey?: string; eventText?: string },
-  ) => void;
+  onSelect: (audience: PurchaseAudience, options?: { initialTeamPlanKey?: string }) => void;
   onSelectStartPlan?: () => void;
 }) {
   const entryGate = useCodingPlanEntryGate();

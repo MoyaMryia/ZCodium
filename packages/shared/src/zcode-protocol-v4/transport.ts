@@ -384,6 +384,7 @@ export const V4_NOTIFICATIONS = {
   conversationFrame: "v4/conversation/frame",
   // 仅 live ingest 的无正文事实；不进入 topic snapshot/recovery。
   conversationTelemetryFact: "v4/telemetry/event",
+  sessionActivity: "v4/session/activity",
   localTtftFacts: "v4/telemetry/local-ttft",
   // 仅当前进程 live ToolCallResult 产生；历史与 replayable 链路不得补造。
   cuaPermissionObservation: "v4/cua/permission-observation",
@@ -1119,3 +1120,9 @@ export function parseConversationTopic(topic: string): string | null {
   const sessionId = topic.slice("conversation/".length);
   return sessionId.length > 0 ? sessionId : null;
 }
+
+/** 运行任务计数消费的业务活动通知，不包含输入内容或设备身份。 */
+export const sessionActivitySchema = z
+  .object({ sessionId: z.string().min(1), state: z.enum(["running", "idle"]) })
+  .strict();
+export type SessionActivity = z.infer<typeof sessionActivitySchema>;

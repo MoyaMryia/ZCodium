@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
 import { createRoot } from "react-dom/client";
 import {
@@ -137,14 +138,17 @@ async function renderConversationSharePage(): Promise<void> {
     import.meta.env.VITE_ZCODE_BASE_URL?.trim().replace(/\/+$/u, "") || window.location.origin;
   const mockMode =
     import.meta.env.DEV && import.meta.env.VITE_CONVERSATION_SHARE_PREVIEW_MOCK === "true";
-  // Share 加载失败不能只有通用 network 文案：需要区分 mock、endpoint 配置或跨域 fetch。
-  // 这里只记录运行时路由与 endpoint，不记录完整 pathname，避免把 share code 写入日志。
-  console.info("[conversation-share-web]", "preview_runtime_initialized", {
-    browserOrigin: window.location.origin,
-    routeKind: "canonical",
-    endpointOrigin,
-    transport: mockMode ? "mock" : "fetch",
-  });
+  // 本地诊断保留初始化阶段，不收集页面来源或服务端地址。
+  console.info(
+    ...safeLogArgs([
+      "[conversation-share-web]",
+      "preview_runtime_initialized",
+      {
+        stage: "start",
+        transport: "http",
+      },
+    ]),
+  );
   const client = mockMode
     ? new (
         await import("./share/mockConversationSharePreviewClient.js")
@@ -260,8 +264,6 @@ function createWebPlatform(): IPlatformService {
     onPaymentCallback: () => () => {},
     onShareImport: () => () => {},
     notifyRendererReady: () => {},
-    reportTelemetryEvent: async () => {},
-    reportArmsCustomEvent: () => Promise.resolve(),
     showTaskNotification: (payload) => {
       if (document.hasFocus()) {
         return;

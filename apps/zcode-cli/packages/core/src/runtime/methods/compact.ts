@@ -3,7 +3,6 @@ import {
   CompactReason,
   CompactTrigger,
   CoreErrorType,
-  DEFAULT_COMPACT_CONTEXT_WINDOW,
   SessionEventType,
   createModelUsageSummaryFromEvents,
   runWithContextAsync,
@@ -29,7 +28,6 @@ import {
 } from "../helpers/index.js";
 import type { TurnResult, RunModelTextRequestOptions } from "../types.js";
 import type { Model } from "../deps.js";
-import type { ProviderContextUsageSnapshot } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { autoCompactDecisionLogContext } from "./compact-log-context.js";
 import { resolveNormalRequestMaxOutputTokens } from "./model-token-limits.js";
@@ -261,12 +259,6 @@ export async function autoCompactIfNeeded(
       events,
       {
         abortSignal,
-        compactContextTelemetry: {
-          inputTokens: decision.tokenCount,
-          policyContextWindowTokens: decision.contextWindow,
-          thresholdTokens: decision.threshold,
-          tokenSource: decision.tokenSource,
-        },
         autoCompactThreshold: decision.threshold,
         compactReason: context.compactReason,
         phase: context.phase,
@@ -378,7 +370,7 @@ export async function reactiveCompactAfterContextExceeded(
     applyCacheControl: false,
     model: context.model,
   });
-  const { messages: activeMessages, sourceEntries } = activeProjection;
+  const { messages: activeMessages } = activeProjection;
   if (!hasEnoughMessagesToCompact(activeMessages)) {
     this.logger?.warn("Reactive compact skipped because there is not enough history", {
       ...traceContextToLogContext(turnTraceContext),
@@ -392,9 +384,6 @@ export async function reactiveCompactAfterContextExceeded(
     });
     return "skipped";
   }
-
-  const tokenOverride = buildProviderUsageTokenOverride(activeMessages, sourceEntries);
-  const contextWindow = context.model.properties.contextWindow;
 
   this.logger?.warn("Reactive compact started after model context overflow", {
     ...traceContextToLogContext(turnTraceContext),
@@ -414,14 +403,6 @@ export async function reactiveCompactAfterContextExceeded(
       events,
       {
         abortSignal,
-        compactContextTelemetry: {
-          inputTokens: tokenOverride?.tokenCount ?? estimateMessageTokens(activeMessages),
-          policyContextWindowTokens:
-            contextWindow !== undefined && Number.isFinite(contextWindow) && contextWindow > 0
-              ? Math.floor(contextWindow)
-              : DEFAULT_COMPACT_CONTEXT_WINDOW,
-          tokenSource: tokenOverride?.source ?? "estimate",
-        },
         compactReason: CompactReason.ProviderOverflow,
         initialPromptTooLongCause: originalError,
         phase: CompactPhase.Reactive,

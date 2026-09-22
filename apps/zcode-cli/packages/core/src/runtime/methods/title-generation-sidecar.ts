@@ -1,3 +1,4 @@
+import { observeLocalOperation } from "../helpers/local-operation-diagnostics.js";
 import {
   SessionEventType,
   createChildTraceContext,
@@ -11,7 +12,6 @@ import type {
   SessionEvent,
   TraceContext,
 } from "../deps.js";
-import type { AgentTelemetryCausation } from "@zcode/contracts";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { createRefreshRuntimeHeadersBeforeModelAttempt } from "./model-runtime-headers.js";
 import { recordModelUsageFact } from "./usage-observability.js";
@@ -27,7 +27,7 @@ const MAX_TITLE_INPUT_CHARS = 1_200;
 const MAX_TITLE_CHARS = 100;
 
 // 标题 sidecar 的 user message 是原始 query，弱约束时模型可能把它当成对话请求直接回答。
-// system prompt 必须明确 query 只作为标题素材，并禁止回答或执行；首句保持稳定供旧 model-io 识别。
+// system prompt 必须明确 query 只作为标题素材，并禁止回答或执行。
 const SESSION_TITLE_SYSTEM_PROMPT = `Generate a concise title for this coding session.
 
 This is a title-generation task, not a conversation.
@@ -53,41 +53,24 @@ export async function generateTitleCandidate(
   this: AgentRuntimeInternal,
   input: string,
   options: {
-    causation?: AgentTelemetryCausation;
     messageID?: MessageId;
     querySource: string;
     traceContext: TraceContext;
   },
 ): Promise<{ modelSelection: ModelSelection; title: string; traceContext: TraceContext } | null> {
-  const titleTelemetry = this.agentTelemetry.detached({
-    causation: options.causation,
-    executionKind: "background",
-    operation:
-      options.querySource === GOAL_SUMMARY_TITLE_QUERY_SOURCE
-        ? "goal_title_generation"
-        : "session_title_generation",
-    targetKind: options.querySource === GOAL_SUMMARY_TITLE_QUERY_SOURCE ? "goal" : "session",
-    trigger: "turn",
-    traceContext: options.traceContext,
-  });
-  return titleTelemetry.run(async () => {
-    try {
-      const result = await generateTitleCandidateImpl.call(this, input, options);
-      titleTelemetry.setResultType(result ? "metadata" : "other");
-      titleTelemetry.finishCompleted();
-      return result;
-    } catch (error) {
-      titleTelemetry.finishFailed("execute", "unknown", error);
-      throw error;
-    }
-  });
+  return observeLocalOperation(
+    this.logger,
+    options.querySource === GOAL_SUMMARY_TITLE_QUERY_SOURCE
+      ? "goal_title_generation"
+      : "session_title_generation",
+    () => generateTitleCandidateImpl.call(this, input, options),
+  );
 }
 
 async function generateTitleCandidateImpl(
   this: AgentRuntimeInternal,
   input: string,
   options: {
-    causation?: AgentTelemetryCausation;
     messageID?: MessageId;
     querySource: string;
     traceContext: TraceContext;

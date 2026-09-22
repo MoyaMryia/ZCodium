@@ -94,7 +94,7 @@ import type {
 import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
 import type { SessionTranscriptMessage } from "../session-transcript.js";
 import type { WorkspaceHookReviewCommandResult } from "./workspace-hook-review-controller.js";
-import type { AgentTelemetryRuntimeOwner, WorkspaceHookPolicy } from "@zcode/contracts";
+import type { WorkspaceHookPolicy } from "@zcode/contracts";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 
 export interface WorkspaceHookReviewHostContext {
@@ -141,9 +141,6 @@ export interface ZCodeAppOptions {
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
   /** 新 Session 使用的 Environment 默认选择；仅在没有显式 runtime modelSelection 时参与初始化。 */
   configuredDefaultModelSelection?: ModelSelection;
-  modelIoFullRetentionEnabled?: boolean;
-  /** 同进程嵌入宿主可注入完整的 borrowed 进程级 Owner；Endpoint 配置不得覆盖它。 */
-  telemetryOwner?: AgentTelemetryRuntimeOwner;
   /**
    * provider runtime headers 端口：主 runtime 每次调用报自己的会话；child runtime 一律向父
    * runtime 取派生实例。
@@ -153,7 +150,7 @@ export interface ZCodeAppOptions {
   officialPluginRoots?: string[];
   pluginStorageRoot?: string;
   executionPort?: ExecutionPort;
-  /** 资源遥测旁路；由协议宿主注入，主任务和 workflow 的执行适配器共用。 */
+  /** 本地资源诊断旁路；由协议宿主注入，主任务和 workflow 的执行适配器共用。 */
   onToolExecResource?: (sample: ZCodeToolExecResource) => void;
   /** browser-use 控制端口；注入后 node_repl 的 agent.browsers.* 可用。缺省则不可用。 */
   browserControlPort?: BrowserControlPort;
@@ -613,7 +610,6 @@ export interface ZCodeApp {
     previousMode: CollaborationMode;
     traceId: TraceContext["traceId"];
   }>;
-  setModelIoFullRetentionEnabled?(enabled: boolean): void;
   setModel(
     modelId: string | ModelSelection,
     options?: {

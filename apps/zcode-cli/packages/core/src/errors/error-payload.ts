@@ -59,7 +59,7 @@ export function projectExecutionErrorPayload(
   const message = primaryFrame?.message ?? sanitizeText(fallbackMessage) ?? fallbackMessage;
   const code = selectErrorCode(primaryFrame, frames);
   const detail = buildErrorDetail(frames, message);
-  // 保留最深层非 wrapper frame 的原始 message/detail，供 UI telemetry 定位具体失败原因；
+  // 保留最深层非 wrapper frame 的原始 message/detail，供 UI 诊断 定位具体失败原因；
   // 不改变既有 detail 的拼接结果或错误处理行为。
   const underlyingFrame =
     [...frames].reverse().find((frame) => !frame.isWrapper) ?? frames[frames.length - 1];

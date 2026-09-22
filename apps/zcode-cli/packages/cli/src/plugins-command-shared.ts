@@ -1,3 +1,4 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import type { Logger } from "@zcode/contracts";
 import type { listZCodePlugins } from "@zcode/bootstrap";
 import { createInterface } from "node:readline";
@@ -28,8 +29,7 @@ export const BOOTSTRAP_EXPORTS = {
 } as const satisfies Record<string, keyof BootstrapModule>;
 
 export type PluginDepName = keyof typeof BOOTSTRAP_EXPORTS;
-export type PluginDepFn<K extends PluginDepName> =
-  BootstrapModule[(typeof BOOTSTRAP_EXPORTS)[K]];
+export type PluginDepFn<K extends PluginDepName> = BootstrapModule[(typeof BOOTSTRAP_EXPORTS)[K]];
 
 export type PluginsCommandOverrides = { [K in PluginDepName]?: PluginDepFn<K> };
 
@@ -134,10 +134,10 @@ export function reportPluginsError(
   options: GlobalOptions,
   error: unknown,
 ): number {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = JSON.stringify(safeLogArgs([error]));
   ctx.stderr.write(`Error: ${message}\n`);
   if (options.verbose && error instanceof Error && error.stack) {
-    ctx.stderr.write(`${error.stack}\n`);
+    ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
   }
   return 1;
 }

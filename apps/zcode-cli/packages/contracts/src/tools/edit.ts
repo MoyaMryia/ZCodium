@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { ToolCallId, TraceId } from "../interfaces/shared.js";
 import { toToolJsonSchema } from "./json-schema.js";
-import { ToolExecutionTelemetrySchema } from "./performance.js";
+import { ToolExecutionPerformanceSchema } from "./performance.js";
 
 const TRUE_BOOLEAN_STRINGS = new Set(["true", "1", "yes", "y", "on"]);
 const FALSE_BOOLEAN_STRINGS = new Set(["false", "0", "no", "n", "off"]);
@@ -19,9 +19,7 @@ export const EditInputSchema = z.object({
   /**
    * The absolute path to the file to modify.
    */
-  file_path: z
-    .string()
-    .describe("The absolute path to the file to modify"),
+  file_path: z.string().describe("The absolute path to the file to modify"),
   /**
    * The text to replace
    */
@@ -147,7 +145,7 @@ export const EditOutputSchema = z
     matchStrategy: z.string().optional(),
     matchCandidateCount: z.number().int().nonnegative().optional(),
     gitDiff: EditGitDiffSchema.optional(),
-    perf: ToolExecutionTelemetrySchema.optional(),
+    perf: ToolExecutionPerformanceSchema.optional(),
   })
   .strict();
 

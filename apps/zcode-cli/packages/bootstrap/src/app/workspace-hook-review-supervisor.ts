@@ -1,11 +1,11 @@
 import { SessionEventType } from "@zcode/contracts";
 import type { WorkspaceHookReviewFlow, WorkspaceHookReviewFlowRegistry } from "@zcode/core";
 import type { WorkspaceHookReviewHostPort } from "./workspace-hook-review-types.js";
-import type { WorkspaceHookReviewTelemetry } from "./workspace-hook-review-telemetry.js";
+import type { WorkspaceHookReviewDiagnostics } from "./workspace-hook-review-diagnostics.js";
 
 /**
  * 监管一个 review flow 直到它终结：跟随 supersede 链，并在 timeout 时补齐
- * telemetry 与 ReviewSettled。
+ * diagnostics 与 ReviewSettled。
  *
  * 这段逻辑是**唯一** await flow.result 的地方：若无人 await，它的 10 分钟 deadline 到期后会在 registry
  * 内静默 settle 成 timed_out，前端收不到 ReviewSettled、面板继续按 pending 渲染，
@@ -17,10 +17,10 @@ import type { WorkspaceHookReviewTelemetry } from "./workspace-hook-review-telem
  */
 export async function superviseWorkspaceHookReviewFlow(input: {
   flow: WorkspaceHookReviewFlow;
+  diagnostics: WorkspaceHookReviewDiagnostics;
   host: WorkspaceHookReviewHostPort;
   registry: WorkspaceHookReviewFlowRegistry;
   sessionId: string;
-  telemetry: WorkspaceHookReviewTelemetry;
 }): Promise<void> {
   let flow = input.flow;
   while (true) {
@@ -32,7 +32,7 @@ export async function superviseWorkspaceHookReviewFlow(input: {
       continue;
     }
     if (outcome.reasonCode === "workspace_hooks_interaction_timeout") {
-      input.telemetry.timeout(flow.request);
+      input.diagnostics.timeout(flow.request);
       await input.host.emit({
         type: SessionEventType.WorkspaceHookReviewSettled,
         payload: {

@@ -24,7 +24,6 @@ export type { CodingPlanUpgradeDialogTarget } from "@/settings/codingPlanUpgrade
 interface CodingPlanUpgradeDialogProps {
   target?: CodingPlanUpgradeDialogTarget;
   onClose: () => void;
-  onOpenResult?: (opened: boolean) => void;
   // 兼容 CodingPlanUpgradeDialogProvider 现有契约。
   // 改造原因：购买/登录流程迁到官网 webview 内部后，App 不再需要「关闭弹窗去登录 → 成功后重开」
   // 的恢复链路；此 prop 当前不使用，保留签名避免改动 Provider。
@@ -63,11 +62,7 @@ async function closeAndRefreshCodingPlanUpgradeFromWebview(params: {
   }
 }
 
-export function CodingPlanUpgradeDialog({
-  target,
-  onClose,
-  onOpenResult,
-}: CodingPlanUpgradeDialogProps) {
+export function CodingPlanUpgradeDialog({ target, onClose }: CodingPlanUpgradeDialogProps) {
   const { providerSettingsService, credentialService, codingPlanSubscriptionService } =
     useServices();
   const providerSettingsRead = useProviderSettingsView();
@@ -135,10 +130,8 @@ export function CodingPlanUpgradeDialog({
   return (
     <CodingPlanEmbeddedWebviewDialog
       open
-      onOpenResult={onOpenResult}
       credentialService={credentialService}
       providerId={providerId}
-      funnelContext={target.funnelContext}
       audience={target.initialAudience}
       teamPlanKey={target.initialTeamPlanKey}
       onPurchaseComplete={handlePurchaseComplete}

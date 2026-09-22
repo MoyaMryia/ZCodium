@@ -24,7 +24,6 @@ import {
   resolveItemDisplayName,
   type StorePluginItem,
 } from "@/settings/pluginStoreListing.js";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
 
 /** 商店条目的通用动作集：列表卡片、详情页共用同一套回调与进行中态判定。 */
 export interface PluginStoreActions {
@@ -210,12 +209,7 @@ export function PluginStoreInstallButton({
       disabled={installing}
       onClick={(event) => {
         event.stopPropagation();
-        runUserAction({
-          input: { featureId: "extension.plugin", action: "install", trigger: "button" },
-          operation: () => actions.onInstall(item),
-          completed: { resultSource: "optimistic_projection" },
-          failureStage: "plugin_install",
-        });
+        actions.onInstall(item);
       }}
     >
       {installing ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}

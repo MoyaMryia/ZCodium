@@ -1,5 +1,7 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
 import { createNodeLoggerFactory } from "@zcode/adapters";
+import { createDiagnosticsExporter } from "@zcode/shared/node";
 import { getRuntimeInfo, type PresentationSurface } from "@zcode/core";
 import { color, formatJson, supportsColor } from "@zcode/core";
 import { getZCodeCopy, isUiLocale, type UiLocale } from "@zcode/i18n";
@@ -274,10 +276,10 @@ const runZCodeProtocolCommand = async (
     });
     return 0;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = JSON.stringify(safeLogArgs([error]));
     ctx.stderr.write(`Error: ${message}\n`);
     if (options.verbose && error instanceof Error && error.stack) {
-      ctx.stderr.write(`${error.stack}\n`);
+      ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
     }
     return 1;
   }
@@ -469,96 +471,48 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
     return 1;
   }
 
-  const commandDeps: RunDependencies = {
-    ...deps,
-    cwd: () => workingDirectory,
+  // 协议进程只向 Main 的安全 IPC 通道发送诊断；独立 CLI 才拥有可选出口。
+  const protocolMode = ["agent-server", "app-server"].includes(commandName(parsed.positionals));
+  const diagnostics = protocolMode ? undefined : createDiagnosticsExporter({ env });
+  const loggerFactory = createNodeLoggerFactory({
     env,
-    logger:
-      deps.logger ??
-      createNodeLoggerFactory({ env }).createLogger("zcode").child({ module: "cli" }),
-    loadDotenv: (dotenvOptions = {}) => {
-      const dotenvResult = (deps.loadDotenv ?? loadCliDotenv)(dotenvOptions);
-      applyCliRuntimeEnvSanitization(dotenvOptions.env ?? env);
-      return dotenvResult;
-    },
-  };
+    onDiagnostic: (record) => diagnostics?.record(record),
+  });
+  try {
+    const commandDeps: RunDependencies = {
+      ...deps,
+      cwd: () => workingDirectory,
+      env,
+      logger: deps.logger ?? loggerFactory.createLogger("zcode").child({ module: "cli" }),
+      loggerFactory: deps.loggerFactory ?? loggerFactory,
+      loadDotenv: (dotenvOptions = {}) => {
+        const dotenvResult = (deps.loadDotenv ?? loadCliDotenv)(dotenvOptions);
+        applyCliRuntimeEnvSanitization(dotenvOptions.env ?? env);
+        return dotenvResult;
+      },
+    };
 
-  if (typeof parsed.values.prompt === "string") {
-    return await runPrompt(
-      ctx,
-      parsed.values.prompt,
-      parsed.values.attach ?? [],
-      options,
-      commandDeps,
-      version,
-      mode ?? DEFAULT_HEADLESS_PROMPT_MODE,
-      resumeRequest,
-      toolDisallowlist,
-      forceMcs,
-      presentationSurface,
-    );
-  }
-
-  if (targetRequest) {
-    return await runPrompt(
-      ctx,
-      buildHeadlessTargetCommand(targetRequest),
-      [],
-      options,
-      commandDeps,
-      version,
-      mode,
-      resumeRequest,
-      toolDisallowlist,
-      forceMcs,
-      presentationSurface,
-    );
-  }
-
-  switch (commandName(parsed.positionals)) {
-    case "help":
-      writeHelp(ctx.stdout, options.locale, options.detectedLocale);
-      return 0;
-    case "version":
-      ctx.stdout.write(`${version}\n`);
-      return 0;
-    case "agent-server":
-    case "app-server":
-      return await runZCodeProtocolCommand(
+    if (typeof parsed.values.prompt === "string") {
+      return await runPrompt(
         ctx,
+        parsed.values.prompt,
+        parsed.values.attach ?? [],
         options,
         commandDeps,
+        version,
+        mode ?? DEFAULT_HEADLESS_PROMPT_MODE,
+        resumeRequest,
+        toolDisallowlist,
+        forceMcs,
         presentationSurface,
-        parsed.values["prepare-storage"] === true,
       );
-    case "doctor":
-      return runDoctor(ctx, options, workingDirectory);
-    case "login":
-      return await runLoginCommand(
+    }
+
+    if (targetRequest) {
+      return await runPrompt(
         ctx,
-        options,
-        commandDeps,
-        parsed.values["no-browser"] === true,
-        parsed.positionals.slice(1),
-      );
-    case "logout":
-      return await runLogoutCommand(ctx, options, commandDeps);
-    case "commands":
-      return await runCommandsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
-    case "plugin":
-    case "plugins":
-      return await runPluginsCommand(
-        ctx,
-        options,
-        commandDeps,
-        parsed.positionals.slice(1),
-        pluginsCommandFlags(parsed.values),
-      );
-    case "skills":
-      return await runSkillsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
-    case "tui":
-      return await runTuiCommand(
-        ctx,
+        buildHeadlessTargetCommand(targetRequest),
+        [],
         options,
         commandDeps,
         version,
@@ -566,10 +520,69 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
         resumeRequest,
         toolDisallowlist,
         forceMcs,
+        presentationSurface,
       );
-    default:
-      ctx.stderr.write(`Unknown command: ${commandName(parsed.positionals)}\n\n`);
-      writeHelp(ctx.stderr, options.locale, options.detectedLocale);
-      return 1;
+    }
+
+    switch (commandName(parsed.positionals)) {
+      case "help":
+        writeHelp(ctx.stdout, options.locale, options.detectedLocale);
+        return 0;
+      case "version":
+        ctx.stdout.write(`${version}\n`);
+        return 0;
+      case "agent-server":
+      case "app-server":
+        return await runZCodeProtocolCommand(
+          ctx,
+          options,
+          commandDeps,
+          presentationSurface,
+          parsed.values["prepare-storage"] === true,
+        );
+      case "doctor":
+        return runDoctor(ctx, options, workingDirectory);
+      case "login":
+        return await runLoginCommand(
+          ctx,
+          options,
+          commandDeps,
+          parsed.values["no-browser"] === true,
+          parsed.positionals.slice(1),
+        );
+      case "logout":
+        return await runLogoutCommand(ctx, options, commandDeps);
+      case "commands":
+        return await runCommandsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
+      case "plugin":
+      case "plugins":
+        return await runPluginsCommand(
+          ctx,
+          options,
+          commandDeps,
+          parsed.positionals.slice(1),
+          pluginsCommandFlags(parsed.values),
+        );
+      case "skills":
+        return await runSkillsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
+      case "tui":
+        return await runTuiCommand(
+          ctx,
+          options,
+          commandDeps,
+          version,
+          mode,
+          resumeRequest,
+          toolDisallowlist,
+          forceMcs,
+        );
+      default:
+        ctx.stderr.write(`Unknown command: ${commandName(parsed.positionals)}\n\n`);
+        writeHelp(ctx.stderr, options.locale, options.detectedLocale);
+        return 1;
+    }
+  } finally {
+    await loggerFactory.flush();
+    await diagnostics?.shutdown();
   }
 };

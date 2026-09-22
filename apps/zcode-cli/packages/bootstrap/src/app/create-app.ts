@@ -24,7 +24,6 @@ import {
   type AmendWorkflowRunSettingsInput,
   type ResumeSessionResult,
 } from "@zcode/core";
-import { createModelTelemetry } from "@zcode/telemetry";
 import {
   createRootTraceContext,
   traceContextToLogContext,
@@ -34,7 +33,7 @@ import {
   type ExecutionShellSelection,
   type MessageId,
 } from "@zcode/contracts";
-import { isRemoteWorkspaceIdentity, resolveZCodeRuntimeEnv } from "@zcode/shared";
+import { isRemoteWorkspaceIdentity } from "@zcode/shared";
 import {
   ZCODE_ATTACHMENT_FAULT_CODES,
   ZCodeAttachmentFaultError,
@@ -55,7 +54,7 @@ import {
   resolveEffectiveLocale,
   resolveEffectiveConfigResult,
 } from "./app-config-options.js";
-import { getCliStorageRoot, getModelIoDir, projectIdFromDirectory } from "./paths.js";
+import { getCliStorageRoot, projectIdFromDirectory } from "./paths.js";
 import {
   asInputHistoryStore,
   asLocalSettingStore,
@@ -191,20 +190,12 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     ...traceContextToLogContext(traceContext),
     module: "adapters.model",
   });
-  const modelTelemetry = createModelTelemetry({
-    owner: options.telemetryOwner,
-    sessionId,
-  });
   let nodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let ownedNodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let providerModelRuntime: ApiProviderModelRuntime | undefined;
   try {
     const storageRoot = resolvePath(configResult.config.storage.dir);
     const cliStorageRoot = getCliStorageRoot(storageRoot);
-    const modelIoDir = getModelIoDir(
-      cliStorageRoot,
-      resolveZCodeRuntimeEnv(options.env ?? process.env) === "development",
-    );
     const zcodeSubagentProfileOutcome = await loadZCodeAgentProfiles({
       logger,
       storageRoot,
@@ -530,21 +521,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       createModelAdapter({
         env: options.env,
         logger: modelLogger,
-        modelIoDir,
-        modelIoFullRetentionEnabled: options.modelIoFullRetentionEnabled,
         executionConfig: modelExecutionConfig,
-        statusSink: modelTelemetry.statusSink,
         streamIdleTimeoutMs: configResult.config.modelStream.idleTimeoutMs,
       });
-    if (options.modelAdapter && modelTelemetry.statusSink) {
-      modelAdapter.addStatusSink(modelTelemetry.statusSink);
-    }
     // 进程级并发治理器：run service 拿它的窄端口给
     // driver（每个 actor runtime 一个请求级准入端口）；主 runtime 挂它的 observer（下面 deps）——
     // 不排队、不看冷却，但计入在飞并喂信号。进程级单例——配额本就在账号上，不按会话分。
-    // 不再经 adapter 级 addStatusSink 喂信号：同一事件只能沿 ticket 喂一次。
+    // 同一事件只能沿 ticket 投递给治理器一次。
     const workflowConcurrencyGovernor = getWorkflowConcurrencyGovernor();
-    modelAdapter.setModelIoFullRetentionEnabled(options.modelIoFullRetentionEnabled ?? false);
     providerModelRuntime = new ApiProviderModelRuntime({
       registry: options.providerRegistry,
       modelAdapter,
@@ -555,7 +539,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     // 新建的 Model 才看得到，child 不各自冻结一份。
     const modelFactory = providerModelRuntime.modelFactory;
     const scriptWorkflowFacade = createScriptWorkflowBridge({
-      agentTelemetry: modelTelemetry.agentExecution,
       appOptions: options,
       appVersion,
       artifactStore,
@@ -625,7 +608,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                   ).configOverrides,
                 },
                 deps: {
-                  agentTelemetry: modelTelemetry.agentExecution,
                   appOptions: options,
                   appVersion,
                   artifactStore,
@@ -724,7 +706,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       currentSelection: () => getRuntime().getSessionModelSelection(),
     });
     runtime = new AgentRuntime(sessionId, runtimeConfig, {
-      agentTelemetry: modelTelemetry.agentExecution,
       // 主代理的模型请求过治理器的 observer：立即放行，但让治理器看见它的 429 / 成功。
       modelRequestAdmission: workflowConcurrencyGovernor.observer(),
       eventStore: options.eventStore ?? createInMemorySessionEventStore(),
@@ -761,7 +742,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       mcpPort,
       eventSink: options.eventSink,
       modelFactory,
-      modelIoDir,
       providerRuntimeHeadersPort: options.providerRuntimeHeadersPort,
       resolveEffectiveModelSelection: options.resolveEffectiveModelSelection,
       isRemoteWorkspace: () =>
@@ -824,7 +804,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       traceContext,
     });
     const workflowFacade = createWorkflowFacade({
-      agentTelemetry: modelTelemetry.agentExecution,
       appOptions: options,
       appVersion,
       artifactStore,
@@ -998,8 +977,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       // session 的 coordinator 并重发 admission 状态（详见 types.ts 注释）。
       reloadWorkspaceHookTrust: () =>
         workspaceHookRuntimeSecurity?.reloadTrust() ?? Promise.resolve(),
-      setModelIoFullRetentionEnabled: (enabled) =>
-        modelAdapter.setModelIoFullRetentionEnabled(enabled),
       readToolResultArtifact: (uri) =>
         artifactStore.readToolResultArtifact({ uri, trace: traceContext }),
       // wire/staging 全程是 decoded chunk；只有完整 checksum commit 后才在
@@ -1112,11 +1089,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         try {
           await closeSession?.();
         } finally {
-          try {
-            providerModelRuntime?.dispose();
-          } finally {
-            await modelTelemetry.shutdown();
-          }
+          providerModelRuntime?.dispose();
         }
       },
       ...workflowFacade,
@@ -1280,7 +1253,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     };
   } catch (error) {
     providerModelRuntime?.dispose();
-    void modelTelemetry.shutdown().catch(() => undefined);
     void ownedNodeReplBrowserBroker?.close();
     startupTimer.fail("ZCode app startup failed", error, {
       context: { sessionId, workingDirectory },

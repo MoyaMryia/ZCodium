@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { stat } from "node:fs/promises";
 import { posix } from "node:path";
 
@@ -102,11 +103,15 @@ export function createSSHUploadProgressReporter(
     // 仍然保留节流，避免每个 chunk 都刷一整屏日志。
     if (totalMB != null && percent != null) {
       console.log(
-        `[ssh] upload progress [${transport}] (${uploadLabel}): ${percent.toFixed(1)}% (${transferredMB.toFixed(1)}/${totalMB.toFixed(1)} MB, ${speedMBPerSecond.toFixed(2)} MB/s)`,
+        ...safeLogArgs([
+          `[ssh] upload progress [${transport}] (${uploadLabel}): ${percent.toFixed(1)}% (${transferredMB.toFixed(1)}/${totalMB.toFixed(1)} MB, ${speedMBPerSecond.toFixed(2)} MB/s)`,
+        ]),
       );
     } else {
       console.log(
-        `[ssh] upload progress [${transport}] (${uploadLabel}): ${transferredMB.toFixed(1)} MB (total unknown, ${speedMBPerSecond.toFixed(2)} MB/s)`,
+        ...safeLogArgs([
+          `[ssh] upload progress [${transport}] (${uploadLabel}): ${transferredMB.toFixed(1)} MB (total unknown, ${speedMBPerSecond.toFixed(2)} MB/s)`,
+        ]),
       );
     }
 

@@ -45,7 +45,7 @@ Verified against 3.14.1.
 **Deliberately not backfilled**:
 
 - Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
-- Telemetry endpoint injection. Upstream installers still embed ARMS RUM and OTLP endpoints plus a license key (`chunk-HH7N2YVI.js`, byte-identical between 3.14.0 and 3.14.1), while this repository's build configuration does not inject those variables, so locally built artifacts carry no telemetry.
+- Official telemetry collection and reporting. ZCodium retains privacy-filtered local diagnostics, with external export disabled by default. Users can explicitly configure their own OTLP collector. See [diagnostics](DIAGNOSTICS.md).
 
 ### Decided backfill routes
 
@@ -269,7 +269,7 @@ Added by ZCodium:
 | Path                                         | Responsibility                                                          |
 | -------------------------------------------- | ----------------------------------------------------------------------- |
 | `.agents/specs/`                             | Backfill specs: scope, state ownership, interface contracts, acceptance |
-| `apps/zcode-cli/packages/*-plugin`           | Built-in plugin and skill sources                                     |
+| `apps/zcode-cli/packages/*-plugin`           | Built-in plugin and skill sources                                       |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | Localhost reproduction of the repo snapshot upload, for audit only      |
 
 ## Project Notice

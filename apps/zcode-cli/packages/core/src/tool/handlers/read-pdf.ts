@@ -275,7 +275,7 @@ async function readPdfPages(
       const errorCode = READ_ERROR_CODE_BY_PDF_DOCUMENT_ERROR[error.code];
       if (errorCode === undefined) throw error;
       // 根因：adapter 已提供稳定错误类别，统一折叠成 PDF_INVALID 会让 executor、
-      // telemetry 和调用方无法区分环境故障与输入错误；core 只做穷尽映射，不解析文案。
+      // 日志和调用方无法区分环境故障与输入错误；core 只做穷尽映射，不解析文案。
       return failure(errorCode, error.message);
     }
     throw error;

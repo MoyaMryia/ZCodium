@@ -4,12 +4,10 @@ import { useServices } from "@/hooks/useServices.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useCodingPlanEntitlements } from "@/settings/model-provider-section/useCodingPlanEntitlements.js";
 import { BUILTIN_MODEL_PROVIDER_IDS, type EnterpriseCodingPlanPricingProduct } from "@zcode/shared";
-import { buildOwnedEntryPlanList } from "@/lib/codingPlanOwnedEntryPlans.js";
 import { resolveAccountProviderInspectionAccess } from "@/lib/accountProviderAccess.js";
 import { logger } from "@/logger.js";
 
 export interface CodingPlanEntryInventory {
-  entryPlanList: string;
   status: "loading" | "error" | "ready";
   retry: () => void;
 }
@@ -54,7 +52,7 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
             });
             return { token, products: result.productList };
           } catch (error) {
-            logger.warn("[purchaseTelemetry] 读取团队套餐失败", { family, error });
+            logger.warn("[codingPlanEntry] 读取团队套餐失败", { family, error });
             return { token, products: null };
           }
         }),
@@ -118,7 +116,7 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
   const status =
     state.status === "error" ? "error" : pending ? "loading" : failed ? "error" : "ready";
   useEffect(() => {
-    logger.debug("[purchaseTelemetry] 套餐入口查询状态", {
+    logger.debug("[codingPlanEntry] 套餐入口查询状态", {
       status,
       configuredSources: required.length,
       generation,
@@ -127,12 +125,5 @@ export function useCodingPlanEntryPlanList(): CodingPlanEntryInventory {
   return {
     status,
     retry,
-    entryPlanList:
-      status === "ready"
-        ? buildOwnedEntryPlanList({
-            snapshots: required.map((item) => item?.snapshot),
-            teamProducts: teams?.sources.flatMap((source) => source.products ?? []) ?? [],
-          })
-        : "",
   };
 }

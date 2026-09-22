@@ -11,7 +11,7 @@ import type {
   McpToolCallResult,
   McpToolDescriptor,
 } from "@zcode/contracts";
-import type { McpTelemetryTracker } from "./telemetry.js";
+import type { McpProcessTracker } from "./process-tracker.js";
 
 const DEFAULT_IDLE_GRACE_MS = 30_000;
 
@@ -33,7 +33,7 @@ export interface McpConnectionPoolOptions {
   createAdapter(input: CreateMcpAdapterForPoolInput): McpPort;
   idleGraceMs?: number;
   logger?: Logger;
-  telemetry?: McpTelemetryTracker;
+  processTracker?: McpProcessTracker;
 }
 
 export interface McpConnectionPool {
@@ -83,7 +83,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         mcpServerName: entry.serverName,
       });
     } finally {
-      options.telemetry?.unregisterConnection({
+      options.processTracker?.unregisterConnection({
         connectionId: entry.connectionContext.mcpConnectionId,
       });
     }
@@ -182,7 +182,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       const entry = entries.get(key);
       if (!entry) return;
       if (!entry.refs.delete(leaseId)) return;
-      options.telemetry?.releaseOwner({
+      options.processTracker?.releaseOwner({
         connectionId: entry.connectionContext.mcpConnectionId,
         ownerId: leaseId,
       });
@@ -228,7 +228,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
           connectOptions,
           sessionId,
         });
-        options.telemetry?.registerConnection({
+        options.processTracker?.registerConnection({
           connectionId: connectionContext.mcpConnectionId,
           isolation: connectionContext.mcpIsolation,
           serverName,
@@ -261,7 +261,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         const previous = entries.get(previousKey);
         if (previous) {
           if (previous.refs.delete(leaseId)) {
-            options.telemetry?.releaseOwner({
+            options.processTracker?.releaseOwner({
               connectionId: previous.connectionContext.mcpConnectionId,
               ownerId: leaseId,
             });
@@ -279,7 +279,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       }
       leased.set(serverName, key);
       if (ownerAdded) {
-        options.telemetry?.acquireOwner({
+        options.processTracker?.acquireOwner({
           connectionId: entry.connectionContext.mcpConnectionId,
           ownerId: leaseId,
           ...(sessionId ? { sessionId } : {}),
@@ -318,7 +318,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         const connectedCount = enabledServers.filter(
           ([serverName]) => statuses[serverName]?.status === "connected",
         ).length;
-        options.telemetry?.recordSessionStartup({
+        options.processTracker?.recordSessionStartup({
           configuredCount: enabledServers.length,
           connectedCount,
           failedCount: enabledServers.length - connectedCount,

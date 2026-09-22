@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { createLocalServices, getAppConfigDir } from "@zcode/services/node";
 import {
   materializeBundledZCodeBuiltinProviderConfig,
@@ -27,6 +28,6 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  console.error("[zcode-server:http] startup failed", error);
+  console.error(...safeLogArgs(["[zcode-server:http] startup failed", error]));
   process.exitCode = 1;
 });

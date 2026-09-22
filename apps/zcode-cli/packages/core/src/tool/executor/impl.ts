@@ -19,8 +19,6 @@ export class ToolExecutorImpl implements ToolExecutor {
 
   constructor(options: ToolExecutorOptions) {
     this.deps = {
-      agentTelemetry: options.agentTelemetry,
-      agentTelemetryActorKind: options.agentTelemetryActorKind,
       registry: options.registry,
       permissionService: options.permissionService,
       permissionBroker: options.permissionBroker ?? createDenyPermissionBroker(),

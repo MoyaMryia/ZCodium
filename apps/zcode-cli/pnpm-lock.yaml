@@ -218,9 +218,6 @@ importers:
       hono:
         specifier: ^4.10.7
         version: 4.12.16
-      http-mitm-proxy:
-        specifier: ^1.1.0
-        version: 1.1.0
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.5)
@@ -2435,10 +2432,6 @@ packages:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
     engines: {node: '>= 0.8'}
 
-  http-mitm-proxy@1.1.0:
-    resolution: {integrity: sha512-GyjWXiukopLzp6Yg4Dk1M+6Yfp5c/rPtqXDGaRopeJH1bd9F6k2cyJrB98kKmJaMU2P7kA5LLHbtuFc8HcNvrA==}
-    engines: {node: '>=16'}
-    hasBin: true
 
   http-proxy-agent@9.0.0:
     resolution: {integrity: sha512-FcF8VhXYLQcxWCnt/cCpT2apKsRDUGeVEeMqGu4HSTu29U8Yw0TLOjdYIlDsYk3IkUh+taX4IDWpPcCqKDhCjA==}
@@ -5583,20 +5576,6 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
-  http-mitm-proxy@1.1.0:
-    dependencies:
-      async: 3.2.6
-      debug: 4.4.3
-      mkdirp: 1.0.4
-      node-forge: 1.4.0
-      semaphore: 1.1.0
-      uuid: 9.0.1
-      ws: 8.20.0
-      yargs: 17.7.2
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
 
   http-proxy-agent@9.0.0:
     dependencies:

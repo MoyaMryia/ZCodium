@@ -5,14 +5,6 @@ import {
 } from "@zcode/shared";
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
-import {
-  installArmsRumBridgeIpcForward,
-  scheduleArmsEventBridgePatch,
-} from "../shared/armsRumBridgeForward.js";
-
-// ARMS frame preload 闭包内的 send 不会随后序 ipcRenderer.send 补丁生效，须同步包装 Bridge.send
-installArmsRumBridgeIpcForward(ipcRenderer);
-scheduleArmsEventBridgePatch();
 
 /** 从 command-line 参数中解析 --device-id= */
 function parseDeviceIdFromArgs(): string {
@@ -53,10 +45,6 @@ import type {
   OpenInEditorOptions,
   RemoteTarget,
   TaskNotificationPayload,
-  TelemetryRendererContext,
-  RendererActionTraceBatchV1,
-  RendererActionTraceConfigV1,
-  RendererHeapSample,
   PostUpdateReleaseNotesPayload,
   RemoteSessionClosedEvent,
   UpdateCheckResultPayload,
@@ -74,26 +62,9 @@ import type {
   WindowControlsOverlayReadyPayload,
   CreateTempTextAttachmentRequest,
   OpenCuaPermissionOnboardingOptions,
-  ConfigureFinalArmsCustomEventE2ERequest,
-  FinalArmsCustomEventE2EEntry,
 } from "@zcode/shared";
-import {
-  InternalChannels,
-  PlatformChannels,
-  formatZCodeRendererProcessName,
-  shouldEnableE2ETestBridge,
-} from "@zcode/shared";
+import { InternalChannels, PlatformChannels, formatZCodeRendererProcessName } from "@zcode/shared";
 import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
-
-if (shouldEnableE2ETestBridge(process.env)) {
-  contextBridge.exposeInMainWorld("__zcodeFinalArmsCustomEventsE2E", {
-    read: (): Promise<FinalArmsCustomEventE2EEntry[]> =>
-      ipcRenderer.invoke(PlatformChannels.ReadFinalArmsCustomEventsE2E),
-    clear: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.ClearFinalArmsCustomEventsE2E),
-    configure: (request: ConfigureFinalArmsCustomEventE2ERequest): Promise<void> =>
-      ipcRenderer.invoke(PlatformChannels.ConfigureFinalArmsCustomEventsE2E, request),
-  });
-}
 
 const updateReadyCallbacks = new Set<(version: string) => void>();
 const updateStateCallbacks = new Set<(payload: UpdateStatePayload) => void>();
@@ -595,9 +566,7 @@ contextBridge.exposeInMainWorld("zcode", {
     ipcRenderer.send(PlatformChannels.OAuthRegisterState, payload),
   /** 注册 OAuth deep link 回调，返回 disposer */
   onOAuthCallback: (cb: (url: string) => void): (() => void) => {
-    const handler = createOAuthCallbackHandler(cb, () => {
-      ipcRenderer.send(PlatformChannels.OAuthCallbackHandled);
-    });
+    const handler = createOAuthCallbackHandler(cb);
     ipcRenderer.on(PlatformChannels.OAuthCallback, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.OAuthCallback, handler);
   },
@@ -617,51 +586,13 @@ contextBridge.exposeInMainWorld("zcode", {
   },
   /** 通知 main process renderer 已就绪 */
   notifyRendererReady: () => ipcRenderer.send(PlatformChannels.RendererReady),
-  /** 同步 renderer telemetry 上下文到 main process */
-  syncTelemetryContext: (context: TelemetryRendererContext) =>
-    ipcRenderer.send(PlatformChannels.SyncTelemetryContext, context),
-  /** 通过 main process 统一上报业务 telemetry 事件 */
-  reportTelemetryEvent: (payload: {
-    context: TelemetryRendererContext;
-    elementName: string;
-    eventRegion: string;
-    eventType: string;
-    eventText?: string;
-    eventExtraDetail: Record<string, string>;
-    userId?: string;
-    talkId?: string;
-    messageId?: string;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportTelemetryEvent, payload),
-  /** 通过 main process 统一上报 ARMS 自定义事件 */
-  reportArmsCustomEvent: (payload: {
-    name: string;
-    group: string;
-    value?: number;
-    properties?: Record<string, string | number | boolean | undefined>;
-  }) => ipcRenderer.invoke(PlatformChannels.ReportArmsCustomEvent, payload),
-  /** 读取 Renderer 用户操作 Trace 灰度配置。 */
-  getRendererActionTraceConfig: (): Promise<RendererActionTraceConfigV1> =>
-    ipcRenderer.invoke(PlatformChannels.GetRendererActionTraceConfig),
-  /** 订阅 Main 推送的 Renderer 用户操作 Trace 配置变化。 */
-  onRendererActionTraceConfigChanged: (
-    callback: (config: RendererActionTraceConfigV1) => void,
-  ): (() => void) => {
-    const handler = (_event: unknown, config: RendererActionTraceConfigV1) => callback(config);
-    ipcRenderer.on(PlatformChannels.RendererActionTraceConfigChanged, handler);
-    return () =>
-      ipcRenderer.removeListener(PlatformChannels.RendererActionTraceConfigChanged, handler);
-  },
   /** 发送已结束 Span；使用 send 避免遥测往返阻塞业务。 */
+  reportDiagnostic: (record: import("@zcode/shared").DiagnosticRecordInput): void =>
+    ipcRenderer.send(PlatformChannels.ReportDiagnostic, record),
+  reportRendererHeapSample: (sample: import("@zcode/shared").RendererHeapSample): void =>
+    ipcRenderer.send(PlatformChannels.ReportRendererHeapSample, sample),
   reportLocalTtftBatch: (batch: import("@zcode/shared").LocalTtftBatch): void =>
     ipcRenderer.send(PlatformChannels.ReportLocalTtftBatch, batch),
-  reportRendererActionTraceBatch: (batch: RendererActionTraceBatchV1): void =>
-    ipcRenderer.send(PlatformChannels.ReportRendererActionTraceBatch, batch),
-  /**
-   * 主窗口 renderer 的 60 秒 heap 读数。
-   * 只提供单向 send：main 不回执，renderer 也不能靠它反查 main 的进程事实。
-   */
-  reportRendererHeapSample: (sample: RendererHeapSample): void =>
-    ipcRenderer.send(PlatformChannels.ReportRendererHeapSample, sample),
   /** 通过 main process 触发原生任务通知 */
   showTaskNotification: (payload: TaskNotificationPayload) =>
     ipcRenderer.send(PlatformChannels.ShowTaskNotification, payload),
@@ -895,9 +826,6 @@ ipcRenderer.on(
     notifyPostUpdateReleaseNotesCallbacks(payload);
   },
 );
-
-// dom-ready autoInject 之后 Bridge 若被重置，再尝试一次包装
-scheduleArmsEventBridgePatch();
 
 // 启动控制面先于普通 RPC；reload 从 Main 的通知镜像补齐，不触发新迁移。
 ipcRenderer.on(InternalChannels.DatabaseStartupState, (_event, raw: unknown) => {

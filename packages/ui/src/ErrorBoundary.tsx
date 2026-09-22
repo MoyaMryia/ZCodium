@@ -6,7 +6,8 @@ import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import enUS from "@/i18n/locales/en-US.js";
 import { logger } from "@/logger.js";
-import { reportReactErrorToArms } from "@/lib/reactErrorArmsTelemetry.js";
+import { recordUiDiagnostic } from "@/lib/diagnostics/recorder.js";
+
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { AlertTriangleIcon, RefreshCw } from "lucide-react";
@@ -16,11 +17,6 @@ interface AppErrorBoundaryProps {
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
-  /**
-   * React 错误边界捕获的异常不会冒泡到 window.onerror，监控 SDK默认收不到。
-   * Desktop 等宿主可传入此回调，将 React 错误边界捕获的异常转发到监控 SDK。
-   */
-  onCaughtReactError?: (error: Error, errorInfo: ErrorInfo) => void;
 }
 
 interface AppErrorBoundaryState {
@@ -37,7 +33,6 @@ interface ScopedErrorBoundaryProps {
   variant?: ScopedErrorBoundaryVariant;
   className?: string;
   onReset?: () => void;
-  onCaughtReactError?: (error: Error, errorInfo: ErrorInfo, scope: string) => void;
 }
 
 const LOCALE_PREFERENCE_KEY = "zcode-locale-preference";
@@ -52,12 +47,10 @@ function normalizeError(error: unknown): Error {
 
 function serializeErrorForLog(error: Error): {
   name: string;
-  message: string;
   stack?: string;
 } {
   return {
     name: error.name,
-    message: error.message,
     ...(error.stack ? { stack: error.stack } : {}),
   };
 }
@@ -315,20 +308,18 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
 
   override componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
     const normalizedError = normalizeError(error);
-    logger.error(
-      "[AppErrorBoundary] React subtree crashed:",
-      // Error 对象跨 preload 日志 bridge 序列化后会变成 {}，
-      // 导致 Maximum update depth 等关键 message 丢失。这里显式展开可诊断字段。
-      serializeErrorForLog(normalizedError),
-      errorInfo.componentStack,
-    );
-    this.props.onCaughtReactError?.(normalizedError, errorInfo);
-    // React 错误边界拦截了异常、阻止其冒泡到 window.onerror，RUM Browser SDK 默认收不到。
-    // 主动转发到 ARMS 自定义事件干道（reporter 在 renderer 入口早注入），补上根级渲染崩溃盲区。
-    reportReactErrorToArms({
-      error: normalizedError,
-      componentStack: errorInfo.componentStack ?? "",
+    recordUiDiagnostic({
+      name: "ui_react_error",
+      group: "ui_error",
+      value: 1,
+      properties: { error_source: "runtime" },
     });
+    logger.lifecycle.error(
+      "[AppErrorBoundary] React subtree crashed:",
+      // 安全 logger 只保留错误类型与应用代码位置，原文继续由业务错误视图持有。
+      serializeErrorForLog(normalizedError),
+      { stack: errorInfo.componentStack },
+    );
     this.setState({ componentStack: errorInfo.componentStack ?? "" });
   }
 
@@ -389,21 +380,19 @@ export class ScopedErrorBoundary extends Component<
 
   override componentDidCatch(error: unknown, errorInfo: ErrorInfo) {
     const normalizedError = normalizeError(error);
-    logger.error(
-      `[ScopedErrorBoundary:${this.props.scope}] React subtree crashed:`,
-      // Error 对象跨 preload 日志 bridge 序列化后会变成 {}，
-      // 局部边界需要保留 message/stack 才能定位 UI 更新循环。
-      serializeErrorForLog(normalizedError),
-      errorInfo.componentStack,
-    );
-    this.props.onCaughtReactError?.(normalizedError, errorInfo, this.props.scope);
-    // 同根级边界：scoped 区域捕获的渲染异常同样不会冒泡到 RUM，按 scope 区分上报，
-    // 让 sidebar/chat/terminal/settings 等局部崩溃在 RUM 里可见、可定位。
-    reportReactErrorToArms({
-      error: normalizedError,
-      componentStack: errorInfo.componentStack ?? "",
-      scope: this.props.scope,
+    recordUiDiagnostic({
+      name: "ui_react_error",
+      group: "ui_error",
+      value: 1,
+      properties: { error_source: "runtime" },
     });
+    logger.lifecycle.error(
+      `[ScopedErrorBoundary:${this.props.scope}] React subtree crashed:`,
+      // 不把局部 scope、原始错误文本和用户路径写入诊断输出。
+      serializeErrorForLog(normalizedError),
+      { stack: errorInfo.componentStack },
+    );
+
     this.setState({ componentStack: errorInfo.componentStack ?? "" });
   }
 

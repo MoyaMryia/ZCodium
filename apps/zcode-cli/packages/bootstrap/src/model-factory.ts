@@ -10,8 +10,6 @@ import type { Logger, ModelStatusSink } from "@zcode/contracts";
 interface CreateModelAdapterBaseOptions {
   env?: EnvRecord;
   logger?: Logger;
-  modelIoDir?: string;
-  modelIoFullRetentionEnabled?: boolean;
   streamIdleTimeoutMs?: number;
   statusSink?: ModelStatusSink;
 }
@@ -26,10 +24,8 @@ export function createModelAdapter(options: CreateModelAdapterOptions): AiSdkMod
   }
   return new AiSdkModelAdapter({
     ...options.executionConfig,
-    debugDir: options.modelIoDir,
     env: options.env,
     logger: options.logger,
-    modelIoFullRetentionEnabled: options.modelIoFullRetentionEnabled,
     streamIdleTimeoutMs: options.streamIdleTimeoutMs,
     statusSink: options.statusSink,
   });

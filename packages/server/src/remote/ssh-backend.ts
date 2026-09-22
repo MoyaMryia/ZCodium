@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- SSH backend 集中维护连接、exec、SFTP 上传和 fallback 进度链路；集中维护以避免拆分引入远端连接回归。 */
 import { Client as SSHClient } from "ssh2";
 import type { ConnectConfig } from "ssh2";
@@ -111,7 +112,7 @@ export class SSHBackend implements IRemoteBackend {
     // ready 之后如果底层连接抖动，ssh2 仍会发出 "error" 事件。
     // 若没有常驻监听，Node 会把它当成未捕获异常直接抛出，可能导致 host 进程崩溃。
     // 这里先记录错误详情再上报断连；上层收到断连后会退出 host，反过来会丢掉真实 error 文案。
-    console.error("[ssh] client error:", normalizedError);
+    console.error(...safeLogArgs(["[ssh] client error:", normalizedError]));
     this.reportDisconnect("error", normalizedError);
   };
 
@@ -145,7 +146,7 @@ export class SSHBackend implements IRemoteBackend {
         if (!shouldLogSSHDebugMessage(message)) {
           return;
         }
-        console.debug(`[ssh2] ${message}`);
+        console.debug(...safeLogArgs([`[ssh2] ${message}`]));
       };
     }
     if (typeof options.password === "string" && options.password.length > 0) {
@@ -224,7 +225,9 @@ export class SSHBackend implements IRemoteBackend {
 
     if (platform !== reportedPlatform) {
       console.warn(
-        `[ssh] detect: uname reported ${reportedPlatform}, but kernel ostype is ${kernelOstype}; fallback to ${platform}`,
+        ...safeLogArgs([
+          `[ssh] detect: uname reported ${reportedPlatform}, but kernel ostype is ${kernelOstype}; fallback to ${platform}`,
+        ]),
       );
     }
 
@@ -243,7 +246,7 @@ export class SSHBackend implements IRemoteBackend {
     throwIfUploadAborted(options?.signal);
     this.assertNotDisposed();
     const uploadLabel = formatSSHUploadLabel(resolved);
-    console.log(`[ssh] upload: resolved ${uploadLabel} to ${resolved}`);
+    console.log(...safeLogArgs([`[ssh] upload: resolved ${uploadLabel} to ${resolved}`]));
     const dir = posix.dirname(resolved);
     await this.execSimple(`mkdir -p ${quotePosixShellArg(dir)}`);
 
@@ -268,7 +271,9 @@ export class SSHBackend implements IRemoteBackend {
       // 新连接会创建新的 backend，自然会重新探测 SFTP 能力。
       this.execUploadOnly = true;
       console.warn(
-        `[ssh] upload: switching ${uploadLabel} from sftp to exec pipe after ${this.describeUploadFailure(error)}`,
+        ...safeLogArgs([
+          `[ssh] upload: switching ${uploadLabel} from sftp to exec pipe after ${this.describeUploadFailure(error)}`,
+        ]),
       );
       await this.uploadViaExec(localPath, resolved, options);
     }
@@ -292,7 +297,7 @@ export class SSHBackend implements IRemoteBackend {
           // remote deploy 会执行大量短命令，成功退出的 code=0 日志没有排查价值且会刷屏。
           // 这里只保留失败退出码，正常流程由上层的阶段日志和进度日志表达。
           if (code !== 0) {
-            console.warn(`[ssh] exec channel failed: code=${code}`);
+            console.warn(...safeLogArgs([`[ssh] exec channel failed: code=${code}`]));
           }
           onClose.fire(code ?? 0);
         };
@@ -433,7 +438,9 @@ export class SSHBackend implements IRemoteBackend {
           return;
         }
         console.log(
-          `[ssh] upload: started via sftp for ${uploadLabel} (${localPath} -> ${resolvedRemotePath})`,
+          ...safeLogArgs([
+            `[ssh] upload: started via sftp for ${uploadLabel} (${localPath} -> ${resolvedRemotePath})`,
+          ]),
         );
 
         const readStream = createReadStream(localPath);
@@ -449,7 +456,7 @@ export class SSHBackend implements IRemoteBackend {
           settled = true;
           options?.signal?.removeEventListener("abort", abortOnce);
           reportProgress(transferredBytes, true);
-          console.log(`[ssh] upload: completed via sftp for ${uploadLabel}`);
+          console.log(...safeLogArgs([`[ssh] upload: completed via sftp for ${uploadLabel}`]));
           sftp.end();
           resolve();
         };
@@ -505,7 +512,9 @@ export class SSHBackend implements IRemoteBackend {
             return;
           }
           console.error(
-            `[ssh] upload: local read failed for ${uploadLabel}: ${formatSSHUploadError(error)}`,
+            ...safeLogArgs([
+              `[ssh] upload: local read failed for ${uploadLabel}: ${formatSSHUploadError(error)}`,
+            ]),
           );
           rejectOnce(error, "local-read", `Failed to read local file ${localPath}`);
         });
@@ -530,7 +539,9 @@ export class SSHBackend implements IRemoteBackend {
     const parentDir = posix.dirname(resolvedRemotePath);
     const command = `mkdir -p ${quotePosixShellArg(parentDir)} && cat > ${quotePosixShellArg(resolvedRemotePath)}`;
     console.log(
-      `[ssh] upload: started via exec pipe for ${uploadLabel} (${localPath} -> ${resolvedRemotePath})`,
+      ...safeLogArgs([
+        `[ssh] upload: started via exec pipe for ${uploadLabel} (${localPath} -> ${resolvedRemotePath})`,
+      ]),
     );
     const stream = await this.exec(command);
 
@@ -580,11 +591,15 @@ export class SSHBackend implements IRemoteBackend {
         options?.signal?.removeEventListener("abort", abortOnce);
         reportProgress(transferredBytes, true);
         if (code !== 0) {
-          console.error(`[ssh] upload: exec pipe failed for ${uploadLabel}: exit code ${code}`);
+          console.error(
+            ...safeLogArgs([
+              `[ssh] upload: exec pipe failed for ${uploadLabel}: exit code ${code}`,
+            ]),
+          );
           reject(new Error(`SSH exec upload failed with exit code ${code}`));
           return;
         }
-        console.log(`[ssh] upload: completed via exec pipe for ${uploadLabel}`);
+        console.log(...safeLogArgs([`[ssh] upload: completed via exec pipe for ${uploadLabel}`]));
         resolve();
       });
     });

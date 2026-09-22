@@ -45,7 +45,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 **有意不补全**：
 
 - 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
-- 遥测端点注入。上游发布包仍内嵌 ARMS RUM 与 OTLP 端点及 license key（`chunk-HH7N2YVI.js`，3.14.0 与 3.14.1 逐字节相同），而本仓库的构建配置不注入这些变量，自建产物不带遥测。
+- 官方遥测采集与上报。ZCodium 保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。详见[诊断说明](DIAGNOSTICS.md)。
 
 ### 已定的补全路线
 
@@ -287,7 +287,7 @@ ZCodium 新增的内容：
 | 路径                                         | 职责                                                  |
 | -------------------------------------------- | ----------------------------------------------------- |
 | `.agents/specs/`                             | 能力补全的 spec：范围、状态所有者、接口契约与验收场景 |
-| `apps/zcode-cli/packages/*-plugin`           | 内置插件与技能源码                                   |
+| `apps/zcode-cli/packages/*-plugin`           | 内置插件与技能源码                                    |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | 仓库快照上传的 localhost 复现，仅用于审计对照         |
 
 ## 项目声明

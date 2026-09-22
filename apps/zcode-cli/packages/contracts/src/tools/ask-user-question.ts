@@ -102,17 +102,6 @@ export const AskUserQuestionAnnotationSchema = z
 
 export type AskUserQuestionAnnotation = z.infer<typeof AskUserQuestionAnnotationSchema>;
 
-const AskUserQuestionMetadataSchema = z
-  .object({
-    source: z
-      .string()
-      .optional()
-      .describe(
-        'Optional identifier for the source of this question (e.g., "remember" for /remember command). Used for analytics tracking.',
-      ),
-  })
-  .strict();
-
 export const AskUserQuestionInputSchema = z
   .object({
     questions: z
@@ -130,9 +119,6 @@ export const AskUserQuestionInputSchema = z
       .describe(
         "Optional per-question annotations from the user (e.g., notes on preview selections). Keyed by question text.",
       ),
-    metadata: AskUserQuestionMetadataSchema.optional().describe(
-      "Optional metadata for tracking and analytics purposes. Not displayed to user.",
-    ),
   })
   .strict()
   .superRefine((input, context) => {

@@ -33,7 +33,7 @@ import type {
 } from "../model/index.js";
 import type { HttpClientEgressInfo } from "../interfaces/http-client.port.js";
 import { createModelUsageSummary } from "../model/index.js";
-import type { ModelApiErrorPhase, ModelFailureExceptionKind } from "../telemetry/index.js";
+import type { ModelApiErrorPhase, ModelFailureExceptionKind } from "../model/observation.js";
 import type {
   CompactBoundaryPayload,
   CompactTimelinePayload,
@@ -44,7 +44,6 @@ import type { CheckpointCreatedPayload, RewindTriggeredPayload } from "../rewind
 import type { GoalCompletionVerificationOutput, SessionGoal } from "../tools/target.js";
 import type { ToolSideEffectScope } from "../tools/contract.js";
 import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
-import type { SkillTelemetryMetadata } from "../skills/index.js";
 import type {
   MessageVisibility,
   SessionTitleSource,
@@ -441,7 +440,7 @@ export interface TurnStartedPayloadBase {
    */
   messageId?: MessageId;
   inputId?: string;
-  /** 仅 admission 透传给无正文 telemetry fact；不能从 session 归属反推。 */
+  /** 由 admission 明确标记执行来源，不能从 session 归属反推。 */
   /** 同一 runtime command 内覆盖 primary turn → goal verify/continue 的稳定取消身份。 */
   foregroundExecutionId?: string;
   queryId?: QueryId;
@@ -858,15 +857,11 @@ export interface ToolCallResultPayload {
   toolCallId: ToolCallId;
   result: ToolResultPayload;
   duration: number;
-  /** Skill metadata 仅用于 telemetry，不进入模型可见的 result.content。 */
-  skillMetadata?: SkillTelemetryMetadata;
 }
 
 export interface ToolCallErrorPayload {
   toolCallId: ToolCallId;
   error: ErrorPayload;
-  /** Skill metadata 仅用于 telemetry，不进入模型可见的错误正文。 */
-  skillMetadata?: SkillTelemetryMetadata;
 }
 
 export interface ToolBatchCompletePayload {
@@ -1073,7 +1068,7 @@ export interface ToolResultPayload {
   success: boolean;
   content: string;
   display?: ToolResultDisplayPayload;
-  perf?: import("../tools/performance.js").ToolExecutionTelemetry;
+  perf?: import("../tools/performance.js").ToolExecutionPerformance;
   error?: ErrorPayload;
   truncated?: boolean;
   originalBytes?: number;
@@ -1097,7 +1092,7 @@ export interface TokenUsage {
 export interface ErrorPayload {
   code?: string;
   detail?: string;
-  /** 错误链中最深的非 wrapper frame 的原始 message，供客户端 telemetry 定位根因。 */
+  /** 错误链中最深的非 wrapper frame 的原始 message，供客户端诊断 定位根因。 */
   underlyingErrorMessage?: string;
   /** 同一底层 frame 的 detail/errorDetails/details 内容。 */
   underlyingErrorDetail?: string;

@@ -28,7 +28,7 @@ import {
   shouldResetRemoteConnectionOnOpen,
 } from "@/lib/remoteConnectionDialogState.js";
 import { logger } from "@/logger.js";
-import { startUserAction } from "@/lib/userActionTelemetry.js";
+
 import {
   RemoteConnectionConnectingStep,
   RemoteConnectionDirectoryStep,
@@ -280,27 +280,19 @@ export function RemoteConnectionDialog({
     resetFeedback();
     resetConnectionLogs();
     setCurrentStep("connecting");
-    const trace = startUserAction({
-      featureId: "workspace.remote.lifecycle",
-      action: "connect",
-      trigger: "button",
-      workspaceKind: "remote",
-      remoteKind: nextTarget.kind,
-    });
+
     try {
       const sessionId = await onConnect(nextTarget, requestId);
       const completionState = getRemoteConnectionCompletionDialogState("success");
       setConnectedSessionId(sessionId);
       setCurrentStep(completionState.step);
       applyOpenState(completionState.open);
-      trace.complete({ resultSource: "platform_result" });
     } catch (connectError) {
       const completionState = getRemoteConnectionCompletionDialogState("error");
       const errorMessage = getErrorMessage(connectError);
       setError(errorMessage);
       setCurrentStep(completionState.step);
       applyOpenState(completionState.open);
-      trace.fail({ failureStage: "remote_connect" });
     } finally {
       setLoading(false);
     }

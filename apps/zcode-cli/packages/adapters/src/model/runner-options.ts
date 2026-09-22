@@ -34,9 +34,7 @@ function mergeRequestHeaders(
 }
 
 export function createGenerateTextOptions(input: {
-  anthropicMetadataUserId?: string;
   env?: EnvRecord;
-  includeModelIO: boolean;
   request: AiSdkModelTextRequest;
   resolved: ResolvedAiSdkModel;
   statusContext: ModelStatusContext;
@@ -45,13 +43,8 @@ export function createGenerateTextOptions(input: {
     input.resolved.providerOptions,
     input.request.providerOptions,
   );
-  const providerOptionsWithMetadata = mergeAnthropicRequestMetadata({
-    metadataUserId: input.anthropicMetadataUserId,
-    providerKind: input.resolved.providerKind,
-    providerOptions,
-  });
   const requestProviderOptions = withNativeGenerateOutputFormat({
-    providerOptions: providerOptionsWithMetadata,
+    providerOptions,
     responseJsonSchema: input.request.responseJsonSchema,
     resolved: input.resolved,
   });
@@ -90,19 +83,11 @@ export function createGenerateTextOptions(input: {
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,
     maxRetries: 0,
-    experimental_include: input.includeModelIO
-      ? {
-          requestBody: true,
-          responseBody: true,
-        }
-      : undefined,
   }) as AiSdkGenerateTextOptions;
 }
 
 export function createStreamTextOptions(input: {
-  anthropicMetadataUserId?: string;
   env?: EnvRecord;
-  includeModelIO: boolean;
   request: AiSdkModelTextRequest;
   resolved: ResolvedAiSdkModel;
   statusContext: ModelStatusContext;
@@ -111,11 +96,7 @@ export function createStreamTextOptions(input: {
     input.resolved.providerOptions,
     input.request.providerOptions,
   );
-  const requestProviderOptions = mergeAnthropicRequestMetadata({
-    metadataUserId: input.anthropicMetadataUserId,
-    providerKind: input.resolved.providerKind,
-    providerOptions,
-  });
+  const requestProviderOptions = providerOptions;
   return removeUndefined({
     model: input.resolved.model,
     messages: toAiSdkMessages(input.request.messages, {
@@ -157,15 +138,8 @@ export function createStreamTextOptions(input: {
 }
 
 function createStreamExperimentalInclude(input: {
-  includeModelIO: boolean;
   resolved: ResolvedAiSdkModel;
 }): ExperimentalIncludeWithResponseBody | undefined {
-  if (input.includeModelIO) {
-    return {
-      requestBody: true,
-      responseBody: true,
-    };
-  }
   return shouldIncludeStreamResponseBody(input.resolved) ? { responseBody: true } : undefined;
 }
 
@@ -203,29 +177,6 @@ function withNativeGenerateOutputFormat(input: {
     // Lite role 的真实模型 ID 可能不在 AI SDK 的静态能力表中；
     // 显式 schema 必须继续生成目标 output_config，而不能退化成 JSON tool。
     anthropic: { ...anthropicOptions, structuredOutputMode: "outputFormat" },
-  };
-}
-
-function mergeAnthropicRequestMetadata(input: {
-  metadataUserId: string | undefined;
-  providerKind: ResolvedAiSdkModel["providerKind"];
-  providerOptions: Record<string, unknown> | undefined;
-}): Record<string, unknown> | undefined {
-  if (input.providerKind !== "anthropic" || input.metadataUserId === undefined) {
-    return input.providerOptions;
-  }
-
-  const anthropicOptions = asPlainRecord(input.providerOptions?.anthropic) ?? {};
-  const metadata = asPlainRecord(anthropicOptions.metadata) ?? {};
-  return {
-    ...input.providerOptions,
-    anthropic: {
-      ...anthropicOptions,
-      metadata: {
-        ...metadata,
-        userId: input.metadataUserId,
-      },
-    },
   };
 }
 

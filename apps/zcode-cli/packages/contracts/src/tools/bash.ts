@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { ToolCallId, TraceId } from "../interfaces/shared.js";
 import { toToolJsonSchema } from "./json-schema.js";
-import { ToolExecutionTelemetrySchema } from "./performance.js";
+import { ToolExecutionPerformanceSchema } from "./performance.js";
 
 const MAX_BASH_TIMEOUT_MS = 600_000;
 const TRUE_BOOLEAN_STRINGS = new Set(["true", "1", "yes", "y", "on"]);
@@ -258,7 +258,7 @@ export const BashOutputSchema = z
     stderrPersistedOutputSize: z.number().int().nonnegative().optional(),
     staleReadFileStateHint: z.string().optional(),
     ghRateLimitHint: z.string().optional(),
-    perf: ToolExecutionTelemetrySchema.optional(),
+    perf: ToolExecutionPerformanceSchema.optional(),
   })
   .strict();
 

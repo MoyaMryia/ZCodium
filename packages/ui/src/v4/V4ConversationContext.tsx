@@ -1,3 +1,4 @@
+import { ConversationDiagnosticPaneAttachment } from "@/v4/diagnostics/ConversationDiagnosticAttachment.js";
 import {
   createContext,
   useContext,
@@ -40,7 +41,6 @@ import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import { SessionDataLayer } from "@/v4/sessionDataLayer.js";
 import { acquireWorkspaceConnection } from "@/v4/workspaceConnectionRegistry.js";
 import type { AttachmentUploadOptions } from "@/v4/attachmentUploadTransaction.js";
-import { ConversationTelemetryPaneAttachment } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
 
 export interface V4ConversationContextValue {
   layer: SessionDataLayer;
@@ -349,11 +349,11 @@ function ReadyV4PaneConversationProvider({
 
   return (
     <ServiceProvider services={services}>
-      <ConversationTelemetryPaneAttachment services={services} scope={scope}>
+      <ConversationDiagnosticPaneAttachment services={services} scope={scope}>
         <V4ConversationContext.Provider value={bundle.value}>
           {children}
         </V4ConversationContext.Provider>
-      </ConversationTelemetryPaneAttachment>
+      </ConversationDiagnosticPaneAttachment>
     </ServiceProvider>
   );
 }

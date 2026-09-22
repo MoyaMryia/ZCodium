@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -22,9 +23,7 @@ export function createCliProviderRefreshReporter(
 ) {
   return {
     onBuiltinRefreshError(error: unknown) {
-      stderr.write(
-        `ZCode Built-in 刷新失败: ${error instanceof Error ? error.message : "unknown error"}\n`,
-      );
+      stderr.write(`ZCode Built-in 刷新失败: ${JSON.stringify(safeLogArgs([error]))}\n`);
     },
     onBuiltinRefreshResult(event: ZCodeBuiltinRefreshEvent) {
       // TTL 检查不是生产事件；成功更新才默认留痕，不能输出 CDN URL 查询参数或内容。

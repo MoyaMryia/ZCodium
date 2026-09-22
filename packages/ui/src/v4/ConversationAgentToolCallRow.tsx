@@ -5,7 +5,6 @@ import { getAgentPrimaryText } from "@/ToolCallBlocks/renderers/agentHelpers.js"
 import type { ConversationAssistantWorkRenderItem } from "@/v4/conversationAssistantWorkItems.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
-import { runUserAction } from "@/lib/userActionTelemetry.js";
 
 function openSubagentSessionFromSummary({
   backgrounded: _backgrounded = false,
@@ -52,13 +51,7 @@ export function ConversationAgentToolCallRow({
     childSessionId && context.sessionId && context.onOpenSubagentSession,
   );
   const handleOpenChildSession = useCallback(() => {
-    runUserAction({
-      input: { featureId: "conversation.subagent", action: "open_side_pane", trigger: "button" },
-      operation: () =>
-        openSubagentSessionFromSummary({ childSessionId, context, subagentType, title }),
-      completed: { resultSource: "local_commit" },
-      failureStage: "subagent_open",
-    });
+    openSubagentSessionFromSummary({ childSessionId, context, subagentType, title });
   }, [childSessionId, context, subagentType, title]);
   const agentSummaryAction = useMemo(
     () =>

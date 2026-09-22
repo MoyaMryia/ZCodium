@@ -1981,7 +1981,7 @@ export class ProductProjection {
             `model-change:${turnId}:${this.lastTurnModel.provider}/${this.lastTurnModel.model}->${config.provider}/${config.model}`,
           ),
           kind: "timelineMarker",
-        // lane 由投影裁决（UI 不得按 marker type 自行推断落位语义）。
+          // lane 由投影裁决（UI 不得按 marker type 自行推断落位语义）。
           lane: "lightBoundary",
           marker: {
             type: "modelChange",
@@ -2364,9 +2364,6 @@ export class ProductProjection {
       case "model_request_failed":
         return payload.retryable ? [] : this.setApiRetry(null);
       case "model_stream_stalled":
-      case "model_first_provider_event":
-      case "model_first_content":
-      case "model_first_text":
       // 准入等待的两端是 runtime 观测，不是 UI 状态：
       // 不映射成重试/等待标签。
       case "model_request_queued":

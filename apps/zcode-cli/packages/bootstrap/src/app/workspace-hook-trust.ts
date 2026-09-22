@@ -3,7 +3,7 @@ import {
   InMemoryWorkspaceHookPolicyProvider,
   WorkspaceHookTrustCoordinator,
   createWorkspaceHookRuntimeAdmission,
-  emitWorkspaceHookTelemetry,
+  emitWorkspaceHookDiagnostics,
   type WorkspaceHookAdmissionState,
   type WorkspaceHookReviewTarget,
   type WorkspaceHookRuntimeAdmissionPort,
@@ -211,7 +211,7 @@ async function loadWorkspaceHookTrustStore(input: {
     });
   } catch (error) {
     input.coordinator.replacePersistentTrustRecords([], { status: "corrupt" });
-    emitWorkspaceHookTelemetry(input.logger, "workspace_hook.trust_store_failure", {
+    emitWorkspaceHookDiagnostics(input.logger, "workspace_hook.trust_store_failure", {
       reasonCode: "workspace_hooks_trust_store_corrupt",
     });
     input.logger.warn("Workspace Hook Trust store bootstrap failed closed", {

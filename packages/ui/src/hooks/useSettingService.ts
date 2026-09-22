@@ -1,3 +1,4 @@
+import { measureOperation } from "@/lib/diagnostics/operations.js";
 /**
  * useSettingService —— 设置服务 hooks
  */
@@ -139,20 +140,14 @@ export function useSettings() {
 
   const update = useCallback(
     async (patch: Partial<AppSettings>) => {
-      await settingService.update(patch);
+      await measureOperation("settings", () => settingService.update(patch));
       platform.syncAppSettings?.(patch);
       await refresh();
-      if (
-        typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
-        typeof patch.modelIoFullRetentionEnabled === "boolean"
-      ) {
+      if (typeof patch.askUserQuestionAutoResolutionEnabled === "boolean") {
         const preferences = {
           askUserQuestionAutoResolutionEnabled:
             patch.askUserQuestionAutoResolutionEnabled ??
             settingsStore.snapshot.settings?.askUserQuestionAutoResolutionEnabled !== false,
-          modelIoFullRetentionEnabled:
-            patch.modelIoFullRetentionEnabled ??
-            settingsStore.snapshot.settings?.modelIoFullRetentionEnabled === true,
         };
         const syncResults = await Promise.allSettled([
           zcodeAgentService.syncAppRuntimePreferences(preferences),

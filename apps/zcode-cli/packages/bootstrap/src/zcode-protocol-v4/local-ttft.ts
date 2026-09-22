@@ -1,3 +1,4 @@
+import { streamingParentToolCallId, turnTerminalState } from "./local-ttft-events.js";
 import { observeLocalTtftCompaction } from "./local-ttft-compaction.js";
 import { LocalTtftClockWatch } from "./local-ttft-clock.js";
 import {
@@ -7,14 +8,12 @@ import {
   type ModelStreamingPayload,
   type ModelNetworkStatusPayload,
   type TurnStartedPayload,
+  type TurnCompletePayload,
+  type TurnErrorPayload,
   type TurnSteerQueuedPayload,
   type TurnSteerDrainedPayload,
   type TurnSteerDiscardedPayload,
 } from "@zcode/contracts";
-import {
-  ConversationTelemetryFactNormalizer,
-  streamingParentToolCallId,
-} from "./conversation-telemetry-facts.js";
 import { randomUUID } from "node:crypto";
 import {
   LOCAL_TTFT_MAX_PENDING,
@@ -22,7 +21,6 @@ import {
   LOCAL_TTFT_TTL_MS,
   localTtftNow,
   type CommandEnvelope,
-  type ConversationTelemetryFact,
   type LocalTtftFacts,
   type LocalTtftOutputKind,
 } from "@zcode/shared/zcode-protocol-v4";
@@ -32,7 +30,6 @@ export class LocalTtftRecorder {
   readonly instanceId = randomUUID();
   private clockWatch?: LocalTtftClockWatch;
   private readonly preparationSubscriptions = new Map<string, () => void>();
-  private readonly normalizer = new ConversationTelemetryFactNormalizer();
   private readonly requestState = new Map<string, "response" | "preparation" | "failed">();
   private readonly queueSources = new Map<string, string>();
   private readonly checkpointSignatures = new Map<string, string>();
@@ -139,14 +136,7 @@ export class LocalTtftRecorder {
       if (current && observeLocalTtftCompaction(current, event, this.now()))
         this.checkpoint(current);
     }
-    const fact = this.normalizer.normalize(sessionId, event);
-    if (fact)
-      this.fact(
-        fact,
-        event.type === SessionEventType.TurnStarted
-          ? (event.payload as TurnStartedPayload).executionStartedAt
-          : undefined,
-      );
+    this.observeLifecycle(sessionId, event);
     if (event.type === SessionEventType.ModelNetworkStatus) {
       const payload = event.payload as ModelNetworkStatusPayload;
       const record = this.forSession(sessionId);
@@ -220,33 +210,47 @@ export class LocalTtftRecorder {
       }
     }
   }
-  fact(fact: ConversationTelemetryFact, executionStartedAt?: number): void {
+  private observeLifecycle(sessionId: string, event: SessionEvent): void {
     this.prune();
-    const record = fact.sourceCommandId ? this.records.get(fact.sourceCommandId) : undefined;
-    if (!record || (record.sessionId && record.sessionId !== fact.sessionId)) return;
-    if (fact.kind === "turn.started") {
-      record.sessionId = fact.sessionId;
-      record.turnId = fact.turnId;
-      record.executionAt ??= executionStartedAt;
+    const turnId = event.turnId ? String(event.turnId) : undefined;
+    if (event.type === SessionEventType.TurnStarted) {
+      const payload = event.payload as TurnStartedPayload;
+      const record = payload.inputId ? this.records.get(payload.inputId) : undefined;
+      if (!record || (record.sessionId && record.sessionId !== sessionId)) return;
+      record.sessionId = sessionId;
+      record.turnId = turnId;
+      record.executionAt ??= payload.executionStartedAt;
       this.checkpoint(record);
       return;
     }
-    if (record.turnId === undefined && fact.kind === "turn.terminal") record.turnId = fact.turnId;
-    if (record.turnId !== fact.turnId) return;
-    if (fact.kind === "model.request.status" && record.outputAt === undefined) {
-      if (fact.querySource !== "main_turn" && fact.querySource !== "compact") return;
-      const role = fact.querySource === "main_turn" ? "response" : "preparation";
+    const terminal =
+      event.type === SessionEventType.TurnComplete || event.type === SessionEventType.TurnError;
+    const inputId = terminal
+      ? (event.payload as TurnCompletePayload | TurnErrorPayload).inputId
+      : undefined;
+    const record = inputId
+      ? this.records.get(inputId)
+      : [...this.records.values()].find(
+          (item) => item.sessionId === sessionId && item.turnId === turnId,
+        );
+    if (!record || record.sessionId !== sessionId) return;
+    if (record.turnId === undefined && terminal) record.turnId = turnId;
+    if (record.turnId !== turnId) return;
+    if (event.type === SessionEventType.ModelNetworkStatus && record.outputAt === undefined) {
+      const payload = event.payload as ModelNetworkStatusPayload;
+      if (payload.querySource !== "main_turn" && payload.querySource !== "compact") return;
+      const role = payload.querySource === "main_turn" ? "response" : "preparation";
       const details = (record.details ??= []);
-      const id = `attempt:${fact.requestId}`;
+      const id = `attempt:${payload.requestId}`;
       let attempt = details.find((detail) => detail.id === id);
-      if (fact.status === "model_request_started" && !attempt) {
+      if (payload.type === "model_request_started" && !attempt) {
         this.requestState.set(record.commandId, role);
         if (details.length < LOCAL_TTFT_MAX_DETAILS) {
           attempt = {
             id,
             stage: "attempt",
             start: this.now(),
-            requestId: fact.requestId,
+            requestId: payload.requestId,
             role,
             source: "cli",
           };
@@ -259,36 +263,36 @@ export class LocalTtftRecorder {
           }
         if (role === "response") {
           record.requestAt ??= this.now();
-          record.queryId ??= fact.queryId;
-          record.requestId = fact.requestId;
-          record.model = fact.modelId.slice(0, 128);
-          record.provider = fact.providerId.slice(0, 128);
+          record.queryId ??= payload.queryId;
+          record.requestId = payload.requestId;
+          record.model = payload.modelId.slice(0, 128);
+          record.provider = payload.providerId.slice(0, 128);
         }
       }
       if (
-        (fact.status === "model_request_failed" || fact.status === "model_request_completed") &&
+        (payload.type === "model_request_failed" || payload.type === "model_request_completed") &&
         attempt &&
         attempt.end === undefined
       ) {
         attempt.end = this.now();
-        attempt.outcome = fact.status === "model_request_failed" ? "failed" : "completed";
+        attempt.outcome = payload.type === "model_request_failed" ? "failed" : "completed";
         if (
           role === "response" &&
-          fact.status === "model_request_failed" &&
-          record.requestId === fact.requestId
+          payload.type === "model_request_failed" &&
+          record.requestId === payload.requestId
         )
           this.requestState.set(record.commandId, "failed");
       }
       if (
-        fact.status === "model_retry_scheduled" &&
-        !details.some((detail) => detail.id === `retry:${fact.requestId}`)
+        payload.type === "model_retry_scheduled" &&
+        !details.some((detail) => detail.id === `retry:${payload.requestId}`)
       ) {
         if (details.length < LOCAL_TTFT_MAX_DETAILS)
           details.push({
-            id: `retry:${fact.requestId}`,
+            id: `retry:${payload.requestId}`,
             stage: "retry_wait",
             start: this.now(),
-            requestId: fact.requestId,
+            requestId: payload.requestId,
             role,
             source: "cli",
           });
@@ -296,11 +300,13 @@ export class LocalTtftRecorder {
       }
     }
     this.checkpoint(record);
-    if (fact.kind === "tool.lifecycle" && fact.phase === "scheduled" && !fact.parentToolCallId)
-      this.output(fact.sessionId, fact.turnId, "tool");
-    if (fact.kind === "turn.terminal") {
-      record.terminal =
-        fact.status === "success" ? "completed" : fact.status === "failed" ? "failed" : "cancelled";
+    if (
+      event.type === SessionEventType.ToolCallScheduled &&
+      !streamingParentToolCallId(event.payload as Record<string, unknown>)
+    )
+      this.output(sessionId, turnId, "tool");
+    if (terminal) {
+      record.terminal = turnTerminalState(event);
       this.checkpoint(record);
       this.retire(record);
     }

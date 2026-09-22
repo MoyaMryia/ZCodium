@@ -1,3 +1,4 @@
+import { DiagnosticMetricSchema, type DiagnosticRecordInput } from "./diagnostics.js";
 /**
  * 进程内存本地诊断日志的共用纯逻辑。
  *
@@ -196,5 +197,30 @@ export function createMemoryDiagnosticsRegistry(): MemoryDiagnosticsRegistry {
       }
       return result;
     },
+  };
+}
+
+/** 固定技术计数器可以诊断泄漏；未知key不允许穿过日志或导出边界。 */
+export function memorySampleToDiagnosticRecord(sample: MemorySample): DiagnosticRecordInput {
+  const metrics: NonNullable<DiagnosticRecordInput["metrics"]> = {};
+  for (const [key, value] of Object.entries(sample.counters)) {
+    const parsed = DiagnosticMetricSchema.safeParse(key);
+    if (parsed.success && Number.isFinite(value)) metrics[parsed.data] = value;
+  }
+  if (sample.rssKb !== undefined) metrics.rssBytes = sample.rssKb * 1024;
+  if (sample.heapUsedKb !== undefined) metrics.heapUsedBytes = sample.heapUsedKb * 1024;
+  if (sample.heapTotalKb !== undefined) metrics.heapTotalBytes = sample.heapTotalKb * 1024;
+  if (sample.externalKb !== undefined) metrics.externalBytes = sample.externalKb * 1024;
+  if (sample.arrayBuffersKb !== undefined) metrics.arrayBuffersBytes = sample.arrayBuffersKb * 1024;
+  return {
+    name: "process.resource",
+    component:
+      sample.role === "utility_host"
+        ? "host"
+        : sample.role === "agent_node"
+          ? "agent"
+          : sample.role,
+    phase: "sample",
+    metrics,
   };
 }

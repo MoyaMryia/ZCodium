@@ -201,7 +201,6 @@ export type OffPeakTaskCreateErrorCategory =
 
 /**
  * 创建 RPC 的判别联合。失败只保留稳定分类/业务码，禁止把 raw error 或响应体带过 RPC。
- * providerName 已在 Host 侧收窄为显式安全 hostname，不允许传完整 URL。
  */
 export type OffPeakTaskCreateResult =
   | {
@@ -209,12 +208,10 @@ export type OffPeakTaskCreateResult =
       task: ZCodeOffPeakTask;
       ticketInitialState: OffPeakTaskTicketInitialState;
       queuePosition?: number;
-      providerName: string;
     }
   | {
       ok: false;
       failureStage: OffPeakTaskCreateFailureStage;
       errorCategory: OffPeakTaskCreateErrorCategory;
       errorCode: string;
-      providerName: string;
     };

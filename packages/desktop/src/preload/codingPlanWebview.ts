@@ -9,8 +9,7 @@ import {
 // - 在官网页主世界挂 window.zcodeBridge，暴露三个能力：
 //   1) notifyPurchaseComplete：购买完成后通过 sendToHost 通知 host renderer；
 //   2) getLang / onLangChange：读取 App 当前 locale 并订阅运行时切换；
-//   3) getReportContext：读取 App 注入的购买来源上下文；
-//   4) openExternal：用系统默认浏览器打开外链。webview 内 <a target="_blank">
+//   3) openExternal：用系统默认浏览器打开外链。webview 内 <a target="_blank">
 //      默认会被 setWindowOpenHandler 路由到内部 Browser tab，但官网侧希望
 //      条款/管理等外链直接拉起系统浏览器，由官网脚本拦截后调此方法转发。
 // - getLang 读 main world 的 window.__zcodeLang__（由 App executeJavaScript 注入）；
@@ -29,7 +28,6 @@ const PUBLIC_BRIDGE_KEY = "zcodeBridge";
 const NATIVE_BRIDGE_KEY = "__zcodeCodingPlanWebviewNativeBridge__";
 const LANG_VAR = "__zcodeLang__";
 const LANG_CHANGE_EVENT = "zcode-coding-plan-lang-change";
-const REPORT_CONTEXT_VAR = "__zcodeReportContext__";
 
 function isTrustedCodingPlanBridgeLocation(): boolean {
   try {
@@ -64,8 +62,6 @@ function isTrustedCodingPlanBridgeLocation(): boolean {
 interface NotifyPurchaseCompletePayload {
   provider: "zai" | "bigmodel";
 }
-
-type CodingPlanReportContext = Record<string, string>;
 
 interface CodingPlanNativeBridge {
   notifyPurchaseComplete(payload: NotifyPurchaseCompletePayload): void;
@@ -107,7 +103,6 @@ if (isTrustedCodingPlanBridgeLocation()) {
       nativeBridgeKey: string,
       langVar: string,
       langChangeEvent: string,
-      reportContextVar: string,
     ) => {
       const nativeBridge = (
         window as unknown as Record<string, CodingPlanNativeBridge | undefined>
@@ -125,13 +120,6 @@ if (isTrustedCodingPlanBridgeLocation()) {
           // 注意：executeInMainWorld 的 func 体不经过 TS 编译，不能用 as 断言等 TS 语法。
           const value = (window as unknown as Record<string, unknown>)[langVar];
           return value === "zh-CN" || value === "en-US" ? value : null;
-        },
-        getReportContext() {
-          const value = (window as unknown as Record<string, unknown>)[reportContextVar];
-          if (!value || typeof value !== "object" || Array.isArray(value)) {
-            return null;
-          }
-          return value as CodingPlanReportContext;
         },
         // 订阅 App locale 运行时变化，返回取消订阅函数。
         // App locale 变化时用 executeJavaScript 派发 zcode-coding-plan-lang-change 事件。
@@ -156,6 +144,6 @@ if (isTrustedCodingPlanBridgeLocation()) {
         enumerable: false,
       });
     },
-    args: [PUBLIC_BRIDGE_KEY, NATIVE_BRIDGE_KEY, LANG_VAR, LANG_CHANGE_EVENT, REPORT_CONTEXT_VAR],
+    args: [PUBLIC_BRIDGE_KEY, NATIVE_BRIDGE_KEY, LANG_VAR, LANG_CHANGE_EVENT],
   });
 }

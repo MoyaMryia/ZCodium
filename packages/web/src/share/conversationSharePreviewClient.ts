@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import {
   conversationShareErrorEnvelopeSchema,
   conversationShareKnownErrorCodeSchema,
@@ -106,14 +107,13 @@ interface ConversationSharePreviewDiagnostics {
   warn(event: string, details: Record<string, unknown>): void;
 }
 
-// fetch/CORS/DNS 异常不能统一折叠为 network：需要看到请求是否发起以及实际 endpoint。
-// 日志只保留脱敏目标和传输元数据，禁止记录 share code、JWT、响应正文或 Signed URL。
+// 只记录请求阶段与数值状态；endpoint、凭据、错误原文和分享内容不进入诊断。
 const DEFAULT_DIAGNOSTICS: ConversationSharePreviewDiagnostics = {
   info(event, details) {
-    console.info("[conversation-share-web]", event, details);
+    console.info(...safeLogArgs(["[conversation-share-web]", event, details]));
   },
   warn(event, details) {
-    console.warn("[conversation-share-web]", event, details);
+    console.warn(...safeLogArgs(["[conversation-share-web]", event, details]));
   },
 };
 
@@ -144,14 +144,7 @@ export class ConversationSharePreviewClient {
     const headers = accessToken?.trim()
       ? { Authorization: `Bearer ${accessToken.trim()}` }
       : undefined;
-    const authenticated = headers !== undefined;
-    const requestTarget = `${this.baseUrl}/shares/<redacted>/preview`;
-    this.diagnostics.info("preview_request_started", {
-      requestTarget,
-      pageOrigin: globalThis.location?.origin ?? "unavailable",
-      authenticated,
-      shareCodeLength: shareCode.length,
-    });
+    this.diagnostics.info("preview_request_started", { stage: "request" });
     let response: Response;
     try {
       response = await this.fetchImpl(
@@ -159,17 +152,7 @@ export class ConversationSharePreviewClient {
         { method: "GET", ...(headers ? { headers } : {}) },
       );
     } catch (error) {
-      const errorName = error instanceof Error ? error.name : typeof error;
-      const rawErrorMessage = error instanceof Error ? error.message : String(error);
-      const errorMessage = rawErrorMessage
-        .replaceAll(shareCode, "<redacted>")
-        .replaceAll(encodeURIComponent(shareCode), "<redacted>");
-      this.diagnostics.warn("preview_request_failed", {
-        requestTarget,
-        authenticated,
-        errorName,
-        errorMessage,
-      });
+      this.diagnostics.warn("preview_request_failed", { errorCategory: "network" });
       throw new ConversationSharePreviewClientError({
         kind: "network",
         message: "Unable to load this conversation share",
@@ -177,14 +160,7 @@ export class ConversationSharePreviewClient {
       });
     }
 
-    this.diagnostics.info("preview_response_received", {
-      requestTarget,
-      authenticated,
-      status: response.status,
-      ok: response.ok,
-      redirected: response.redirected,
-      contentType: response.headers.get("content-type"),
-    });
+    this.diagnostics.info("preview_response_received", { statusCode: response.status });
 
     const body = await response.text();
     if (!response.ok && !body.trim()) {
@@ -239,8 +215,7 @@ export class ConversationSharePreviewClient {
     // build 认知时要说「请升级」，不能混进「分享格式无效」。
     if (!isConversationShareSchemaVersionSupported(data.schema_version)) {
       this.diagnostics.warn("preview_schema_version_unsupported", {
-        requestTarget,
-        version: data.schema_version,
+        errorCategory: "protocol",
       });
       throw new ConversationSharePreviewClientError({
         kind: "unsupported_schema_version",
@@ -252,10 +227,8 @@ export class ConversationSharePreviewClient {
     const decoded = decodeConversationShareRows(data.rows);
     if (decoded.unsupportedCount > 0) {
       this.diagnostics.info("preview_dropped_unsupported_rows", {
-        requestTarget,
-        kinds: decoded.unsupportedKinds,
         droppedCount: decoded.unsupportedCount,
-        keptCount: decoded.rows.length,
+        count: decoded.rows.length,
       });
     }
     return { ...data, rows: decoded.rows, unsupportedRowCount: decoded.unsupportedCount };

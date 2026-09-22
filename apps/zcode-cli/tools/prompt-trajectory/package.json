@@ -4,12 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "record": "tsx src/cli.ts record",
-    "record:prompt": "tsx src/cli.ts record-prompt",
     "derive": "tsx src/cli.ts derive",
     "model-io": "tsx src/cli.ts model-io",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src scripts"
+    "lint": "oxlint src"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ComponentType,
   type SVGProps,
@@ -53,10 +52,7 @@ import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useOffPeakEligibility } from "@/hooks/useOffPeakEligibility.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { logger } from "@/logger.js";
-import {
-  createIdleTimeCodingPlanFunnelContext,
-  resolveCodingPlanEntryPlanStateFromProviderSettings,
-} from "@/lib/codingPlanFunnelTelemetry.js";
+
 import {
   useAutomationManagementStore,
   type AutomationRunNowResult,
@@ -67,11 +63,7 @@ import {
   useOffPeakTaskStore,
   type OffPeakCreateDraft,
 } from "@/store/offPeakTaskStore.js";
-import {
-  createAndReportOffPeakTask,
-  freezeOffPeakCreateTelemetrySnapshot,
-  reportOffPeakCreateResult,
-} from "@/lib/offPeakTelemetry.js";
+
 import { OffPeakTaskList } from "@/settings/OffPeakTaskList.js";
 import { OffPeakTemplateIcon } from "@/settings/OffPeakTemplateIcon.js";
 import { OffPeakEditView, type OffPeakEditSubmit } from "@/settings/OffPeakEditView.js";
@@ -111,11 +103,7 @@ import {
   type AutomationTabState,
 } from "@/settings/automationStatusFilter.js";
 import { isRemoteAutomationWorkspace } from "@/hooks/useAutomationProjectOptions.js";
-import {
-  reportAutomationActionClick,
-  reportAutomationCreateResult,
-  resolveAutomationSelectionTelemetry,
-} from "@/lib/automationTelemetry.js";
+
 import {
   materializeOffPeakTemplateDraft,
   materializeScheduledTemplateDraft,
@@ -845,19 +833,9 @@ export function AutomationsSection({
       sharedSettings?.providerFamilyDomain === "bigmodel"
         ? BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan
         : BUILTIN_MODEL_PROVIDER_IDS.zaiIndividualCodingPlan;
-    const eventText = intl.formatMessage({
-      id: "settings.modelProvider.codingPlan.upgrade",
-    });
-    // 埋点缺失原因：Automations 的闲时入口此前绕过了购买漏斗 context，只打开弹窗。
-    // 这里在用户点击时冻结入口套餐状态，后续 OAuth 只刷新鉴权，不重建 funnel。
     openCodingPlanUpgrade({
       providerId,
       initialAudience: "personal",
-      funnelContext: createIdleTimeCodingPlanFunnelContext({
-        providerId,
-        eventText,
-        entryPlanState: resolveCodingPlanEntryPlanStateFromProviderSettings(providerSettingsView),
-      }),
     });
   }, [intl, openCodingPlanUpgrade, providerSettingsView, sharedSettings?.providerFamilyDomain]);
 
@@ -1041,16 +1019,7 @@ export function AutomationsSection({
         },
         zcodeAgentService,
       );
-      void reportAutomationCreateResult(platform, {
-        automationId: created?.automationId,
-        cronExpr: input.cronExpr ?? "",
-        templateId: view.mode === "create" ? view.draft?.templateId : undefined,
-        error: useAutomationManagementStore.getState().error,
-        modelFields: resolveAutomationSelectionTelemetry(
-          input.modelSelection,
-          providerSettingsView,
-        ),
-      });
+
       if (!created) {
         const createError = useAutomationManagementStore.getState().error;
         toast(
@@ -1124,12 +1093,7 @@ export function AutomationsSection({
         automationId: automation.automationId,
         source,
       });
-      void reportAutomationActionClick(platform, {
-        action: "run_now",
-        source,
-        automation,
-        providerSettingsView,
-      });
+
       const result = await runAutomationNow(automation.automationId, zcodeAgentService);
       logger.debug("[automations] 立即运行交互结束", {
         automationId: automation.automationId,
@@ -1187,7 +1151,7 @@ export function AutomationsSection({
   );
 
   const handleDelete = useCallback(
-    async (automation: ZCodeAutomation, source: "list" | "editor" = "list") => {
+    async (automation: ZCodeAutomation) => {
       const confirmed = await confirmDialog({
         presentation: "automation-confirmation",
         title: intl.formatMessage({ id: "automations.delete.title" }),
@@ -1202,12 +1166,7 @@ export function AutomationsSection({
         showKeyboardHints: false,
       });
       if (!confirmed) return;
-      void reportAutomationActionClick(platform, {
-        action: "delete",
-        source,
-        automation,
-        providerSettingsView,
-      });
+
       await deleteAutomation(automation.automationId, zcodeAgentService);
       const message = useAutomationManagementStore.getState().error;
       if (message) toast(intl.formatMessage({ id: getAutomationActionErrorToastId("delete") }));
@@ -1289,14 +1248,7 @@ export function AutomationsSection({
   const handleOffPeakSubmit = useCallback(
     async (input: OffPeakEditSubmit) => {
       const current = view;
-      const telemetrySnapshot =
-        current.mode === "offpeak-create"
-          ? freezeOffPeakCreateTelemetrySnapshot({
-              source: current.draft?.telemetrySource,
-              model: input.modelSelection.modelId,
-              providerId: input.modelSelection.providerId,
-            })
-          : null;
+
       if (current.mode !== "offpeak-edit" && offPeakCreateGrey.reason !== null) {
         if (offPeakCreateGrey.reason === "plan") {
           showCodingPlanRequiredToast();
@@ -1305,15 +1257,7 @@ export function AutomationsSection({
         } else {
           toast(offPeakCreateGrey.tooltip ?? intl.formatMessage({ id: "offPeak.error.quota" }));
         }
-        if (telemetrySnapshot) {
-          void reportOffPeakCreateResult(platform, telemetrySnapshot, {
-            ok: false,
-            failureStage: "client_validation",
-            errorCategory: "client_validation",
-            errorCode: "",
-            providerName: "",
-          });
-        }
+
         return false;
       }
       if (current.mode === "offpeak-edit") {
@@ -1333,12 +1277,7 @@ export function AutomationsSection({
         return updated;
       }
 
-      const result =
-        telemetrySnapshot !== null
-          ? await createAndReportOffPeakTask(platform, telemetrySnapshot, () =>
-              offPeakCreate(input, offPeakTaskService),
-            )
-          : await offPeakCreate(input, offPeakTaskService);
+      const result = await offPeakCreate(input, offPeakTaskService);
       if (!result.ok) {
         toast(
           intl.formatMessage({
@@ -1422,7 +1361,7 @@ export function AutomationsSection({
           onSubmit={handleEditSubmit}
           onRunNow={(automation) => handleRunNow(automation, "editor")}
           onToggle={handleToggle}
-          onDelete={(automation) => handleDelete(automation, "editor")}
+          onDelete={(automation) => handleDelete(automation)}
           runsEntry={view.mode === "edit" ? runsCache[view.automation.automationId] : undefined}
           onLoadRuns={() => {
             if (view.mode === "edit")
@@ -1917,19 +1856,10 @@ export function AutomationsSection({
                           setView({
                             mode: "offpeak-create",
                             draft: template.customize
-                              ? {
-                                  telemetrySource: {
-                                    eventRegion: "app.automations",
-                                    templateId: template.id,
-                                  },
-                                }
+                              ? {}
                               : {
                                   title: materializedDraft.title,
                                   prompt: materializedDraft.prompt,
-                                  telemetrySource: {
-                                    eventRegion: "app.automations",
-                                    templateId: template.id,
-                                  },
                                 },
                           });
                         }}

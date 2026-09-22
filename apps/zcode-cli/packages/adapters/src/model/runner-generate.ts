@@ -10,7 +10,6 @@ import type { ClassifiedModelFailure } from "./failure-classifier.js";
 import { getResponseHeaders, unwrapRetryError } from "./failure-inspection.js";
 import { offPeakTicketExpiredMessage, resolveOffPeakFailureDecision } from "./offpeak-retry.js";
 import { AiSdkModelAdapterError } from "./errors.js";
-import { resolveAnthropicRequestMetadataUserId } from "./anthropic-request-metadata.js";
 import { createGenerateTextOptions } from "./runner-options.js";
 import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
 import {
@@ -20,11 +19,6 @@ import {
   normalizeToolResults,
   normalizeUsage,
 } from "./runner-normalization.js";
-import {
-  isDevelopmentModelIOEnv,
-  recordGenerateTextDebug,
-  shouldRecordModelIO,
-} from "./runner-debug.js";
 import {
   getGenerateTextResultMetadata,
   isZeroOutputModelCompletion,
@@ -53,7 +47,7 @@ import type {
 } from "./runner-runtime.js";
 import { resolveModelForAttempt, RuntimeHeadersRefreshError } from "./runner-runtime-headers.js";
 import { retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
-import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-telemetry.js";
+import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-failure-status.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
@@ -63,7 +57,6 @@ import {
 } from "./retry-budget.js";
 
 export async function runGenerateText(input: {
-  debugDir?: string;
   env: EnvRecord;
   logger?: Logger;
   request: AiSdkModelTextRequest;
@@ -72,7 +65,6 @@ export async function runGenerateText(input: {
   retry: ResolvedAiSdkModelRetryOptions;
   runtime: AiSdkModelRuntime;
   statusSink?: ModelStatusSink;
-  modelIoFullRetentionEnabled: boolean;
 }): Promise<ModelTextResult> {
   // 重试预算档位：workflow actor 的请求带 unbounded，
   // 只放宽瞬态失败的放弃条件；状态事件里的 maxAttempts 以 0 表示无上限。
@@ -85,9 +77,6 @@ export async function runGenerateText(input: {
     resolved: input.resolved,
     transport: ModelTransportKindValue.Http,
   });
-  const recordModelIO =
-    input.request.metadata?.skipTranscript !== true && shouldRecordModelIO(input.env);
-  const isDev = isDevelopmentModelIOEnv(input.env);
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
   let emptyCompletionRetryCount = 0;
@@ -101,17 +90,14 @@ export async function runGenerateText(input: {
     );
     attempt += 1
   ) {
-    const retryBudgetAttempt =
-      attempt - Number(signatureRepairAttempted);
+    const retryBudgetAttempt = attempt - Number(signatureRepairAttempted);
     const attemptRequest = { ...input.request, messages: requestMessages };
     const startedAt = Date.now();
     let resolved = input.resolved;
     let statusContext = createAttemptStatusContext(
       {
         ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(
-          Number(signatureRepairAttempted),
-        ),
+        maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)),
       },
       attempt,
     );
@@ -149,7 +135,6 @@ export async function runGenerateText(input: {
         },
         {
           ...statusPublishOptions(input),
-          failureError: unwrapRetryError(admitError),
         },
       );
       throw toAdapterError(admitError, admitFailure, statusContext, attempt, {
@@ -163,15 +148,8 @@ export async function runGenerateText(input: {
         request: attemptRequest,
         resolveModel: input.resolveModel,
       });
-      const anthropicMetadataUserId = await resolveAnthropicRequestMetadataUserId({
-        env: input.env,
-        providerKind: resolved.providerKind,
-        sessionId: statusContext.sessionId,
-      });
       options = createGenerateTextOptions({
-        anthropicMetadataUserId,
         env: input.env,
-        includeModelIO: recordModelIO,
         request: attemptRequest,
         resolved,
         statusContext,
@@ -276,20 +254,6 @@ export async function runGenerateText(input: {
       }
       const completedAt = Date.now();
 
-      recordGenerateTextDebug({
-        modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
-        attempt,
-        debugDir: input.debugDir,
-        isDev,
-        normalizedToolCalls: toolCalls,
-        options,
-        recordModelIO,
-        request: attemptRequest,
-        requestId: statusContext.requestId,
-        resolved,
-        result,
-        startedAt,
-      });
       logGenerateTextDiagnostics({
         attempt,
         completedAt,
@@ -389,22 +353,6 @@ export async function runGenerateText(input: {
             );
       const canRetry = retryWithRepairedHistory || canRetryWithFailurePolicy;
 
-      if (options) {
-        recordGenerateTextDebug({
-          modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
-          attempt,
-          debugDir: input.debugDir,
-          error,
-          isDev,
-          normalizedToolCalls: undefined,
-          options,
-          recordModelIO,
-          request: attemptRequest,
-          requestId: statusContext.requestId,
-          resolved,
-          startedAt,
-        });
-      }
       await publishModelStatus(
         {
           ...statusContext,
@@ -424,7 +372,6 @@ export async function runGenerateText(input: {
         },
         {
           ...statusPublishOptions(input, admission),
-          failureError: unwrapRetryError(error),
         },
       );
 
@@ -520,7 +467,6 @@ export async function runGenerateText(input: {
           {
             // 退避期间票据已归还：这次取消不属于任何一次尝试，不转投票据。
             ...statusPublishOptions(input),
-            failureError: unwrapRetryError(sleepError),
           },
         );
         throw toAdapterError(sleepError, sleepFailure, statusContext, attempt, {

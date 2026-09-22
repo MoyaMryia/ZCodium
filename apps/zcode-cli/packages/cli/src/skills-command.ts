@@ -1,3 +1,4 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import { formatJson } from "@zcode/core";
 import type { Logger } from "@zcode/contracts";
 import type { RunContext, GlobalOptions } from "@zcode/shared-types";
@@ -108,10 +109,10 @@ async function runSkillsInspectCommand(
 }
 
 function reportSkillsError(ctx: RunContext, options: GlobalOptions, error: unknown): number {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = JSON.stringify(safeLogArgs([error]));
   ctx.stderr.write(`Error: ${message}\n`);
   if (options.verbose && error instanceof Error && error.stack) {
-    ctx.stderr.write(`${error.stack}\n`);
+    ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
   }
   return 1;
 }

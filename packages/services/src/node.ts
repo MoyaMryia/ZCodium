@@ -127,8 +127,6 @@ export { createOAuthProviderLogoutHandler } from "./oauth/oauthProviderLogout.js
 export { OAuthCredentialRepo } from "./oauth/repo/oauthCredentialRepo.js";
 export { ensureDeviceMid } from "./device/deviceMid.js";
 export type { EnsureDeviceMidOptions } from "./device/deviceMid.js";
-export { createTelemetryCore, ensureTelemetryDeviceMid } from "./telemetry/telemetryCore.js";
-export type { EnsureTelemetryDeviceMidOptions } from "./telemetry/telemetryCore.js";
 export type { AccountRequestAuthResolver } from "./model-provider/accountProviderRequestAuthService.js";
 export { createAccountProviderCredentialStore } from "./model-provider/accountProviderCredentialStore.js";
 export type {
@@ -342,7 +340,6 @@ import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
 import { createZCodeAgentService } from "./zcode-agent/zcodeAgentService.js";
 import type { ZCodeAgentCommandResolver } from "./zcode-agent/zcodeAgentProcessManager.js";
-import { buildAgentTelemetrySpawnEnv } from "./zcode-agent/agentTelemetryEnv.js";
 import { resolveZCodeAgentPresentationSurface } from "./zcode-agent/zcodeAgentPresentationSurface.js";
 import { createZCodeTaskServiceAdapter } from "./zcode-agent/zcodeTaskServiceAdapter.js";
 import { createZCodeSessionService } from "./zcode-session/zcodeSessionService.js";
@@ -494,10 +491,8 @@ import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@zcode/zcode-cua/broker/he
 import { resolveBrokerSocketPath } from "@zcode/zcode-cua/broker/socketPath";
 import {
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
-  resolveSafeEndpointHostname,
   ZCODE_JWT_INVALID_BROADCAST_CHANNEL,
   formatLogPrefix,
-  isCredentialDecryptError,
   isStartPlanModelProviderId,
   OFF_PEAK_PROVIDER_IDS,
   BIGMODEL_PROVIDER_ID,
@@ -513,13 +508,11 @@ import {
   ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   type ZCodeAutomation,
   type ZCodeAutomationRun,
-  getCapturedZCodeAgentTelemetryEnv,
   ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
   ZAI_PROVIDER_ID,
   zcodeAccountAccessSchema,
   zcodeProviderAccountAccessSchema,
   ZCODE_VERSION,
-  ZCODE_ENV,
   buildRuntimeZCodeApiUrl,
 } from "@zcode/shared";
 
@@ -1438,7 +1431,7 @@ export function createLocalServices(options: {
   let handleOAuthProviderLogout: ReturnType<typeof createOAuthProviderLogoutHandler> | null = null;
   const oauthCredentialRepo = new OAuthCredentialRepo(credentialService, {
     onCorruptOAuthSessionCleared: async (providers) => {
-      // telemetry 之外的后台路径可能先读到损坏 OAuth 凭据。
+      // 后台路径可能先读到损坏 OAuth 凭据。
       // 这类恢复也必须等价于 logout，复用同一 handler 清理派生模型 provider key。
       await Promise.all(
         providers.map((provider) => handleOAuthProviderLogout?.(provider) ?? Promise.resolve()),
@@ -2197,16 +2190,6 @@ export function createLocalServices(options: {
           [BROKER_UNAVAILABLE_ENV]: "broker_unavailable: helper lifecycle is disposed",
         };
       }
-      const telemetryEnv = getCapturedZCodeAgentTelemetryEnv();
-      const telemetryConfigured = Boolean(
-        telemetryEnv.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || telemetryEnv.OTEL_EXPORTER_OTLP_ENDPOINT,
-      );
-      const telemetryProfile = telemetryConfigured
-        ? await oauthCredentialRepo.loadActiveUserProfile().catch(() => null)
-        : null;
-      const telemetryDeviceMid = telemetryConfigured
-        ? options?.agentRuntimeContext?.getDeviceMid?.()?.trim()
-        : undefined;
       // Host 是旧配置迁移的唯一写入者。Agent spawn 前等待初始化完成，避免 Worker
       // 先拿到尚不存在的 provider_config.json 并发布短暂空 Registry。
       await providerConfigRuntime.start();
@@ -2224,12 +2207,6 @@ export function createLocalServices(options: {
         // 上面 cuaProductHelperEnv 已完成代际校验与 unavailable 兜底，取代 staging 侧
         // 直接调用 buildCuaProductHelperAgentEnv 的旧路径。
         ...cuaProductHelperEnv,
-        ...buildAgentTelemetrySpawnEnv({
-          deviceMid: telemetryDeviceMid,
-          runtimeSurface: options?.agentRuntimeContext?.runtimeSurface ?? "remote_workspace_host",
-          telemetryEnv,
-          userId: telemetryProfile?.id,
-        }),
         ...createNodeProviderRuntimePathEnv({
           // Built-in Active 路径按当前 Endpoint 隔离，不能通过同步的固定路径
           // getter 读取；Agent spawn 必须等待本轮 Endpoint Source 完成解析和物化。
@@ -2485,8 +2462,6 @@ export function createLocalServices(options: {
           }),
           resolveCodingPlanSupport: () =>
             resolveOffPeakCodingPlanSupport(offPeakCredentialResolverDeps),
-          resolveTelemetryProviderName: async () =>
-            resolveSafeEndpointHostname(await originResolver.resolveOrigin()),
           resolveModelSelection: async (input) => {
             await providerRuntime.start();
             const support = await resolveOffPeakCodingPlanSupport(offPeakCredentialResolverDeps);
@@ -2628,84 +2603,6 @@ export function createLocalServices(options: {
   sqliteReposToClose.push(taskIndexRepo);
   sharedSqliteRepos.set(services, sqliteReposToClose);
   return services;
-}
-
-export function createTelemetryUserIdLoader(
-  credentialService: Pick<ICredentialService, "load">,
-): () => Promise<string> {
-  const log = createServiceLogger("telemetry-user-id");
-  return async () => {
-    try {
-      const activeProvider = (await credentialService.load("oauth:active_provider"))?.trim() ?? "";
-      if (!activeProvider) {
-        return "";
-      }
-
-      const rawUserInfo = await credentialService.load(`oauth:${activeProvider}:user_info`);
-      return readTelemetryOAuthUserId(rawUserInfo);
-    } catch (error) {
-      if (!isCredentialDecryptError(error)) {
-        throw error;
-      }
-
-      // Bugfix: telemetry 只是只读 userId 上报入口，不能抢在 host OAuthService 前
-      // 对损坏凭据做半套清理；否则会漏掉派生模型 provider key 的 logout 收口。
-      log.warn(undefined, "skip telemetry user id: OAuth credential decrypt failed", error);
-      return "";
-    }
-  };
-}
-
-/** 仅给同一事件账号返回当前 ZCode JWT；不缓存、不修改登录凭据。 */
-export function createTelemetryAuthorizationLoader(
-  credentialService: Pick<ICredentialService, "load">,
-): (userId: string) => Promise<string | null> {
-  return async (userId) => {
-    if (!userId) return null;
-    try {
-      const provider = (await credentialService.load("oauth:active_provider"))?.trim();
-      if (provider !== "zai" && provider !== "bigmodel") return null;
-      const readUserId = async () =>
-        readTelemetryOAuthUserId(await credentialService.load(`oauth:${provider}:user_info`));
-      if ((await readUserId()) !== userId) return null;
-      const jwt = (await credentialService.load("zcodejwttoken"))?.trim();
-      // 退出/切账号可能发生在异步读取期间；禁止将旧身份的 token 附到其他账号事件上。
-      if (
-        (await credentialService.load("oauth:active_provider"))?.trim() !== provider ||
-        (await readUserId()) !== userId
-      )
-        return null;
-      return jwt && /^[\x21-\x7e]+$/.test(jwt) ? `Bearer ${jwt}` : null;
-    } catch {
-      return null;
-    }
-  };
-}
-
-export function createTelemetryMarketingParamsLoader(
-  credentialService: ICredentialService,
-): () => Promise<import("@zcode/shared").OAuthLoginAttribution | null> {
-  // 恢复原因：固定返回 null 会丢掉已保存的渠道归因，数仓应读取 OAuth 的同一份事实。
-  const repo = new OAuthCredentialRepo(credentialService);
-  return () => repo.loadLoginAttribution();
-}
-
-function readTelemetryOAuthUserId(rawUserInfo: string | null): string {
-  if (!rawUserInfo) {
-    return "";
-  }
-
-  try {
-    const parsed = JSON.parse(rawUserInfo) as {
-      id?: unknown;
-      user_id?: unknown;
-    };
-    const id = typeof parsed.id === "string" ? parsed.id : "";
-    const userId = typeof parsed.user_id === "string" ? parsed.user_id : "";
-    return id.trim() || userId.trim();
-  } catch {
-    return "";
-  }
 }
 
 export function disposeServiceResources(services: ServiceCollection): void {

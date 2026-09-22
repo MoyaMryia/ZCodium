@@ -1,11 +1,8 @@
-import { createHash } from "node:crypto";
-import type { CommandExecutionTelemetry, ToolExecutionTelemetry } from "@zcode/contracts";
+import type { CommandExecutionPerformance, ToolExecutionPerformance } from "@zcode/contracts";
 import type { ToolExecutionContext } from "../types.js";
 import { analyzeBashCommand } from "./bash-command-parser.js";
 import { BASH_COMMAND_REGISTRY } from "./generated/bash-command-registry.js";
 
-const COMMAND_HASH_LENGTH = 16;
-const COMMAND_HASH_EDGE_CHARS = 4096;
 const COMMAND_CLASSIFY_PREFIX_CHARS = 2048;
 const MAX_COMMAND_IDENTITY_PARSE_CHARS = 8 * 1024;
 
@@ -16,18 +13,6 @@ export function roundNonNegativeMs(ms: number): number {
 
 export function elapsedMsSince(startedAt: number): number {
   return roundNonNegativeMs(Date.now() - startedAt);
-}
-
-export function commandHash(command: string): string {
-  const hash = createHash("sha256");
-  hash.update(String(command.length));
-  hash.update("\0");
-  hash.update(command.slice(0, COMMAND_HASH_EDGE_CHARS));
-  if (command.length > COMMAND_HASH_EDGE_CHARS) {
-    hash.update("\0");
-    hash.update(command.slice(-COMMAND_HASH_EDGE_CHARS));
-  }
-  return hash.digest("hex").slice(0, COMMAND_HASH_LENGTH);
 }
 
 export function classifyCommand(command: string): string {
@@ -52,8 +37,8 @@ export function classifyCommand(command: string): string {
 
 export function classifySafeCommandIdentity(
   command: string,
-): Pick<CommandExecutionTelemetry, "count" | "name"> {
-  // 类别和 hash 已经有界，但安全命令名仍会把完整 heredoc/inline script
+): Pick<CommandExecutionPerformance, "count" | "name"> {
+  // 类别判断已经有界，但安全命令名仍会把完整 heredoc/inline script
   // 交给 parser。遥测不能为超大命令额外制造 O(n) CPU/内存；此时宁可少一个 count。
   if (command.length > MAX_COMMAND_IDENTITY_PARSE_CHARS) {
     return { name: "other" };
@@ -87,9 +72,9 @@ export function fileByteCount(content: string): number {
   return Buffer.byteLength(content, "utf8");
 }
 
-export function readToolExecutionTelemetry(
+export function readToolExecutionPerformance(
   output: unknown,
-): ToolExecutionTelemetry | undefined {
+): ToolExecutionPerformance | undefined {
   if (typeof output !== "object" || output === null || Array.isArray(output)) {
     return undefined;
   }
@@ -97,13 +82,13 @@ export function readToolExecutionTelemetry(
   if (typeof perf !== "object" || perf === null || Array.isArray(perf)) {
     return undefined;
   }
-  return compactToolExecutionTelemetry(perf as ToolExecutionTelemetry);
+  return compactToolExecutionPerformance(perf as ToolExecutionPerformance);
 }
 
-export function compactToolExecutionTelemetry(
-  perf: ToolExecutionTelemetry,
-): ToolExecutionTelemetry | undefined {
-  const compact: ToolExecutionTelemetry = {
+export function compactToolExecutionPerformance(
+  perf: ToolExecutionPerformance,
+): ToolExecutionPerformance | undefined {
+  const compact: ToolExecutionPerformance = {
     ...(perf.totalMs !== undefined ? { totalMs: perf.totalMs } : {}),
     ...(perf.permissionWaitMs !== undefined ? { permissionWaitMs: perf.permissionWaitMs } : {}),
     ...(perf.detail ? { detail: perf.detail } : {}),
@@ -111,15 +96,15 @@ export function compactToolExecutionTelemetry(
   return Object.keys(compact).length > 0 ? compact : undefined;
 }
 
-export function mergeToolExecutionTelemetry(
-  ...items: (ToolExecutionTelemetry | undefined)[]
-): ToolExecutionTelemetry | undefined {
-  return compactToolExecutionTelemetry(Object.assign({}, ...items));
+export function mergeToolExecutionPerformance(
+  ...items: (ToolExecutionPerformance | undefined)[]
+): ToolExecutionPerformance | undefined {
+  return compactToolExecutionPerformance(Object.assign({}, ...items));
 }
 
-export function attachToolExecutionTelemetry<T extends object>(
+export function attachToolExecutionPerformance<T extends object>(
   output: T,
-  perf: ToolExecutionTelemetry | undefined,
+  perf: ToolExecutionPerformance | undefined,
 ): T {
   if (!perf) return output;
   Object.defineProperty(output, "perf", {

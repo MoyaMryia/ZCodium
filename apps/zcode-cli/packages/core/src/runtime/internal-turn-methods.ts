@@ -201,12 +201,6 @@ export interface AgentRuntimeTurnMethods {
     events: SessionEvent[],
     options?: {
       abortSignal?: AbortSignal;
-      compactContextTelemetry?: {
-        inputTokens: number;
-        policyContextWindowTokens: number;
-        thresholdTokens?: number;
-        tokenSource: "estimate" | "provider_usage";
-      };
       autoCompactThreshold?: number;
       compactReason?: CompactReason;
       initialPromptTooLongCause?: unknown;

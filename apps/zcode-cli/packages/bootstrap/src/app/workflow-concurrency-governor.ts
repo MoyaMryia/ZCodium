@@ -9,7 +9,7 @@
 // 闸门粒度是**模型请求的每一次尝试**：runner 每次尝试前 `acquire`、尝试结束 `release`，
 // 退避 sleep 期间不持槽。ticket 就是该次尝试的状态事件汇：runner 把该尝试的
 // `ModelNetworkStatus` 事件同时投递给 ticket，治理器从 ticket 上读结果。本方案
-// **不**再用 adapter 级 `addStatusSink`——同一事件不能既经 ticket 又经 adapter sink 各喂一次。
+// 同一事件只经 ticket 投递一次，避免重复调整并发窗口。
 //
 // 这里是治理器里**唯一**会碰时钟与定时器的地方：控制器只收 `now`；冷却到期要唤醒等待者，
 // 所以需要一个 setTimeout（可注入，unref）。

@@ -40,12 +40,12 @@ class LoggingServerChannel<TContext> implements IServerChannel<TContext> {
     const start = performance.now();
     try {
       const result = await this.inner.call<T>(ctx, command, arg, cancellationToken);
-      const elapsed = (performance.now() - start).toFixed(1);
-      this.logger(`[rpc:call] ${this.channelName}.${command} OK (${elapsed}ms)`);
+      const elapsed = Math.round((performance.now() - start) * 10) / 10;
+      this.logger("[rpc:call] completed", { durationMs: elapsed, status: "ok" });
       return result;
     } catch (err) {
-      const elapsed = (performance.now() - start).toFixed(1);
-      this.logger(`[rpc:call] ${this.channelName}.${command} FAIL (${elapsed}ms)`, err);
+      const elapsed = Math.round((performance.now() - start) * 10) / 10;
+      this.logger("[rpc:call] failed", { durationMs: elapsed, status: "error" });
       throw err;
     }
   }
@@ -53,10 +53,10 @@ class LoggingServerChannel<TContext> implements IServerChannel<TContext> {
   listen<T>(ctx: TContext, event: string, arg?: any): Event<T> {
     try {
       const result = this.inner.listen<T>(ctx, event, arg);
-      this.logger(`[rpc:listen] ${this.channelName}.${event} subscribed`);
+      this.logger("[rpc:listen] subscribed");
       return result;
     } catch (err) {
-      this.logger(`[rpc:listen] ${this.channelName}.${event} FAIL`, err);
+      this.logger("[rpc:listen] failed");
       throw err;
     }
   }
@@ -83,7 +83,7 @@ export class LoggingChannelServer<TContext = string> implements IChannelServer<T
   ) {}
 
   registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
-    this.logger(`[rpc:register] channel "${channelName}"`);
+    this.logger("[rpc:register] registered");
     this.inner.registerChannel(
       channelName,
       new LoggingServerChannel(channel, channelName, this.logger),
@@ -110,18 +110,18 @@ class LoggingChannel implements IChannel {
     const start = performance.now();
     try {
       const result = await this.inner.call<T>(command, arg, cancellationToken);
-      const elapsed = (performance.now() - start).toFixed(1);
-      this.logger(`[rpc:call] ${this.channelName}.${command} → OK (${elapsed}ms)`);
+      const elapsed = Math.round((performance.now() - start) * 10) / 10;
+      this.logger("[rpc:call] completed", { durationMs: elapsed, status: "ok" });
       return result;
     } catch (err) {
-      const elapsed = (performance.now() - start).toFixed(1);
-      this.logger(`[rpc:call] ${this.channelName}.${command} → FAIL (${elapsed}ms)`, err);
+      const elapsed = Math.round((performance.now() - start) * 10) / 10;
+      this.logger("[rpc:call] failed", { durationMs: elapsed, status: "error" });
       throw err;
     }
   }
 
   listen<T>(event: string, arg?: any): Event<T> {
-    this.logger(`[rpc:listen] ${this.channelName}.${event} → subscribed`);
+    this.logger("[rpc:listen] subscribed");
     return this.inner.listen<T>(event, arg);
   }
 }

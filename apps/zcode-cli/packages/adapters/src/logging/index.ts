@@ -1,28 +1,25 @@
-// ============================================================
-// Node logging adapter - JSONL file and optional stderr sink
-// ============================================================
-
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+// Local diagnostic records share the same allowlist as optional export.
 import { homedir } from "node:os";
-import { join } from "node:path";
-import type { LogContext, LogEntry, Logger, LoggerFactory, LogRedactor } from "@zcode/contracts";
+import { appendBoundedDiagnosticLine } from "./bounded-log-file.js";
+import { basename, join } from "node:path";
+import type { LogContext, Logger, LoggerFactory } from "@zcode/contracts";
 import { LogLevel, LogLevelName } from "@zcode/contracts";
-import { ZCODE_RUNTIME_ENV_KEY, normalizeZCodeRuntimeEnv } from "@zcode/shared";
+import {
+  ZCODE_RUNTIME_ENV_KEY,
+  normalizeZCodeRuntimeEnv,
+  safeLogArgs,
+  DiagnosticRecordSchema,
+  DiagnosticMetricSchema,
+  createDiagnosticTraceId,
+  createDiagnosticSpanId,
+  type DiagnosticRecord,
+} from "@zcode/shared";
 import {
   formatLocalLogDate,
   scheduleLogRetentionCleanup as scheduleRetentionCleanup,
   type LogRetentionScheduleOptions,
   type LogRetentionTimer,
 } from "./retention.js";
-import {
-  DefaultLogRedactor,
-  formatConsoleLine,
-  isLogStatus,
-  serializeLogError,
-  stripReservedContext,
-  toSerializableEntry,
-} from "./serialize.js";
-import { maybeThrowStorageFsFault } from "../storage/fs-fault-injection.js";
 
 export {
   LOG_CLEANUP_STARTUP_DELAY_MS,
@@ -37,190 +34,216 @@ export type {
   LogRetentionScheduleOptions,
   LogRetentionTimer,
 } from "./retention.js";
-export { DefaultLogRedactor } from "./serialize.js";
-export type { SerializableLogEntry, SerializedLogError } from "./serialize.js";
 
 export interface NodeLoggerFactoryOptions {
   env?: NodeJS.ProcessEnv;
   logDir?: string;
   minLevel?: LogLevel;
   console?: boolean | { stream: NodeJS.WritableStream };
-  includeErrorStack?: boolean;
-  redactor?: LogRedactor;
+  /** Only validated diagnostic records reach an explicitly owned local/optional export sink. */
+  onDiagnostic?: (record: DiagnosticRecord) => void;
 }
-
 export type NodeLogRetentionScheduleOptions = Pick<
   LogRetentionScheduleOptions,
   "delayMs" | "logger" | "now" | "retentionDays" | "setTimeout"
 >;
-
 export interface NodeLoggerFactory extends LoggerFactory {
   getLogDir(): string;
+  flush(): Promise<void>;
   scheduleLogRetentionCleanup(
     options?: NodeLogRetentionScheduleOptions,
   ): LogRetentionTimer | undefined;
 }
+interface DiagnosticWriter {
+  write(level: LogLevel, record: DiagnosticRecord, args: unknown[]): void;
+  flush(): Promise<void>;
+}
 
 export class NodeFileLogger implements Logger {
-  private readonly category: string;
-  private readonly defaultContext: LogContext;
-  private readonly getMinLevel: () => LogLevel;
-  private readonly logDir: string;
-  private readonly consoleStream?: NodeJS.WritableStream;
-  private readonly includeErrorStack: boolean;
-  private readonly redactor: LogRedactor;
-
-  constructor(options: {
-    category: string;
-    defaultContext?: LogContext;
-    getMinLevel: () => LogLevel;
-    logDir: string;
-    consoleStream?: NodeJS.WritableStream;
-    includeErrorStack?: boolean;
-    redactor: LogRedactor;
-  }) {
-    this.category = options.category;
-    this.defaultContext = options.defaultContext ?? {};
-    this.getMinLevel = options.getMinLevel;
-    this.logDir = options.logDir;
-    this.consoleStream = options.consoleStream;
-    this.includeErrorStack = options.includeErrorStack ?? false;
-    this.redactor = options.redactor;
+  constructor(
+    private readonly options: {
+      defaultContext?: LogContext;
+      getMinLevel: () => LogLevel;
+      writer: DiagnosticWriter;
+      traceId: string;
+      spanId: string;
+      parentSpanId?: string;
+    },
+  ) {
+    // child 的默认上下文也只能持有安全字段，避免把路径/正文留在长寿命 logger 对象中。
+    this.options.defaultContext = safeLogArgs([options.defaultContext ?? {}])[0] as LogContext;
   }
 
   debug(message: string, context?: LogContext): void {
     this.log(LogLevel.Debug, message, undefined, context);
   }
-
   info(message: string, context?: LogContext): void {
     this.log(LogLevel.Info, message, undefined, context);
   }
-
   warn(message: string, context?: LogContext): void {
     this.log(LogLevel.Warn, message, undefined, context);
   }
-
   error(message: string, error?: Error, context?: LogContext): void {
     this.log(LogLevel.Error, message, error, context);
   }
-
   child(context: LogContext): Logger {
     return new NodeFileLogger({
-      category: this.category,
-      defaultContext: { ...this.defaultContext, ...context },
-      getMinLevel: this.getMinLevel,
-      logDir: this.logDir,
-      consoleStream: this.consoleStream,
-      includeErrorStack: this.includeErrorStack,
-      redactor: this.redactor,
+      ...this.options,
+      defaultContext: { ...this.options.defaultContext, ...context },
+      parentSpanId: this.options.spanId,
+      spanId: createDiagnosticSpanId(),
     });
   }
 
   private log(level: LogLevel, message: string, error?: Error, context?: LogContext): void {
-    if (level < this.getMinLevel()) {
-      return;
-    }
-
-    const mergedContext = { ...this.defaultContext, ...context };
-    const entry = this.createEntry(level, message, mergedContext, error);
-    const serialized = toSerializableEntry(entry, this.redactor);
-    const line = JSON.stringify(serialized);
-
+    if (level < this.options.getMinLevel()) return;
     try {
-      ensureLogDir(this.logDir);
-      const logPath = join(this.logDir, getLogFileName());
-      maybeThrowStorageFsFault({ operation: "appendFile", path: logPath });
-      appendFileSync(logPath, `${line}\n`, "utf8");
+      // 旧业务 context 只在同步边界读取；任何持久/console/export 路径都只能看到白名单记录。
+      const mergedContext = { ...this.options.defaultContext, ...context };
+      const status = mergedContext.status;
+      const safeStatus = status === "completed" ? "ok" : status === "failed" ? "error" : status;
+      const phase =
+        status === "started"
+          ? "start"
+          : status === "completed" || status === "failed" || status === "cancelled"
+            ? "end"
+            : undefined;
+      const args = safeLogArgs([
+        message,
+        { ...mergedContext, status: safeStatus, ...(phase ? { phase } : {}) },
+        error,
+      ]);
+      let diagnostic: DiagnosticRecord | undefined;
+      for (const arg of args) {
+        const parsed = DiagnosticRecordSchema.safeParse(arg);
+        if (parsed.success) {
+          diagnostic = parsed.data;
+          break;
+        }
+      }
+      const safeContext =
+        args[1] && typeof args[1] === "object" ? (args[1] as Record<string, unknown>) : {};
+      const metrics = Object.fromEntries(
+        Object.entries(safeContext).filter(
+          ([key, value]) =>
+            DiagnosticMetricSchema.safeParse(key).success && typeof value === "number",
+        ),
+      );
+      const record = DiagnosticRecordSchema.parse({
+        ...(diagnostic ?? {
+          version: 1,
+          name: "log",
+          metrics,
+          ...Object.fromEntries(
+            Object.entries(safeContext).filter(([key]) =>
+              [
+                "status",
+                "phase",
+                "stage",
+                "transport",
+                "errorCategory",
+                "errorCode",
+                "operation",
+              ].includes(key),
+            ),
+          ),
+        }),
+        component: "agent",
+        traceId: this.options.traceId,
+        spanId: createDiagnosticSpanId(),
+        parentSpanId: this.options.spanId,
+      });
+      this.options.writer.write(level, record, args);
     } catch {
-      // Logging must never break the agent execution path.
+      // 诊断故障不能改变工具、会话或协议执行结果。
     }
-
-    if (this.consoleStream) {
-      this.consoleStream.write(`${formatConsoleLine(entry)}\n`);
-    }
-  }
-
-  private createEntry(
-    level: LogLevel,
-    message: string,
-    context: LogContext,
-    error?: Error,
-  ): LogEntry {
-    return {
-      timestamp: new Date(),
-      level,
-      levelName: LogLevelName[level],
-      event: typeof context.event === "string" ? context.event : undefined,
-      module: typeof context.module === "string" ? context.module : this.category,
-      message,
-      traceId: context.traceId,
-      sessionId: typeof context.sessionId === "string" ? context.sessionId : undefined,
-      turnId: typeof context.turnId === "string" ? context.turnId : undefined,
-      spanId: typeof context.spanId === "string" ? context.spanId : undefined,
-      parentSpanId: typeof context.parentSpanId === "string" ? context.parentSpanId : undefined,
-      toolCallId: typeof context.toolCallId === "string" ? context.toolCallId : undefined,
-      durationMs: typeof context.durationMs === "number" ? context.durationMs : undefined,
-      status: isLogStatus(context.status) ? context.status : undefined,
-      context: stripReservedContext(context),
-      error: error ? serializeLogError(error, this.includeErrorStack) : undefined,
-    };
   }
 }
 
 export function createNodeLoggerFactory(options: NodeLoggerFactoryOptions = {}): NodeLoggerFactory {
   let currentLevel = options.minLevel ?? getDefaultMinLevel(options.env);
   let retentionCleanupScheduled = false;
-  const logDir = options.logDir ?? options.env?.ZCODE_LOG_DIR ?? getDefaultLogDir();
+  const rootDir = options.logDir ?? options.env?.ZCODE_LOG_DIR ?? getDefaultLogDir();
+  // 已有日志可能含原文，版本目录隔离避免混入新的白名单记录与导出。
+  const logDir = basename(rootDir) === "diagnostics-v1" ? rootDir : join(rootDir, "diagnostics-v1");
   const consoleStream =
     typeof options.console === "object"
       ? options.console.stream
       : options.console === true || options.env?.ZCODE_LOG_CONSOLE === "1"
         ? process.stderr
         : undefined;
-  const redactor = options.redactor ?? new DefaultLogRedactor();
-
-  const create = (category: string, defaultContext: LogContext = {}) =>
+  const traceId = createDiagnosticTraceId();
+  let sequence = 0;
+  let pending = 0;
+  let writes = Promise.resolve();
+  const writer: DiagnosticWriter = {
+    write(level, input, args) {
+      const record = { ...input, sequence: sequence++ };
+      const line = JSON.stringify({
+        version: 1,
+        component: "agent",
+        timestamp: new Date().toISOString(),
+        level: LogLevelName[level],
+        diagnostic: record,
+        args,
+      });
+      try {
+        consoleStream?.write(`${line}\n`);
+      } catch {
+        /* closed local console */
+      }
+      try {
+        options.onDiagnostic?.(record);
+      } catch {
+        /* optional diagnostic sink */
+      }
+      if (pending >= 1024) return;
+      pending += 1;
+      writes = writes
+        .then(async () => {
+          await appendBoundedDiagnosticLine(
+            join(logDir, `zcode-${formatLocalLogDate(new Date())}.jsonl`),
+            `${line}\n`,
+            level === LogLevel.Debug,
+          );
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          pending -= 1;
+        });
+    },
+    flush: () => writes,
+  };
+  const create = (defaultContext: LogContext = {}) =>
     new NodeFileLogger({
-      category,
       defaultContext,
       getMinLevel: () => currentLevel,
-      logDir,
-      consoleStream,
-      includeErrorStack: options.includeErrorStack,
-      redactor,
+      writer,
+      traceId,
+      spanId: createDiagnosticSpanId(),
     });
-
   return {
-    createLogger(category: string): Logger {
-      return create(category);
-    },
-    withContext(context: LogContext): Logger {
-      return create("root", context);
-    },
-    setLevel(level: LogLevel): void {
+    createLogger: (_category) => create(),
+    withContext: (context) => create(context),
+    setLevel: (level) => {
       currentLevel = level;
     },
-    getLogDir(): string {
-      return logDir;
-    },
-    scheduleLogRetentionCleanup(scheduleOptions = {}): LogRetentionTimer | undefined {
+    getLogDir: () => logDir,
+    flush: writer.flush,
+    scheduleLogRetentionCleanup(scheduleOptions = {}) {
       if (retentionCleanupScheduled) return undefined;
       retentionCleanupScheduled = true;
       return scheduleRetentionCleanup({
         ...scheduleOptions,
         logDir,
-        logger:
-          scheduleOptions.logger ??
-          create("zcode", {
-            module: "adapters.logging",
-          }),
+        logger: scheduleOptions.logger ?? create(),
       });
     },
   };
 }
 
 export function getDefaultLogDir(): string {
-  return join(homedir(), ".zcode", "cli", "log");
+  return join(homedir(), ".zcode", "cli", "log", "diagnostics-v1");
 }
 
 function getDefaultMinLevel(env: NodeJS.ProcessEnv | undefined): LogLevel {
@@ -235,15 +258,4 @@ function isDevelopmentMode(env: NodeJS.ProcessEnv): boolean {
   // The local dev script runs `tsx src/main.ts`; packaged CLI entrypoints run from dist.
   const entrypoint = process.argv[1] ?? "";
   return entrypoint.endsWith(".ts") && entrypoint.includes(`${join("packages", "cli", "src")}`);
-}
-
-function ensureLogDir(logDir: string): void {
-  if (!existsSync(logDir)) {
-    maybeThrowStorageFsFault({ operation: "mkdir", path: logDir });
-    mkdirSync(logDir, { recursive: true });
-  }
-}
-
-function getLogFileName(): string {
-  return `zcode-${formatLocalLogDate(new Date())}.jsonl`;
 }

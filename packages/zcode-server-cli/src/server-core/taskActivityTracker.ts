@@ -4,7 +4,7 @@ import type {
   ZCodeAgentRuntimeLifecycleEvent,
   ZCodeAgentWorkspaceTarget,
 } from "@zcode/services";
-import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
+import type { SessionActivity } from "@zcode/shared/zcode-protocol-v4";
 
 interface TaskActivityTracker extends IDisposable {
   readonly onDidChangeRunningTaskCount: Event<number>;
@@ -13,13 +13,13 @@ interface TaskActivityTracker extends IDisposable {
 
 type AgentActivitySource = Pick<
   IZCodeAgentService,
-  "onAgentRuntimeLifecycle" | "onDynamicConversationTelemetryFact"
+  "onAgentRuntimeLifecycle" | "onDynamicSessionActivity"
 >;
 
 interface WorkspaceActivity {
   activeSessionIds: Set<string>;
   runtimeIdentity: string;
-  telemetry: IDisposable;
+  activity: IDisposable;
 }
 
 function workspaceKey(target: ZCodeAgentWorkspaceTarget): string {
@@ -47,17 +47,17 @@ export function createTaskActivityTracker(
   const removeWorkspace = (key: string, runtimeIdentity?: string): void => {
     const current = workspaces.get(key);
     if (!current || (runtimeIdentity && current.runtimeIdentity !== runtimeIdentity)) return;
-    current.telemetry.dispose();
+    current.activity.dispose();
     workspaces.delete(key);
     publishCount();
   };
 
-  const acceptFact = (key: string, fact: ConversationTelemetryFact): void => {
+  const acceptFact = (key: string, runtimeIdentity: string, fact: SessionActivity): void => {
     const workspace = workspaces.get(key);
-    if (!workspace) return;
-    if (fact.kind === "turn.started") {
+    if (!workspace || workspace.runtimeIdentity !== runtimeIdentity) return;
+    if (fact.state === "running") {
       workspace.activeSessionIds.add(fact.sessionId);
-    } else if (fact.kind === "turn.terminal") {
+    } else if (fact.state === "idle") {
       workspace.activeSessionIds.delete(fact.sessionId);
     } else {
       return;
@@ -74,14 +74,14 @@ export function createTaskActivityTracker(
     }
     removeWorkspace(key);
     const activeSessionIds = new Set<string>();
-    const telemetry = source?.onDynamicConversationTelemetryFact(event)((fact) =>
-      acceptFact(key, fact),
+    const activity = source?.onDynamicSessionActivity(event)((fact) =>
+      acceptFact(key, event.runtimeIdentity.identity, fact),
     );
-    if (!telemetry) return;
+    if (!activity) return;
     workspaces.set(key, {
       activeSessionIds,
       runtimeIdentity: event.runtimeIdentity.identity,
-      telemetry,
+      activity,
     });
   };
 
@@ -93,7 +93,7 @@ export function createTaskActivityTracker(
       if (disposed) return;
       disposed = true;
       lifecycle?.dispose();
-      for (const workspace of workspaces.values()) workspace.telemetry.dispose();
+      for (const workspace of workspaces.values()) workspace.activity.dispose();
       workspaces.clear();
       runningTaskCount = 0;
       changed.dispose();

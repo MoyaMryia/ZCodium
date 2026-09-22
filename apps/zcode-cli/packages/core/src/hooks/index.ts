@@ -18,4 +18,4 @@ export * from "./workspace-hook-trust-domain.js";
 
 export * from "./workspace-hook-runtime-admission.js";
 export * from "./workspace-hook-review-flow.js";
-export * from "./workspace-hook-telemetry.js";
+export * from "./workspace-hook-diagnostics.js";

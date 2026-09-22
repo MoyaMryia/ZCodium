@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
@@ -78,7 +79,7 @@ function wrapWebSocket(ws: WebSocket): ISocket {
 }
 
 const log = (...args: unknown[]) =>
-  console.log(formatLogPrefix("zcode-server:http", process.pid), ...args);
+  console.log(...safeLogArgs([formatLogPrefix("zcode-server:http", process.pid), ...args]));
 
 function setupChannelServer(
   ws: WebSocket,
@@ -176,7 +177,6 @@ function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
     capabilities: {
       desktopContinuous: true,
       websocketRpc: true,
-      processResourceTelemetry: true,
     },
   };
 }

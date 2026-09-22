@@ -1,6 +1,5 @@
 import { traceContextToLogContext } from "../deps.js";
 import type { TraceContext } from "../deps.js";
-import type { AgentTelemetryCausation } from "@zcode/contracts";
 import type { AgentRuntimeInternal } from "../internal.js";
 import {
   GOAL_SUMMARY_TITLE_QUERY_SOURCE,
@@ -37,12 +36,8 @@ export function maybeStartGoalSummaryTitleGeneration(
     });
     return false;
   }
-
-  // 与 Session Title 一致：后台任务在入队时冻结触发 Span，而不是依赖之后的
-  // AsyncLocalStorage 恰好仍保留原 Context。
-  const causation = this.agentTelemetry.captureCausation();
   const generation = generateAndPersistGoalSummaryTitle
-    .call(this, input, targetID, traceContext, causation)
+    .call(this, input, targetID, traceContext)
     .catch(async (error) => {
       this.logger?.warn("Goal summary title generation failed", {
         ...traceContextToLogContext(traceContext),
@@ -242,7 +237,6 @@ async function generateAndPersistGoalSummaryTitle(
   input: string,
   targetID: string,
   traceContext: TraceContext,
-  causation?: AgentTelemetryCausation,
 ): Promise<void> {
   const currentTarget = await this.sessionStore?.readTarget({ sessionID: this.sessionId });
   if (!currentTarget || currentTarget.targetID !== targetID) {
@@ -265,7 +259,6 @@ async function generateAndPersistGoalSummaryTitle(
   });
 
   const generated = await generateTitleCandidate.call(this, input, {
-    causation,
     querySource: GOAL_SUMMARY_TITLE_QUERY_SOURCE,
     traceContext,
   });
