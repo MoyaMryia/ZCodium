@@ -163,6 +163,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       // seed 注册与发行清单一致，资源完整性仍由 requiredSeedPaths 严格校验。
       ["presentations", "pptx", "Presentations", "演示文档"],
       ["documents", "docx", "Documents", "Word 文档"],
+      ["pdf", "pdf", "PDF", "PDF 文档"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName]): OfficialPluginDefinition => ({
@@ -204,7 +205,18 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
               "skills/docx/scripts/templates/commentsIds.xml",
               "skills/docx/scripts/templates/people.xml",
             ]
-          : ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
+          : // pdf 的 Phase 1 只有技能与三个 brief，没有 scripts/。brief 是 SKILL.md
+            // 路由表的目的地，缺任一即"看得见技能、读不到 brief"；scripts 落地后必须
+            // 同步扩项，否则会装出技能描述了却调不到的残缺插件。
+            name === "pdf"
+            ? [
+                "agents/visual-judge.md",
+                "skills/pdf/SKILL.md",
+                "skills/pdf/briefs/report.md",
+                "skills/pdf/briefs/resume.md",
+                "skills/pdf/briefs/poster.md",
+              ]
+            : ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
       rootCandidates: [
         `packages/${name}-plugin`,
         `../${name}-plugin`,

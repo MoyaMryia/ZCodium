@@ -36,9 +36,19 @@ const DOCUMENTS_PLUGIN_SEED_PATHS = [
   "skills/docx/scripts/templates/people.xml",
 ] as const;
 
+const PDF_PLUGIN_SEED_PATHS = [
+  // Phase 1 无 scripts/；brief 是 SKILL.md 路由表的目的地。scripts 落地后必须同步扩项。
+  "agents/visual-judge.md",
+  "skills/pdf/SKILL.md",
+  "skills/pdf/briefs/report.md",
+  "skills/pdf/briefs/resume.md",
+  "skills/pdf/briefs/poster.md",
+] as const;
+
 const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
   "presentations-plugin": ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
   "documents-plugin": DOCUMENTS_PLUGIN_SEED_PATHS,
+  "pdf-plugin": PDF_PLUGIN_SEED_PATHS,
   "image-search-plugin": [".mcp.json"],
   "plugin-creator-plugin": [
     "skills/plugin-creator/SKILL.md",
@@ -69,6 +79,7 @@ const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES = [
   // 校验范围必须与发行清单一致，避免远端要求未发行的插件资源。
   "presentations-plugin",
   "documents-plugin",
+  "pdf-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",

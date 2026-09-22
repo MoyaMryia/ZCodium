@@ -510,6 +510,8 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  apps/zcode-cli/packages/pdf-plugin: {}
+
   apps/zcode-cli/packages/plugin-creator-plugin: {}
 
   apps/zcode-cli/packages/presentations-plugin: {}
