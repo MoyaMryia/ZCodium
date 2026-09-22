@@ -1,8 +1,8 @@
-import { mergeLocalTtftFacts } from "@/v4/telemetry/localTtftFacts.js";
+import { mergeLocalTtftFacts } from "@/v4/diagnostics/localTtftFacts.js";
 import {
   buildLocalTtftRecord,
   type LocalTtftPending as Pending,
-} from "@/v4/telemetry/localTtftRecord.js";
+} from "@/v4/diagnostics/localTtftRecord.js";
 import { logger } from "@/logger.js";
 import {
   LOCAL_TTFT_MAX_PENDING,
@@ -20,7 +20,7 @@ import type {
   TopicFrameDeliveryKind,
 } from "@zcode/shared/zcode-protocol-v4";
 
-/** Renderer 独占点击总时钟；不使用 ACK 或旁路 telemetry 判定首输出。 */
+/** Renderer 独占点击总时钟；以实际输出投影判定首输出。 */
 export class LocalTtftObserver {
   enabled = false;
   private readonly pending = new Map<string, Pending>();

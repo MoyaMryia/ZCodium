@@ -69,7 +69,6 @@ function dragPayloadSessionTarget(payload: WorkbenchSessionDragPayload): Workben
 interface V4WorkspaceChatAreaProps {
   workspacePath: string;
   workspaceIdentity?: string;
-  /** Prompt 模板埋点当前仅覆盖 Desktop；Web / 手机远控保留 UI 行为但不触发该事件。 */
   isDesktop?: boolean;
   readOnly?: boolean;
   /** Settings 等覆盖层打开时为 false，隐藏 Pane 不得消费一次性 Composer 请求。 */

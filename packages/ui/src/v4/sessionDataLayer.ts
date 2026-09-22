@@ -5,7 +5,7 @@
 // Map<workspaceKey, SessionDataLayer>，本层不感知 workspace。
 import { ConversationProjectionStore } from "@/v4/conversationProjectionStore.js";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
-import type { SessionOpenKind } from "@/lib/sessionOpenArmsTelemetry.js";
+
 import { conversationTopic, type ConversationTransport } from "@/v4/transport.js";
 import { logger } from "@/logger.js";
 import type { CommandsQueryParams, CommandsQueryResult } from "@zcode/shared/zcode-protocol-v4";
@@ -15,7 +15,7 @@ export interface SessionLease {
   readonly sessionId: string;
   readonly store: ConversationProjectionStore;
   /** 由数据层按 projection 生命周期判定，避免 pane 首次 render 时 snapshot 仍为空。 */
-  readonly openKind: SessionOpenKind;
+  readonly openKind: "cold" | "warm" | "keep_warm";
   /** pane acquire 的 Renderer 单调时钟起点。 */
   readonly startedAt: number;
   release(): void;
@@ -76,7 +76,7 @@ export class SessionDataLayer {
     const topic = conversationTopic(sessionId);
     const startedAt = monotonicNow();
     let entry = this.entries.get(topic);
-    let openKind: SessionOpenKind;
+    let openKind: SessionLease["openKind"];
     if (entry) {
       openKind = entry.keepWarmTimer !== null ? "keep_warm" : "warm";
       entry.refCount++;

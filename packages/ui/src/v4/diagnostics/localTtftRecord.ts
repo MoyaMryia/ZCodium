@@ -81,15 +81,6 @@ export function buildLocalTtftRecord(
   return {
     version: 1,
     observationId: pending.context.observationId,
-    commandId: pending.commandId,
-    sessionId: facts?.sessionId,
-    turnId: facts?.turnId,
-    productTurnId: facts?.productTurnId,
-    queryId: facts?.queryId,
-    logicalCallId: facts?.logicalCallId,
-    cliVersion: facts?.cliVersion,
-    requestId: facts?.requestId,
-    cliInstanceId: facts?.instanceId,
     kind,
     ...(kind === "checkpoint"
       ? { checkpointId: `checkpoint:${pending.checkpointRevision++}` }
@@ -107,8 +98,12 @@ export function buildLocalTtftRecord(
     ),
     details: [
       ...pending.confirmations,
-      ...(facts?.details ?? []).map((detail) => ({
-        ...detail,
+      ...(facts?.details ?? []).map((detail, index) => ({
+        id: `stage:${index}`,
+        stage: detail.stage,
+        source: detail.source,
+        role: detail.role,
+        outcome: detail.outcome,
         start: detail.start + offset,
         ...(detail.end === undefined ? {} : { end: detail.end + offset }),
       })),
@@ -126,7 +121,5 @@ export function buildLocalTtftRecord(
     quality: invalid ? "clock_invalid" : intervals.length === 6 ? "complete" : "missing",
     ...(calibration ? { clockErrorMs: calibration.errorMs } : {}),
     intervals,
-    model: facts?.model,
-    provider: facts?.provider,
   };
 }

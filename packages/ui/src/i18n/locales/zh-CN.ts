@@ -1820,9 +1820,6 @@ const zhCN: Record<string, string> = {
   "settings.askUserQuestionAutoResolution": "提问自动继续",
   "settings.askUserQuestionAutoResolutionDescription":
     "开启后，Agent 提问 5 分钟未回答会自动继续；关闭后，当前和后续提问会一直等待你的回答。",
-  "settings.modelIoFullRetention": "完整保留模型 I/O",
-  "settings.modelIoFullRetentionDescription":
-    "保留完整的模型请求和响应，不自动压缩、限制大小或删除旧记录。",
   "settings.performanceMode": "性能模式",
   "settings.performanceModeDescription": "精简渲染输出，提高性能。",
   "settings.taskAutoArchive": "自动归档旧任务",

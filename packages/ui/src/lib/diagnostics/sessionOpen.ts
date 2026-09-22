@@ -1,7 +1,6 @@
-import type { ArmsCustomEventPayload } from "@zcode/shared";
-import { logger } from "@/logger.js";
+import { recordUiDiagnostic as emit, type UiDiagnosticEvent } from "@/lib/diagnostics/recorder.js";
 
-const SESSION_OPEN_ARMS_GROUP = "ui_perf";
+const SESSION_OPEN_GROUP = "ui_perf";
 const SESSION_OPEN_EVENT_START = "perf_ui_session_open_start";
 const SESSION_OPEN_EVENT_RESULT = "perf_ui_session_open_result";
 
@@ -18,10 +17,6 @@ export type SessionOpenTrigger =
 type SessionOpenStatus = "success" | "failed" | "timeout";
 type SessionOpenProcessState = "spawned" | "reused";
 type SessionOpenRuntimeState = "cold" | "warm";
-
-export interface SessionOpenArmsReporter {
-  reportArmsCustomEvent(payload: ArmsCustomEventPayload): Promise<unknown>;
-}
 
 export interface SessionOpenIdentity {
   sessionOpenId: string;
@@ -63,12 +58,6 @@ interface SessionOpenResultFields extends SessionOpenTimingFields {
   mcpPendingAtInteractive?: boolean;
 }
 
-let reporter: SessionOpenArmsReporter | null = null;
-
-export function setSessionOpenArmsReporter(next: SessionOpenArmsReporter | null): void {
-  reporter = next;
-}
-
 function roundedNonNegative(value: number | undefined): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
   return Math.round(value);
@@ -79,47 +68,29 @@ function positiveOrZeroInteger(value: number | undefined): number | undefined {
   return Math.round(value);
 }
 
-function emit(
-  payload: ArmsCustomEventPayload,
-  targetReporter: SessionOpenArmsReporter | null | undefined = reporter,
-): void {
-  if (!targetReporter) return;
-  try {
-    void Promise.resolve(targetReporter.reportArmsCustomEvent(payload)).catch((error) => {
-      logger.warn("[session-open] ARMS 上报失败", { name: payload.name, error });
-    });
-  } catch (error) {
-    logger.warn("[session-open] ARMS 上报异常", { name: payload.name, error });
-  }
-}
-
 function identityProperties(identity: SessionOpenIdentity): Record<string, string> {
   return {
-    session_open_id: identity.sessionOpenId,
-    session_id: identity.sessionId,
     open_trigger: identity.openTrigger,
     open_kind: identity.openKind,
     client_mode: identity.clientMode,
   };
 }
 
-function buildSessionOpenStartArmsPayload(identity: SessionOpenIdentity): ArmsCustomEventPayload {
+function buildSessionOpenStartDiagnostic(identity: SessionOpenIdentity): UiDiagnosticEvent {
   return {
     name: SESSION_OPEN_EVENT_START,
-    group: SESSION_OPEN_ARMS_GROUP,
+    group: SESSION_OPEN_GROUP,
     value: 1,
     properties: identityProperties(identity),
   };
 }
 
-function buildSessionOpenResultArmsPayload(
+function buildSessionOpenResultDiagnostic(
   identity: SessionOpenIdentity & SessionOpenResultFields,
-): ArmsCustomEventPayload {
+): UiDiagnosticEvent {
   const properties: Record<string, string | number | boolean | undefined> = {
     ...identityProperties(identity),
     status: identity.status,
-    error_phase: identity.errorPhase,
-    error_code: identity.errorCode,
     total_ms: roundedNonNegative(identity.totalMs),
     renderer_prepare_ms: roundedNonNegative(identity.rendererPrepareMs),
     host_prepare_ms: roundedNonNegative(identity.hostPrepareMs),
@@ -146,22 +117,18 @@ function buildSessionOpenResultArmsPayload(
   };
   return {
     name: SESSION_OPEN_EVENT_RESULT,
-    group: SESSION_OPEN_ARMS_GROUP,
+    group: SESSION_OPEN_GROUP,
     value: roundedNonNegative(identity.totalMs) ?? 0,
     properties,
   };
 }
 
-export function reportSessionOpenStart(
-  identity: SessionOpenIdentity,
-  targetReporter?: SessionOpenArmsReporter | null,
-): void {
-  emit(buildSessionOpenStartArmsPayload(identity), targetReporter);
+export function reportSessionOpenStart(identity: SessionOpenIdentity): void {
+  emit(buildSessionOpenStartDiagnostic(identity));
 }
 
 export function reportSessionOpenResult(
   identity: SessionOpenIdentity & SessionOpenResultFields,
-  targetReporter?: SessionOpenArmsReporter | null,
 ): void {
-  emit(buildSessionOpenResultArmsPayload(identity), targetReporter);
+  emit(buildSessionOpenResultDiagnostic(identity));
 }

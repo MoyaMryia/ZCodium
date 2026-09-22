@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- share 公开页的状态文案、Row allow-list 和登录态需保持同一安全边界。 */
 import {
   useCallback,
@@ -42,13 +43,18 @@ function logPreviewLoadFailure(
   kind: ConversationSharePreviewErrorKind,
 ): void {
   const clientError = error as Partial<ConversationSharePreviewClientError> | null;
-  console.warn("[conversation-share-web]", "preview_load_failed", {
-    stage,
-    kind,
-    errorName: error instanceof Error ? error.name : typeof error,
-    status: typeof clientError?.status === "number" ? clientError.status : undefined,
-    code: typeof clientError?.code === "number" ? clientError.code : undefined,
-  });
+  console.warn(
+    ...safeLogArgs([
+      "[conversation-share-web]",
+      "preview_load_failed",
+      {
+        stage,
+        kind,
+        errorCategory: "network",
+        statusCode: typeof clientError?.status === "number" ? clientError.status : undefined,
+      },
+    ]),
+  );
 }
 
 interface Copy {

@@ -131,7 +131,7 @@ import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
-import { startUserAction } from "@/lib/userActionTelemetry.js";
+
 import { logger } from "@/logger.js";
 import {
   findAutomationWorkspaceOptionByKey,
@@ -1804,26 +1804,10 @@ export function AutomationEditView({
         if (!chosen) return false;
         input.modelSelection = chosen;
       }
-      const trace = startUserAction({
-        featureId: "automation.lifecycle",
-        action: editing ? "update" : "create",
-        trigger: "button",
-        workspaceKind: editing?.workspaceIdentity?.trim() ? "remote" : "local",
-        automationKind: "scheduled",
-      });
-      try {
-        const ok = await onSubmit({ input, ...target });
-        if (ok) {
-          trace.complete({ resultSource: "platform_result" });
-          if (options?.returnToList !== false) onBack();
-        } else {
-          trace.reject({ resultSource: "platform_result" });
-        }
-        return ok;
-      } catch (error) {
-        trace.fail({ failureStage: "automation_save" });
-        throw error;
-      }
+
+      const ok = await onSubmit({ input, ...target });
+      if (ok && options.returnToList !== false) onBack();
+      return ok;
     },
     [
       buildSubmitInput,

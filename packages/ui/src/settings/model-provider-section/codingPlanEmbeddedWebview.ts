@@ -8,7 +8,7 @@ import {
   ZAI_PROVIDER_ID,
 } from "@zcode/shared";
 import type { CodingPlanWebviewLocale } from "@zcode/shared";
-import type { CodingPlanFunnelContext } from "@/lib/codingPlanFunnelTelemetry.js";
+
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
 
 type CodingPlanWebsiteProvider = "zai" | "bigmodel";
@@ -18,23 +18,6 @@ export interface CodingPlanEmbeddedCredentials {
   zaiAccessToken?: string | null;
   zcodeJwtToken?: string | null;
   bigmodelAccessToken?: string | null;
-}
-
-interface CodingPlanEmbeddedReportContext {
-  purchase_funnel_id?: string;
-  purchase_entry_reporter?: "app";
-  upgrade_source?: string;
-  event_region?: string;
-  event_text?: string;
-  entry_plan_status?: string;
-  entry_plan_level?: string;
-  entry_plan_list?: string;
-  purchase_audience?: string;
-  provider_family?: string;
-  channel?: string;
-  device_mid?: string;
-  user_id?: string;
-  app_version?: string;
 }
 
 export type CodingPlanEmbeddedTheme = "zai-light" | "zai-dark";
@@ -165,7 +148,6 @@ export function createCodingPlanAuthInjectionScript({
   credentials,
   theme,
   locale,
-  reportContext,
 }: {
   provider: CodingPlanWebsiteProvider;
   credentials: CodingPlanEmbeddedCredentials;
@@ -173,7 +155,6 @@ export function createCodingPlanAuthInjectionScript({
   // App 当前 locale，写入 window.__zcodeLang__ 供 zcodeBridge.getLang() 读取，
   // 并附带在 auth-ready 事件 detail 里让官网一次性同步初始语言。
   locale: CodingPlanWebviewLocale | null;
-  reportContext?: CodingPlanEmbeddedReportContext | null;
 }): string {
   const values: Record<string, string | null> =
     provider === "zai"
@@ -199,7 +180,6 @@ export function createCodingPlanAuthInjectionScript({
     )
     .join("\n  ");
   const resolvedLocale: CodingPlanWebviewLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
-  const normalizedReportContext = normalizeCodingPlanEmbeddedReportContext(reportContext);
 
   return `(() => {
   ${storageUpdates}
@@ -212,56 +192,10 @@ export function createCodingPlanAuthInjectionScript({
   // 写入当前 App locale，供官网 zcodeBridge.getLang() 读取。
   // 注意：这是注入 webview 执行的原始 JS，不能用 TS 语法（如 as any）。
   window.__zcodeLang__ = ${JSON.stringify(resolvedLocale)};
-  const zcodeReportContext = ${JSON.stringify(normalizedReportContext)};
-  window.__zcodeReportContext__ = zcodeReportContext;
-  localStorage.setItem(${JSON.stringify(CODING_PLAN_REPORT_CONTEXT_STORAGE_KEY)}, JSON.stringify(zcodeReportContext));
   window.dispatchEvent(new CustomEvent("zcode-coding-plan-auth-ready", {
-    detail: { ...${JSON.stringify({ provider, locale: resolvedLocale })}, reportContext: zcodeReportContext },
+    detail: ${JSON.stringify({ provider, locale: resolvedLocale })},
   }));
 })()`;
-}
-
-export function buildCodingPlanEmbeddedReportContext({
-  funnelContext,
-  deviceMid,
-  userId,
-  appVersion,
-}: {
-  funnelContext?: CodingPlanFunnelContext | null;
-  deviceMid?: string | null;
-  userId?: string | null;
-  appVersion?: string | null;
-}): CodingPlanEmbeddedReportContext {
-  return normalizeCodingPlanEmbeddedReportContext({
-    purchase_funnel_id: funnelContext?.purchaseFunnelId,
-    // 缺少归属标记会让兼容官网重复上报入口；无漏斗时不能声明 App 已接管。
-    purchase_entry_reporter: funnelContext ? "app" : undefined,
-    upgrade_source: funnelContext?.upgradeSource,
-    event_region: funnelContext?.eventRegion,
-    event_text: funnelContext?.eventText,
-    entry_plan_status: funnelContext?.entryPlanStatus,
-    entry_plan_level: funnelContext?.entryPlanLevel,
-    entry_plan_list: funnelContext?.entryPlanList,
-    purchase_audience: funnelContext?.purchaseAudience,
-    provider_family: funnelContext?.providerFamily,
-    channel: funnelContext?.channel,
-    device_mid: deviceMid ?? undefined,
-    user_id: userId ?? undefined,
-    app_version: appVersion ?? undefined,
-  });
-}
-
-function normalizeCodingPlanEmbeddedReportContext(
-  context: CodingPlanEmbeddedReportContext | null | undefined,
-): CodingPlanEmbeddedReportContext {
-  if (!context) return {};
-  return Object.fromEntries(
-    Object.entries(context).flatMap(([key, value]) => {
-      if (typeof value !== "string") return [];
-      const normalized = value.trim();
-      return normalized ? [[key, normalized]] : [];
-    }),
-  ) as CodingPlanEmbeddedReportContext;
 }
 
 export function createCodingPlanCredentialClearScript(): string {

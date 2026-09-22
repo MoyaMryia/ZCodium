@@ -28,11 +28,7 @@ import {
   mergeCodingPlanQuotaResetOpportunityBadges,
   resolveCodingPlanQuotaResetLimit,
 } from "@/lib/codingPlanQuotaResetUi.js";
-import {
-  createCodingPlanFunnelContext,
-  resolveCodingPlanEntryPlanState,
-  type CodingPlanFunnelContext,
-} from "@/lib/codingPlanFunnelTelemetry.js";
+
 import {
   type CodingPlanStatus,
   type CodingPlanProviderId,
@@ -195,10 +191,7 @@ export function CodingPlanStatusPanel({
   onRetry?: () => void;
   onOpenPurchase?: (url: string) => void;
   onDisconnect?: () => void;
-  onOpenUpgradePlans?: (options: {
-    initialAudience: PurchaseAudience;
-    funnelContext: CodingPlanFunnelContext | null;
-  }) => void;
+  onOpenUpgradePlans?: (options: { initialAudience: PurchaseAudience }) => void;
   /** 原生面板移除后，Team 状态卡仍须把购买对象传给统一升级入口。 */
   purchaseInitialAudience?: PurchaseAudience;
   loginActionPlacement?: "inline" | "trailing";
@@ -335,30 +328,13 @@ export function CodingPlanStatusPanel({
     isChecking &&
     providerIcon === BIGMODEL_PROVIDER_ID &&
     isBigModelUnregisteredAuthError(authError);
-  const createSettingPlanCardFunnelContext = (eventText: string) =>
-    createCodingPlanFunnelContext({
-      providerId,
-      // 修复原因：Start Plan 的升级入口与普通 Coding Plan 套餐卡属于不同链接方式，
-      // 埋点必须单独标识，避免把 Start Plan 用户误归类为普通套餐卡来源。
-      upgradeSource: isStartPlanProvider ? "setting_start_plan_card" : "setting_plan_card",
-      eventRegion: "app.setting",
-      eventText,
-      entryPlanState: resolveCodingPlanEntryPlanState({
-        displayStatus: effectiveViewState.displayStatus,
-        providerId,
-        planLevel,
-      }),
-    });
-  const openUpgradePlans = (
-    initialAudience: PurchaseAudience,
-    nextFunnelContext: CodingPlanFunnelContext | null,
-  ) => {
+
+  const openUpgradePlans = (initialAudience: PurchaseAudience) => {
     if (onOpenUpgradePlans) {
       // Coding Plan 购买流程不应继续挂载在 Model Settings 内部；
       // 状态卡只负责发起意图，由弹窗 hook 承载购买面板。
       onOpenUpgradePlans({
         initialAudience,
-        funnelContext: nextFunnelContext,
       });
       return;
     }
@@ -375,16 +351,7 @@ export function CodingPlanStatusPanel({
       }
       onUpgradePlansVisibleChange={(visible) => {
         if (visible) {
-          openUpgradePlans(
-            purchaseInitialAudience,
-            createSettingPlanCardFunnelContext(
-              intl.formatMessage({
-                id: isMaxPlanLevel
-                  ? "settings.modelProvider.codingPlan.renew"
-                  : "settings.modelProvider.codingPlan.upgrade",
-              }),
-            ),
-          );
+          openUpgradePlans(purchaseInitialAudience);
           return;
         }
         setUpgradePlansVisible(visible);
@@ -400,14 +367,7 @@ export function CodingPlanStatusPanel({
         // 按钮一样禁用，避免旧的 notPurchased 快照被提前提交为购买入口。
         disabled={effectiveViewState.loginLoading}
         onClick={() => {
-          openUpgradePlans(
-            purchaseInitialAudience,
-            createSettingPlanCardFunnelContext(
-              intl.formatMessage({
-                id: "settings.modelProvider.codingPlan.subscribe",
-              }),
-            ),
-          );
+          openUpgradePlans(purchaseInitialAudience);
         }}
       >
         {/* 单卡同步可能晚于全局套餐查询；仅禁用会丢失等待反馈，和 Upgrade 保持一致。 */}

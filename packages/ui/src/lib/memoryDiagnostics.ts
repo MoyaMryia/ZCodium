@@ -1,11 +1,12 @@
 import {
   createMemoryDiagnosticsRegistry,
   createMemorySampleWriteGate,
-  formatMemorySampleLine,
+  DiagnosticRecordSchema,
+  DiagnosticMetricSchema,
+  type DiagnosticRecord,
   MEMORY_SAMPLE_INTERVAL_MS,
   type MemoryDiagnosticsRegistry,
   type MemorySample,
-  type RendererHeapSample,
 } from "@zcode/shared";
 import { logMemoryDiagnostics } from "@/logger.js";
 
@@ -38,14 +39,8 @@ interface StartMemoryDiagnosticsLoggerOptions {
   intervalMs?: number;
   now?: () => number;
   readHeap?: () => RendererHeapSnapshot | undefined;
-  write?: (line: string) => void;
+  write?: (record: DiagnosticRecord) => void;
   registry?: MemoryDiagnosticsRegistry;
-  /**
-   * 资源遥测出口：同一次读数除写本地
-   * 诊断日志外，还经 preload 桥送 main 的 `renderer_main` 角色事件。由 App 注入
-   * `platform.reportRendererHeapSample`；Web 端与手机远控没有桥，不注入即 no-op。
-   */
-  reportHeapSample?: (sample: RendererHeapSample) => void;
 }
 
 interface MemoryDiagnosticsLoggerHandle {
@@ -60,22 +55,12 @@ export function startMemoryDiagnosticsLogger(
   const readHeap = options.readHeap ?? readRendererHeapSnapshot;
   const write = options.write ?? logMemoryDiagnostics;
   const registry = options.registry ?? uiMemoryDiagnosticsRegistry;
-  const reportHeapSample = options.reportHeapSample;
   const gate = createMemorySampleWriteGate();
 
   const sampleNow = (): boolean => {
     try {
       const heap = readHeap();
       const heapUsedKb = heap ? Math.round(heap.usedJSHeapSize! / 1024) : undefined;
-      // 读到就先交给资源遥测：ARMS 要的是完整的 60 秒序列，而本地日志只在有变化时才写，
-      // 两个出口不能共用同一个门控结论；计数器采集与格式化也不该拖走这条 heap 样本。
-      if (heapUsedKb !== undefined) {
-        try {
-          reportHeapSample?.({ heapUsedKb });
-        } catch {
-          // 桥失败只丢这条遥测样本，本地诊断日志与渲染都不受影响。
-        }
-      }
       const sample: MemorySample = {
         role: "renderer",
         counters: registry.collect(),
@@ -90,7 +75,36 @@ export function startMemoryDiagnosticsLogger(
       if (!reason) {
         return false;
       }
-      write(formatMemorySampleLine(sample, reason));
+      const metrics: Record<string, number> = {};
+      if (sample.heapUsedKb !== undefined) metrics.heapUsedBytes = sample.heapUsedKb * 1024;
+      if (sample.heapTotalKb !== undefined) metrics.heapTotalBytes = sample.heapTotalKb * 1024;
+      const names: Record<string, string> = {
+        "sessionStore.workspaces": "sessionWorkspaceCount",
+        "toolLayout.openState": "toolLayoutOpenCount",
+        "shiki.tokensCache": "syntaxTokenCacheCount",
+        "shiki.highlighters": "syntaxHighlighterCount",
+        "taskQueryCache.queryKeys": "taskQueryCount",
+        "taskQueryCache.taskMetas": "taskMetaCount",
+        "projection.stores": "projectionStoreCount",
+        "projection.rows": "projectionRowCount",
+        "xterm.sessions": "terminalSessionCount",
+        "taskSnapshotCache.entries": "taskSnapshotCount",
+        "taskSnapshotCache.persisted": "persistedTaskSnapshotCount",
+      };
+      const allowed = new Set<string>(DiagnosticMetricSchema.options);
+      for (const [key, name] of Object.entries(names)) {
+        const value = sample.counters[key];
+        if (allowed.has(name) && typeof value === "number" && Number.isFinite(value))
+          metrics[name] = value;
+      }
+      write(
+        DiagnosticRecordSchema.parse({
+          name: "process.resource",
+          component: "renderer",
+          phase: "sample",
+          metrics,
+        }),
+      );
       return true;
     } catch {
       // 诊断采样失败只丢当前样本，不能影响渲染。

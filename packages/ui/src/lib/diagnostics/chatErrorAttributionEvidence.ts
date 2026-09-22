@@ -4,7 +4,7 @@ import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
  * transcript 和 custom provider 的安全 code/message 证据集中在这里判定：
  * 低基数 allowlist，每条规则原子返回同一份证据决定的 source/reason。
  */
-interface TelemetryEvidenceAttribution {
+interface DiagnosticEvidenceAttribution {
   errorSource: "provider" | "runtime" | "network";
   failureReason: string;
 }
@@ -59,7 +59,7 @@ const PROVIDER_CODE_FAILURE_REASONS: Readonly<Record<string, string>> = {
 };
 
 // provider 包装可能只保留上游业务码，未带 adapter 的标准 reason；
-// 这些 code 的拒绝语义有明确证据，只在 telemetry 边界补为低基数 invalid_request。
+// 这些 code 的拒绝语义有明确证据，只在 diagnostic 边界补为低基数 invalid_request。
 const GENERIC_PROVIDER_INVALID_REQUEST_CODES = new Set(["BAD_REQUEST"]);
 
 const LOCAL_MODEL_VALIDATION_MESSAGES = new Set([
@@ -97,7 +97,7 @@ const STABLE_TRANSPORT_TIMEOUT_ERROR_CODES = new Set([
   "UND_ERR_BODY_TIMEOUT",
 ]);
 
-const GENERIC_PROVIDER_CODE_ATTRIBUTION: Readonly<Record<string, TelemetryEvidenceAttribution>> = {
+const GENERIC_PROVIDER_CODE_ATTRIBUTION: Readonly<Record<string, DiagnosticEvidenceAttribution>> = {
   service_unavailable: { errorSource: "provider", failureReason: "server_error" },
   server_error: { errorSource: "provider", failureReason: "server_error" },
   upstream_server_error: { errorSource: "provider", failureReason: "server_error" },
@@ -147,7 +147,7 @@ export function isLocalModelValidationMessage(message: string): boolean {
 
 export function resolveStableTransportCodeAttribution(
   code: string,
-): TelemetryEvidenceAttribution | undefined {
+): DiagnosticEvidenceAttribution | undefined {
   const normalizedCode = code.trim().toUpperCase();
   if (STABLE_TRANSPORT_TIMEOUT_ERROR_CODES.has(normalizedCode)) {
     return { errorSource: "network", failureReason: "timeout" };
@@ -160,7 +160,7 @@ export function resolveStableTransportCodeAttribution(
 
 export function resolveGenericProviderCodeAttribution(
   code: string | undefined,
-): TelemetryEvidenceAttribution | undefined {
+): DiagnosticEvidenceAttribution | undefined {
   return GENERIC_PROVIDER_CODE_ATTRIBUTION[code?.trim().toLowerCase() ?? ""];
 }
 
@@ -208,7 +208,7 @@ export function isQuotaMessage(message: string): boolean {
 
 export function resolveControlledUnknownMessageAttribution(
   message: string,
-): TelemetryEvidenceAttribution | undefined {
+): DiagnosticEvidenceAttribution | undefined {
   if (/off-peak-ticket-expired/iu.test(message)) {
     return { errorSource: "runtime", failureReason: "offpeak_ticket_expired" };
   }

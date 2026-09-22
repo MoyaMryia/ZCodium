@@ -1,26 +1,24 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
-import { resolveWorkspaceTelemetryDetail, type IPlatformService } from "@zcode/shared";
 import { createConversationTelemetryService, type IServiceAccessor } from "@zcode/services";
-import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { ConversationTelemetrySupervisor } from "@/v4/telemetry/conversationTelemetrySupervisor.js";
+import { ConversationDiagnostics } from "@/v4/diagnostics/conversationDiagnostics.js";
 
-interface ConversationTelemetryAttachmentScope {
+interface ConversationDiagnosticAttachmentScope {
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
 }
 
-interface ConversationTelemetryAttachmentValue {
-  scope: ConversationTelemetryAttachmentScope;
-  supervisor: ConversationTelemetrySupervisor;
+interface ConversationDiagnosticAttachmentValue {
+  scope: ConversationDiagnosticAttachmentScope;
+  supervisor: ConversationDiagnostics;
   foregroundEnabled: boolean;
 }
 
 interface SupervisorRegistryEntry {
   key: string;
   logicalScopeKey: string;
-  supervisor: ConversationTelemetrySupervisor;
+  supervisor: ConversationDiagnostics;
   refCount: number;
   subscription: { dispose(): void } | null;
   stale: boolean;
@@ -45,21 +43,21 @@ function serviceGenerationId(service: object): number {
   return created;
 }
 
-function attachmentScopeKey(scope: ConversationTelemetryAttachmentScope, service: object): string {
+function attachmentScopeKey(scope: ConversationDiagnosticAttachmentScope, service: object): string {
   const workspaceKey = scope.workspaceIdentity?.trim() || scope.workspacePath;
   return [scope.remoteSessionId ?? "__base__", workspaceKey, serviceGenerationId(service)].join(
     "\u0000",
   );
 }
 
-function logicalAttachmentScopeKey(scope: ConversationTelemetryAttachmentScope): string {
+function logicalAttachmentScopeKey(scope: ConversationDiagnosticAttachmentScope): string {
   const workspaceKey = scope.workspaceIdentity?.trim() || scope.workspacePath;
   return [scope.remoteSessionId ?? "__base__", workspaceKey].join("\u0000");
 }
 
 function sameScope(
-  left: ConversationTelemetryAttachmentScope,
-  right: ConversationTelemetryAttachmentScope,
+  left: ConversationDiagnosticAttachmentScope,
+  right: ConversationDiagnosticAttachmentScope,
 ): boolean {
   return (
     (left.remoteSessionId ?? "__base__") === (right.remoteSessionId ?? "__base__") &&
@@ -69,9 +67,8 @@ function sameScope(
 }
 
 function acquireSupervisor(
-  scope: ConversationTelemetryAttachmentScope,
+  scope: ConversationDiagnosticAttachmentScope,
   services: IServiceAccessor,
-  platform: Pick<IPlatformService, "reportArmsCustomEvent" | "reportTelemetryEvent">,
 ): SupervisorLease {
   const logicalScopeKey = logicalAttachmentScopeKey(scope);
   const key = attachmentScopeKey(scope, services.zcodeAgentService);
@@ -92,11 +89,7 @@ function acquireSupervisor(
     entry = {
       key,
       logicalScopeKey,
-      supervisor: new ConversationTelemetrySupervisor({
-        platform,
-        workspaceScopeKey: key,
-        workspaceTelemetryDetail: resolveWorkspaceTelemetryDetail(scope),
-      }),
+      supervisor: new ConversationDiagnostics(),
       refCount: 1,
       subscription: null,
       stale: false,
@@ -131,7 +124,7 @@ function disposeSupervisorEntry(entry: SupervisorRegistryEntry): void {
 }
 
 /** 窗口/测试销毁边界；生产 page 生命周期结束时不保留 orphan subscription。 */
-export function disposeConversationTelemetrySupervisors(): void {
+export function disposeConversationDiagnostics(): void {
   for (const entry of supervisorRegistry.values()) {
     disposeSupervisorEntry(entry);
   }
@@ -142,8 +135,8 @@ export function disposeConversationTelemetrySupervisors(): void {
  * Root tab 事实源裁决 workspace detach。切 task/切 tab 不会移除 scope；真正关闭最后一个
  * workspace tab 才标记 detached，零引用立即销毁，有存量 pane 则等其 release 后销毁。
  */
-export function reconcileConversationTelemetryWorkspaceScopes(
-  scopes: readonly ConversationTelemetryAttachmentScope[],
+export function reconcileConversationDiagnosticWorkspaceScopes(
+  scopes: readonly ConversationDiagnosticAttachmentScope[],
 ): void {
   const attachedKeys = new Set(scopes.map(logicalAttachmentScopeKey));
   for (const entry of supervisorRegistry.values()) {
@@ -156,7 +149,7 @@ export function reconcileConversationTelemetryWorkspaceScopes(
 
 function ensureSupervisorSubscription(
   entry: SupervisorRegistryEntry,
-  scope: ConversationTelemetryAttachmentScope,
+  scope: ConversationDiagnosticAttachmentScope,
   services: IServiceAccessor,
 ): void {
   if (entry.subscription) return;
@@ -170,14 +163,14 @@ function ensureSupervisorSubscription(
   );
 }
 
-const ConversationTelemetryAttachmentContext =
-  createContext<ConversationTelemetryAttachmentValue | null>(null);
+const ConversationDiagnosticAttachmentContext =
+  createContext<ConversationDiagnosticAttachmentValue | null>(null);
 
 /**
  * 窗口 workspace/service attachment：生命周期高于 pane 和 SessionDataLayer keep-warm。
- * Web/mobile 不创建 supervisor，也不安装 reporter/subscription。
+ * 只订阅已有本地事实，不安装网络 exporter。
  */
-export function ConversationTelemetryWorkspaceAttachment({
+export function ConversationDiagnosticWorkspaceAttachment({
   enabled,
   foregroundEnabled = true,
   services,
@@ -185,14 +178,13 @@ export function ConversationTelemetryWorkspaceAttachment({
   workspaceIdentity,
   remoteSessionId,
   children,
-}: ConversationTelemetryAttachmentScope & {
+}: ConversationDiagnosticAttachmentScope & {
   enabled: boolean;
   foregroundEnabled?: boolean;
   services: IServiceAccessor;
   children: ReactNode;
 }) {
-  const platform = useOptionalPlatform();
-  const scope = useMemo<ConversationTelemetryAttachmentScope>(
+  const scope = useMemo<ConversationDiagnosticAttachmentScope>(
     () => ({
       workspacePath,
       ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -202,11 +194,11 @@ export function ConversationTelemetryWorkspaceAttachment({
   );
   const lease = useMemo(() => {
     const agentService = services.zcodeAgentService as object | null | undefined;
-    if (!enabled || !platform || !agentService) return null;
+    if (!enabled || !agentService) return null;
     // Bug 根因：Root 的隔离渲染和远端 service 准备阶段可能尚无 PlatformProvider 或 agent service。
     // telemetry 是旁路能力，不能因依赖未就绪阻断 workspace 主界面；依赖齐备后再按 generation 建 lease。
-    return acquireSupervisor(scope, services, platform);
-  }, [enabled, platform, scope, services]);
+    return acquireSupervisor(scope, services);
+  }, [enabled, scope, services]);
   const supervisor = lease?.entry.supervisor ?? null;
 
   useEffect(() => {
@@ -217,30 +209,30 @@ export function ConversationTelemetryWorkspaceAttachment({
     };
   }, [lease, scope, services]);
 
-  const value = useMemo<ConversationTelemetryAttachmentValue | null>(
+  const value = useMemo<ConversationDiagnosticAttachmentValue | null>(
     () => (supervisor ? { scope, supervisor, foregroundEnabled } : null),
     [foregroundEnabled, scope, supervisor],
   );
   return (
-    <ConversationTelemetryAttachmentContext.Provider value={value}>
+    <ConversationDiagnosticAttachmentContext.Provider value={value}>
       {children}
-    </ConversationTelemetryAttachmentContext.Provider>
+    </ConversationDiagnosticAttachmentContext.Provider>
   );
 }
 
 /** pane 使用自己的 ready service/scope 覆盖 context；Web 根 attachment 为 null 时保持 no-op。 */
-export function ConversationTelemetryPaneAttachment({
+export function ConversationDiagnosticPaneAttachment({
   services,
   scope,
   children,
 }: {
   services: IServiceAccessor;
-  scope: ConversationTelemetryAttachmentScope;
+  scope: ConversationDiagnosticAttachmentScope;
   children: ReactNode;
 }) {
-  const parentAttachment = useContext(ConversationTelemetryAttachmentContext);
+  const parentAttachment = useContext(ConversationDiagnosticAttachmentContext);
   return (
-    <ConversationTelemetryWorkspaceAttachment
+    <ConversationDiagnosticWorkspaceAttachment
       enabled={parentAttachment !== null}
       foregroundEnabled={parentAttachment?.foregroundEnabled ?? false}
       services={services}
@@ -249,20 +241,20 @@ export function ConversationTelemetryPaneAttachment({
       remoteSessionId={scope.remoteSessionId}
     >
       {children}
-    </ConversationTelemetryWorkspaceAttachment>
+    </ConversationDiagnosticWorkspaceAttachment>
   );
 }
 
-export function useScopedConversationTelemetrySupervisor(
-  scope: ConversationTelemetryAttachmentScope,
-): ConversationTelemetrySupervisor | null {
-  const attachment = useContext(ConversationTelemetryAttachmentContext);
+export function useScopedConversationDiagnostics(
+  scope: ConversationDiagnosticAttachmentScope,
+): ConversationDiagnostics | null {
+  const attachment = useContext(ConversationDiagnosticAttachmentContext);
   return attachment && sameScope(attachment.scope, scope) ? attachment.supervisor : null;
 }
 
-export function useScopedConversationTelemetryForegroundEnabled(
-  scope: ConversationTelemetryAttachmentScope,
+export function useScopedConversationDiagnosticForegroundEnabled(
+  scope: ConversationDiagnosticAttachmentScope,
 ): boolean {
-  const attachment = useContext(ConversationTelemetryAttachmentContext);
+  const attachment = useContext(ConversationDiagnosticAttachmentContext);
   return Boolean(attachment && attachment.foregroundEnabled && sameScope(attachment.scope, scope));
 }

@@ -6,9 +6,8 @@ import {
   reportSessionOpenStart,
   type SessionOpenIdentity,
   type SessionOpenKind,
-  type SessionOpenArmsReporter,
   type SessionOpenTrigger,
-} from "@/lib/sessionOpenArmsTelemetry.js";
+} from "@/lib/diagnostics/sessionOpen.js";
 import type { SessionOpenRendererTiming } from "@/v4/conversationProjectionStore.js";
 
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
@@ -57,7 +56,6 @@ function finishSessionOpen(
     rendererTiming?: SessionOpenRendererTiming;
     paintToInteractiveMs?: number;
     errorMessage?: string | null;
-    reporter?: SessionOpenArmsReporter | null;
   } = {},
 ): void {
   if (runtime.finished) return;
@@ -69,37 +67,34 @@ function finishSessionOpen(
   const openTiming = hasCurrentSubscribeTiming ? options.openTiming : undefined;
   const rendererTiming = hasCurrentSubscribeTiming ? options.rendererTiming : undefined;
   const snapshot = options.snapshot;
-  reportSessionOpenResult(
-    {
-      ...runtime.identity,
-      status,
-      totalMs: Math.max(0, now() - runtime.startedAt),
-      errorPhase: status === "success" ? undefined : "conversation_subscribe",
-      errorCode: errorCodeFromMessage(options.errorMessage ?? null),
-      rendererPrepareMs: rendererTiming?.rendererPrepareMs,
-      hostPrepareMs: openTiming?.hostPrepareMs,
-      providerRegistrySyncMs: openTiming?.providerRegistrySyncMs,
-      taskMetaReadMs: openTiming?.taskMetaReadMs,
-      cliRequestMs: openTiming?.cliRequestMs,
-      cliBootstrapMs: openTiming?.cliBootstrapMs,
-      cliSessionRestoreMs: openTiming?.cliSessionRestoreMs,
-      initialFrameEncodeMs: openTiming?.initialFrameEncodeMs,
-      initialFrameTransportMs: rendererTiming?.initialFrameTransportMs,
-      rendererSnapshotApplyMs: rendererTiming?.rendererSnapshotApplyMs,
-      reactRenderMs:
-        runtime.commitAt !== undefined && rendererTiming?.snapshotAppliedAt !== undefined
-          ? Math.max(0, runtime.commitAt - rendererTiming.snapshotAppliedAt)
-          : undefined,
-      paintToInteractiveMs: options.paintToInteractiveMs,
-      cliProcessState: openTiming?.cliProcessState,
-      sessionRuntimeState: openTiming?.sessionRuntimeState,
-      snapshotRowCount: openTiming?.snapshotRowCount ?? snapshot?.rows.window.length,
-    },
-    options.reporter,
-  );
+  reportSessionOpenResult({
+    ...runtime.identity,
+    status,
+    totalMs: Math.max(0, now() - runtime.startedAt),
+    errorPhase: status === "success" ? undefined : "conversation_subscribe",
+    errorCode: errorCodeFromMessage(options.errorMessage ?? null),
+    rendererPrepareMs: rendererTiming?.rendererPrepareMs,
+    hostPrepareMs: openTiming?.hostPrepareMs,
+    providerRegistrySyncMs: openTiming?.providerRegistrySyncMs,
+    taskMetaReadMs: openTiming?.taskMetaReadMs,
+    cliRequestMs: openTiming?.cliRequestMs,
+    cliBootstrapMs: openTiming?.cliBootstrapMs,
+    cliSessionRestoreMs: openTiming?.cliSessionRestoreMs,
+    initialFrameEncodeMs: openTiming?.initialFrameEncodeMs,
+    initialFrameTransportMs: rendererTiming?.initialFrameTransportMs,
+    rendererSnapshotApplyMs: rendererTiming?.rendererSnapshotApplyMs,
+    reactRenderMs:
+      runtime.commitAt !== undefined && rendererTiming?.snapshotAppliedAt !== undefined
+        ? Math.max(0, runtime.commitAt - rendererTiming.snapshotAppliedAt)
+        : undefined,
+    paintToInteractiveMs: options.paintToInteractiveMs,
+    cliProcessState: openTiming?.cliProcessState,
+    sessionRuntimeState: openTiming?.sessionRuntimeState,
+    snapshotRowCount: openTiming?.snapshotRowCount ?? snapshot?.rows.window.length,
+  });
 }
 
-interface UseSessionOpenArmsTelemetryParams {
+interface UseSessionOpenDiagnosticsParams {
   sessionId: string | null;
   snapshot: ConversationSnapshot | null;
   openTiming?: ConversationOpenTiming;
@@ -111,14 +106,13 @@ interface UseSessionOpenArmsTelemetryParams {
   lastError: string | null;
   enabled?: boolean;
   readOnly?: boolean;
-  reporter?: SessionOpenArmsReporter | null;
 }
 
 /**
  * 以 pane 首次 acquire 为 Renderer 可观测的打开起点；同一逻辑打开只发一组 start/result。
- * Web/mobile 即使挂载，也因 reporter 未安装而保持 no-op。
+ * 仅记录本地技术时长，业务 session 身份只用于生命周期关联。
  */
-export function useSessionOpenArmsTelemetry({
+export function useSessionOpenDiagnostics({
   sessionId,
   snapshot,
   openTiming,
@@ -130,8 +124,7 @@ export function useSessionOpenArmsTelemetry({
   lastError,
   enabled = true,
   readOnly = false,
-  reporter,
-}: UseSessionOpenArmsTelemetryParams): void {
+}: UseSessionOpenDiagnosticsParams): void {
   const runtimeRef = useRef<SessionOpenRuntime | null>(null);
   const latestTimingRef = useRef<{
     openTiming?: ConversationOpenTiming;
@@ -158,20 +151,19 @@ export function useSessionOpenArmsTelemetry({
       finished: false,
     };
     runtimeRef.current = runtime;
-    reportSessionOpenStart(runtime.identity, reporter);
+    reportSessionOpenStart(runtime.identity);
     runtime.timeoutId = setTimeout(() => {
       const latestTiming = latestTimingRef.current;
       finishSessionOpen(runtime, "timeout", {
         openTiming: latestTiming.openTiming,
         rendererTiming: latestTiming.rendererTiming,
-        reporter,
       });
     }, SESSION_OPEN_TIMEOUT_MS);
     return () => {
       if (runtime.timeoutId !== undefined) clearTimeout(runtime.timeoutId);
       if (runtimeRef.current === runtime) runtimeRef.current = null;
     };
-  }, [enabled, openKind, openTrigger, readOnly, reporter, sessionId, startedAt]);
+  }, [enabled, openKind, openTrigger, readOnly, sessionId, startedAt]);
 
   useLayoutEffect(() => {
     const runtime = runtimeRef.current;
@@ -193,11 +185,10 @@ export function useSessionOpenArmsTelemetry({
         openTiming,
         rendererTiming,
         paintToInteractiveMs: Math.max(0, now() - runtime.commitAt!),
-        reporter,
       });
     });
     return cancelPaint;
-  }, [openTiming, rendererTiming, reporter, sessionId, snapshot, status]);
+  }, [openTiming, rendererTiming, sessionId, snapshot, status]);
 
   useLayoutEffect(() => {
     const runtime = runtimeRef.current;
@@ -206,7 +197,6 @@ export function useSessionOpenArmsTelemetry({
       openTiming,
       rendererTiming,
       errorMessage: lastError,
-      reporter,
     });
-  }, [lastError, openTiming, rendererTiming, reporter, status]);
+  }, [lastError, openTiming, rendererTiming, status]);
 }

@@ -13,15 +13,15 @@ import {
   resolveLegacyProviderEnvelopeCode,
   resolveStableTransportCodeAttribution,
   resolveTrustedProviderCodeFailureReason,
-} from "@/lib/chatErrorAttributionEvidence.js";
+} from "@/lib/diagnostics/chatErrorAttributionEvidence.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 
 const UNKNOWN_FAILURE_REASON = "unknown";
 
-type TelemetryErrorSource = "provider" | "runtime" | "network" | "tool" | "";
+type DiagnosticErrorSource = "provider" | "runtime" | "network" | "tool" | "";
 
-interface TelemetryErrorAttribution {
-  errorSource: TelemetryErrorSource;
+interface DiagnosticErrorAttribution {
+  errorSource: DiagnosticErrorSource;
   failureReason: string;
 }
 
@@ -116,21 +116,21 @@ const PROVIDER_FAILURE_REASONS = new Set([
   "server_error",
 ]);
 
-function resolveSourceFromReason(reason: string): TelemetryErrorSource {
+function resolveSourceFromReason(reason: string): DiagnosticErrorSource {
   if (NETWORK_FAILURE_REASONS.has(reason)) return "network";
   if (RUNTIME_FAILURE_REASONS.has(reason)) return "runtime";
   if (PROVIDER_FAILURE_REASONS.has(reason)) return "provider";
   return "";
 }
 
-function resolveSourceFromStatusCode(statusCode: number): TelemetryErrorSource {
+function resolveSourceFromStatusCode(statusCode: number): DiagnosticErrorSource {
   return statusCode === 408 || statusCode === 504 ? "network" : "provider";
 }
 
 function resolveSourceFromAdditionalEvidence(params: {
   error: ZCodeUiError;
   displayMessage: string;
-}): TelemetryErrorSource {
+}): DiagnosticErrorSource {
   const statusCode = params.error.attribution?.statusCode;
   if (statusCode !== undefined) {
     return resolveSourceFromStatusCode(statusCode);
@@ -174,12 +174,12 @@ function resolveSourceFromAdditionalEvidence(params: {
   return "";
 }
 
-export function resolveTelemetryAttribution(params: {
+export function resolveDiagnosticAttribution(params: {
   error: ZCodeUiError;
   displayMessage: string;
-}): TelemetryErrorAttribution {
-  // 修复原因：adapter 的 unknown 可能是保守的产品运行时分类，不能代表 ARMS 缺少上游证据；
-  // 这里仅在 telemetry 边界按 provider code/status/可见文案补全低基数归因，不改变重试或 UI 行为。
+}): DiagnosticErrorAttribution {
+  // 修复原因：adapter 的 unknown 可能是保守的产品运行时分类，不能代表本地诊断缺少上游证据；
+  // 这里仅在 diagnostic 边界按 provider code/status/可见文案补全低基数归因，不改变重试或 UI 行为。
   const explicitSource = params.error.attribution?.source;
   const providerId = params.error.attribution?.providerId?.trim();
   const trustedProviderBusinessCode = providerId
@@ -192,8 +192,8 @@ export function resolveTelemetryAttribution(params: {
   });
   const resolve = (
     failureReason: string,
-    inferredSource: TelemetryErrorSource = "",
-  ): TelemetryErrorAttribution => ({
+    inferredSource: DiagnosticErrorSource = "",
+  ): DiagnosticErrorAttribution => ({
     errorSource: explicitSource ?? inferredSource,
     failureReason,
   });
@@ -239,7 +239,7 @@ export function resolveTelemetryAttribution(params: {
       trustedProviderReason === "quota_exhausted"
     ) {
       // Bug 原因：adapter 的 reason 同时承担运行时失败分类，终态套餐额度码因此统一落成
-      // rate_limited；telemetry 只对可信 builtin + 非重试事实规范为业务根因 quota_exhausted。
+      // rate_limited；diagnostic 只对可信 builtin + 非重试事实规范为业务根因 quota_exhausted。
       return { errorSource: "provider", failureReason: "quota_exhausted" };
     }
     // Bug 原因：旧实现先归一化 reason，再把所有非空 reason 统一反推成 provider，

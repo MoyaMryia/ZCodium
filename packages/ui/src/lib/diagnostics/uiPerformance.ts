@@ -1,12 +1,7 @@
-import {
-  sanitizeTelemetryModelValue,
-  type ArmsCustomEventPayload,
-  type IPlatformService,
-  type LaunchMarks,
-} from "@zcode/shared";
+import type { LaunchMarks } from "@zcode/shared";
 import { logger } from "@/logger.js";
-
-const UI_PERF_ARMS_GROUP = "ui_perf";
+import { recordUiDiagnostic as emit } from "@/lib/diagnostics/recorder.js";
+const UI_PERF_GROUP = "ui_perf";
 
 const UI_PERF_EVENT_LAUNCH_TO_INPUT = "perf_ui_launch_to_input";
 const UI_PERF_EVENT_LAUNCH_ELECTRON_INIT = "perf_ui_launch_electron_init_ms";
@@ -25,51 +20,10 @@ const UI_PERF_EVENT_TURN_BREAKDOWN = "perf_ui_turn_breakdown";
 const UI_PERF_EVENT_TOOL_CALL_DETAIL = "perf_ui_tool_call_detail";
 const UI_PERF_EVENT_STREAM_STALL = "perf_ui_stream_stall";
 
-// 超过该间隔(ms)未收到新 chunk 视为停顿并上报;value 仍为真实间隔。可据线上分布收紧。
+// 超过该间隔(ms)未收到新 chunk 视为停顿并记录本地技术时长。
 // 工具调用(tool_call/tool_call_update)期间不计入:工具事件会 clearStreamStallTracking,
 // 工具后第一个正文 chunk 视为首个,不与工具前的 chunk 比较,避免把工具执行误判为停顿。
 const STREAM_STALL_REPORT_THRESHOLD_MS = 3000;
-
-type ArmsReporter = Pick<IPlatformService, "reportArmsCustomEvent">;
-
-let armsReporter: ArmsReporter | null = null;
-
-export function setUiPerfArmsReporter(reporter: ArmsReporter | null): void {
-  armsReporter = reporter;
-}
-
-/**
- * `model` 在本组事件里来自 `detail.model_name`，自定义 provider 下是用户命名的编码值。
- * 在唯一出口统一归一，避免每个 report 函数各自处理后漏掉新增事件；归一只影响上报值，
- * 不改变调用方拿到的模型选择和本地日志。
- */
-function sanitizeModelProperty(
-  properties: ArmsCustomEventPayload["properties"],
-): ArmsCustomEventPayload["properties"] {
-  if (!properties || typeof properties.model !== "string") {
-    return properties;
-  }
-  const model = sanitizeTelemetryModelValue(properties.model);
-  return { ...properties, model: model || undefined };
-}
-
-// 原因:ARMS 属观测链路,UI 主流程(启动/发送/渲染)不得因埋点失败而中断。
-function emit(payload: ArmsCustomEventPayload): void {
-  if (!armsReporter) {
-    return;
-  }
-  const sanitized: ArmsCustomEventPayload = {
-    ...payload,
-    properties: sanitizeModelProperty(payload.properties),
-  };
-  try {
-    void Promise.resolve(armsReporter.reportArmsCustomEvent(sanitized)).catch((error) => {
-      logger.warn("[ui-perf] ARMS 上报失败", { name: payload.name, error });
-    });
-  } catch (error) {
-    logger.warn("[ui-perf] ARMS 上报异常", { name: payload.name, error });
-  }
-}
 
 interface LaunchToInputTimings {
   marks: LaunchMarks;
@@ -96,7 +50,7 @@ function optionalRoundedNumber(value: number | undefined): number | undefined {
 }
 
 export function reportUiLaunchToInput(timings: LaunchToInputTimings): void {
-  const { marks, rendererStart, reactCommit, inputReady, sessionId } = timings;
+  const { marks, rendererStart, reactCommit, inputReady } = timings;
   const total = inputReady - marks.createdAt;
   // 6 段原始时长(未钳)。在发送前全部算出,以便整批校验。
   const stageMs = {
@@ -122,7 +76,6 @@ export function reportUiLaunchToInput(timings: LaunchToInputTimings): void {
     });
     return;
   }
-  const properties = { session_id: sessionId };
   // 至此各段保证 >= 0,clampMs 的 max(0,...) 为冗余保险,仅用于一致的 Math.round 取整。
   const stages: { name: string; ms: number }[] = [
     { name: UI_PERF_EVENT_LAUNCH_TO_INPUT, ms: total },
@@ -136,9 +89,8 @@ export function reportUiLaunchToInput(timings: LaunchToInputTimings): void {
   for (const stage of stages) {
     emit({
       name: stage.name,
-      group: UI_PERF_ARMS_GROUP,
+      group: UI_PERF_GROUP,
       value: clampMs(stage.ms),
-      properties,
     });
   }
 }
@@ -151,13 +103,9 @@ export function reportUiFirstToken(params: {
 }): void {
   emit({
     name: UI_PERF_EVENT_FIRST_TOKEN,
-    group: UI_PERF_ARMS_GROUP,
+    group: UI_PERF_GROUP,
     value: Math.max(0, Math.round(params.ttftMs)),
-    properties: {
-      model: params.model,
-      talk_id: params.talkId,
-      message_id: params.messageId,
-    },
+    properties: {},
   });
 }
 
@@ -170,13 +118,10 @@ export function reportUiMessageComplete(params: {
 }): void {
   emit({
     name: UI_PERF_EVENT_MESSAGE_COMPLETE,
-    group: UI_PERF_ARMS_GROUP,
+    group: UI_PERF_GROUP,
     value: Math.max(0, Math.round(params.durationMs)),
     properties: {
       result: params.result,
-      model: params.model,
-      talk_id: params.talkId,
-      message_id: params.messageId,
     },
   });
 }
@@ -199,13 +144,10 @@ export function reportUiTurnBreakdown(params: {
   const durationMs = Math.max(0, Math.round(params.durationMs));
   emit({
     name: UI_PERF_EVENT_TURN_BREAKDOWN,
-    group: UI_PERF_ARMS_GROUP,
+    group: UI_PERF_GROUP,
     value: durationMs,
     properties: {
       result: params.result,
-      model: params.model,
-      talk_id: params.talkId,
-      message_id: params.messageId,
       duration_ms: durationMs,
       ttft_ms: optionalRoundedNumber(params.ttftMs),
       waiting_ms: optionalRoundedNumber(params.waitingMs),
@@ -261,19 +203,10 @@ export function reportUiToolCallDetail(params: {
     0;
   emit({
     name: UI_PERF_EVENT_TOOL_CALL_DETAIL,
-    group: UI_PERF_ARMS_GROUP,
+    group: UI_PERF_GROUP,
     value,
     properties: {
-      tool_name: params.toolName,
       status: params.status,
-      talk_id: params.talkId,
-      message_id: params.messageId,
-      tool_call_id: params.toolCallId,
-      parent_tool_call_id: params.parentToolCallId,
-      child_tool_call_id: params.childToolCallId,
-      child_session_id: params.childSessionId,
-      agent_id: params.agentId,
-      agent_type: params.agentType,
       total_ms: totalMs,
       permission_wait_ms: optionalRoundedNumber(params.permissionWaitMs),
       command_run_ms: optionalRoundedNumber(params.commandRunMs),
@@ -286,7 +219,6 @@ export function reportUiToolCallDetail(params: {
       timed_out: params.timedOut,
       output_bytes: optionalRoundedNumber(params.outputBytes),
       command_category: params.commandCategory,
-      command_name: params.commandName,
       command_count: optionalRoundedNumber(params.commandCount),
       command_status: params.commandStatus,
       fs_read_ms: optionalRoundedNumber(params.fsReadMs),
@@ -302,14 +234,14 @@ export function reportUiToolCallDetail(params: {
   });
 }
 
-// 流式停顿:per-task 记录上一个正文 chunk 到达时刻,间隔超阈值则上报真实间隔。
+// 流式停顿:per-task 记录上一个正文 chunk 到达时刻,间隔超阈值则记录真实间隔。
 const lastChunkAtByTask = new Map<string, number>();
 
 export function recordStreamChunkArrival(
   taskId: string,
   options?: {
     waitingTool?: boolean;
-    /** tracker 可用 workspace-scoped 内部 key；上报仍保持真实 talk_id。 */
+    /** tracker 使用 workspace-scoped 临时 key，仅用于内存内关联。 */
     talkId?: string;
     messageId?: string;
     model?: string;
@@ -329,16 +261,13 @@ export function recordStreamChunkArrival(
   }
   emit({
     name: UI_PERF_EVENT_STREAM_STALL,
-    group: UI_PERF_ARMS_GROUP,
+    group: UI_PERF_GROUP,
     value: Math.round(gapMs),
     properties: {
       stall_ms: Math.round(gapMs),
       waiting_tool: options?.waitingTool ?? false,
-      model: options?.model,
       chunk_type: options?.chunkType,
-      talk_id: options?.talkId ?? taskId,
       // 停顿结束时那个 chunk 的 messageId;正文/思考 chunk 常不带,取不到留空(与其它字段口径一致)。
-      message_id: options?.messageId,
     },
   });
 }
@@ -348,10 +277,10 @@ export function clearStreamStallTracking(taskId: string): void {
 }
 
 // 输入框卡顿:在 Lexical update listener 内测「单次输入处理耗时」(getEditorMarkdown+onChange 同步段)。
-// 与 stream_stall(输出侧)区分:此为输入侧。只上报超阈卡点,事件量最小。
+// 与 stream_stall(输出侧)区分:此为输入侧。只记录超阈卡点。
 const UI_PERF_EVENT_INPUT_LAG = "perf_ui_input_lag";
 
-// 保守起点:只抓最严重卡顿。可据线上分布往下收紧。
+// 保守起点:只抓最严重卡顿。保留原有性能阈值。
 const INPUT_LAG_REPORT_THRESHOLD_MS = 500;
 // 超此值大概率是断点调试/标签页挂起/设备休眠唤醒,丢弃避免污染分布。
 const INPUT_LAG_SANITY_MAX_MS = 5000;
@@ -388,13 +317,10 @@ export function recordInputLag(params: {
   const lagMs = Math.round(params.lagMs);
   emit({
     name: UI_PERF_EVENT_INPUT_LAG,
-    group: UI_PERF_ARMS_GROUP,
+    group: UI_PERF_GROUP,
     value: lagMs,
     properties: {
       lag_ms: lagMs,
-      text_length: params.textLength,
-      // 草稿态无 taskId,留空与其它 ui_perf 事件口径一致。
-      task_id: params.taskId,
     },
   });
 }

@@ -1,4 +1,4 @@
-import { formatLogPrefix } from "@zcode/shared";
+import { formatLogPrefix, safeLogArgs, type DiagnosticRecord } from "@zcode/shared";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -47,7 +47,8 @@ function log(level: LogLevel, ...args: unknown[]) {
   if (!isLoggerLevelEnabled(level)) {
     return;
   }
-  consoleFns[level](formatLogPrefix("ui"), ...args);
+  const safeArgs = safeLogArgs(args);
+  consoleFns[level](formatLogPrefix("ui"), ...safeArgs);
   // ui 包单独 typecheck 时拿不到 desktop renderer 注入的 window.zcode 声明，
   // 而且 Electron bridge 只接收 info/warn/error；debug 原样透传会让类型和宿主协议都不一致。
   // 这里显式收窄 bridge 形状，并只把主进程真正支持的级别转发过去。
@@ -55,7 +56,7 @@ function log(level: LogLevel, ...args: unknown[]) {
     // tabStore 等纯前端状态模块现在也会在 Vitest 的 Node 环境里打 info 日志。
     // 如果这里无条件访问 window，测试一触发日志就会直接抛 ReferenceError，
     // 结果变成“为了排查问题而引入新的测试噪音”。先确认运行在浏览器环境，再走桌面端 bridge。
-    (window as DesktopLogBridgeWindow).zcode?.log?.(level, args);
+    (window as DesktopLogBridgeWindow).zcode?.log?.(level, safeArgs);
   }
 }
 
@@ -67,7 +68,7 @@ function lifecycleLog(level: DesktopLogLevel, ...args: unknown[]) {
   }
   if (isRendererProductionBuild()) {
     if (typeof window !== "undefined") {
-      (window as DesktopLogBridgeWindow).zcode?.log?.(level, args);
+      (window as DesktopLogBridgeWindow).zcode?.log?.(level, safeLogArgs(args));
     }
     return;
   }
@@ -86,7 +87,8 @@ export const logger = {
   },
   /** 带 traceId 前缀的日志，用于全链路追踪 */
   trace: (traceId: string, level: LogLevel, ...args: unknown[]) => {
-    log(level, `[trace:${traceId}]`, ...args);
+    void traceId; // 业务 trace 身份不能输出；安全诊断使用独立随机关联。
+    log(level, ...args);
   },
 };
 
@@ -95,18 +97,19 @@ export const logger = {
  * 它是 renderer 生产日志策略里的“正式监控链路”例外：生产构建仍经桌面桥落盘（最多每 60s 一行、
  * 有变化才写），Web 端无桥时 no-op。业务模块不得借用它绕过生产门控。
  */
-export function logMemoryDiagnostics(line: string): void {
+export function logMemoryDiagnostics(record: DiagnosticRecord): void {
+  const safeArgs = safeLogArgs(["diagnostic", record]);
   if (isRendererLoggingDisabled()) {
     return;
   }
   if (typeof window !== "undefined") {
     const bridge = (window as DesktopLogBridgeWindow).zcode?.log;
     if (bridge) {
-      bridge("info", [line]);
+      bridge("info", safeArgs);
       return;
     }
   }
   if (!isRendererProductionBuild()) {
-    consoleFns.info(formatLogPrefix("ui"), line);
+    consoleFns.info(formatLogPrefix("ui"), ...safeArgs);
   }
 }
