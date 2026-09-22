@@ -324,9 +324,16 @@
         text-transform: uppercase;
         color: var(--ink-3);
       }
+      .hero-note {
+        max-width: 640px;
+        margin: 20px auto 0;
+        font-size: clamp(15px, 1.7vw, 18px);
+        line-height: 1.7;
+        color: var(--ink);
+      }
       .hero-tag {
         max-width: 640px;
-        margin: 56px auto 0;
+        margin: 40px auto 0;
         font-size: clamp(16px, 1.9vw, 19px);
         line-height: 1.65;
         color: var(--ink);
@@ -800,7 +807,6 @@
         <nav class="nav" aria-label="主导航">
           <a href="#install" data-i18n="nav-install">安装</a>
           <a href="#work" data-i18n="nav-work">我们做了什么</a>
-          <a href="https://github.com/axiom-desu/ZCodium" target="_blank" rel="noopener">GitHub</a>
         </nav>
         <div class="locale" role="group" aria-label="Language / 语言">
           <button type="button" data-lang-btn="zh" class="is-active" aria-pressed="true">
@@ -836,9 +842,13 @@
             >，他们觉得这不是本意，但是对我们来讲，这就是我们的本意。
           </blockquote>
           <cite class="reveal" style="--d: 0.18s" data-i18n="hero-cite">梁文锋 · 深度求索 CEO</cite>
+          <p class="hero-note reveal" style="--d: 0.22s" data-i18n="hero-note">
+            我们深有感触，于是有了 ZCodium。
+          </p>
 
           <p class="hero-tag reveal" style="--d: 0.26s" data-i18n-html="hero-tag">
-            上游把一批功能留在了安装包里，我们把它们<b>补回源码</b> —— 不等待、不申请、不保留。
+            ZCodium 是 ZCode 的社区衍生仓库：上游把一批功能留在了安装包里，我们把它们<b>补回源码</b>
+            —— 不等待、不申请、不保留。
           </p>
           <div class="actions reveal" style="--d: 0.32s">
             <a class="btn btn-primary" href="#install" data-i18n="cta-start">开始安装</a>
@@ -1272,8 +1282,9 @@
           "hero-quote":
             "Because this vision itself demands open source. Without that vision, you cannot organize people. Zhipu open-sources too, but Zhipu's open source is not the same as ours. <strong><em>Zhipu's open source feels forced</em></strong> \u2014 they feel it is not their intent, but as for us, it is exactly our intent.",
           "hero-cite": "Liang Wenfeng \u00b7 CEO, DeepSeek",
+          "hero-note": "It resonated deeply with us, and so ZCodium was born.",
           "hero-tag":
-            "Upstream left a batch of features in the installer; we put them <b>back into the source</b> \u2014 no waiting, no asking, no withholding.",
+            "ZCodium is a community fork of ZCode: upstream left a batch of features in the installer, and we put them <b>back into the source</b> \u2014 no waiting, no asking, no withholding.",
           marquee:
             "Track upstream <span>\u00b7</span> Close the gaps <span>\u00b7</span> Documented <span>\u00b7</span> No waiting <span>\u00b7</span> No asking <span>\u00b7</span> No withholding <span>\u00b7</span> Source parity with the installer <span>\u00b7</span>",
           "install-h2": "How to install",
