@@ -55,7 +55,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
   Telegram / 飞书 / Lark / 企业微信四套机器人通知链路。逐平台重写意味着四份
   平台适配、四套凭证管理和四套消息格式。改为接入 [AstrBot](https://github.com/AstrBotDevs/AstrBot)
   ——它本身是开源的多平台 LLM 聊天机器人框架，已支持这些平台——由 ZCodium 侧
-  写一个 AstrBot 插件作为桥接层，把 Agent 的事件推到用户自己的 Bot。
+  写一个 AstrBot 插件作为桥接层，把 Agent 的事件推到用户自己的 Bot。 [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin)
   这样平台适配由 AstrBot 承担，本仓库只维护桥接契约。
 - **Computer Use 通用化**：见 [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md)，
   按 Actuator 接口分层实现，当前基础设施（broker/bridge）已齐备且本来就是通用的。
