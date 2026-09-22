@@ -4,6 +4,16 @@ import type { useOnboardingRecordService } from "@/hooks/useOnboardingRecordServ
 import { logger } from "@/logger.js";
 
 /**
+ * 是否在启动时自动触发“选择你是什么用户”开屏引导。默认禁用（产品决策，见
+ * .agents/specs/first-run-login-and-onboarding.md）：首次启动直接进入主界面。
+ * 手动打开（设置页、快捷键 openOnboarding）只读 store 的 newUserOnboardingOpen，
+ * 不依赖该判定，因此不受此开关影响。
+ */
+function shouldAutoTriggerOnboarding(): boolean {
+  return false;
+}
+
+/**
  * 引导触发判定：当前用户在本地记录里没有条目时
  * needsOnboarding=true。settings 回填（换号恢复偏好）只在 userId 运行时变化后发生；
  * 手动修改由各入口回写 record（updateRecordPreferences），record 始终等于该用户最新偏好。
@@ -23,6 +33,12 @@ export function useOnboardingTrigger(options: {
   // 记录上一次判定时的 userId，回填只在身份实际变化后发生（见下方回填条件）。
   const lastSyncedUserIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
+    // 开屏引导默认关闭：启动时不判定、不认领匿名记录、不做换账号回填，直接进主界面。
+    // 手动打开的预填走 getLatestEntry，保存走 appendRecord，均不依赖这里的判定。
+    if (!shouldAutoTriggerOnboarding()) {
+      setNeedsOnboarding(false);
+      return;
+    }
     let cancelled = false;
     const fallback = () => !hasStoredOccupation;
     // 服务不可用（旧测试 double / 未注册的 host）时退回旧 settings 判定，行为不回退。

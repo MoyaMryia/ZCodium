@@ -40,8 +40,14 @@ export function shouldShowRootStartupLoading(state: RootStartupLoadingVisibility
   return Boolean(state.isDesktop) && !state.welcomeScreenOpen && shouldBlockRootRender(state);
 }
 
+/**
+ * 启动时是否走 provider 可用性登录门禁。默认禁用（产品决策，见
+ * .agents/specs/first-run-login-and-onboarding.md）：首次启动未登录且没有可用模型配置时
+ * 直接进入主界面，不再强制打开账号登录页。手动登录入口、session-expired、
+ * logout-provider-required 不受影响，仍由 Root 的 welcomeScreenOpenReason 驱动。
+ */
 export function shouldEnableProviderAvailabilityLoginEntryGuard(): boolean {
-  return true;
+  return false;
 }
 
 export function shouldResolveProviderStartupState(state: ProviderStartupResolutionState): boolean {
