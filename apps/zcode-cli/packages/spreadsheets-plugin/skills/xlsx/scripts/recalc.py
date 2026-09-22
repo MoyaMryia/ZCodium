@@ -40,9 +40,19 @@
 # dependencies are still `openpyxl` (import) and LibreOffice `soffice` (PATH);
 # when `soffice` is missing `recalc()` returns `{'error': ...}` rather than
 # raising.
+#
+# One behavioural fix on top of the upstream: the LibreOffice invocation used an
+# external `timeout`/`gtimeout` wrapper, which only signals the direct child. The
+# `soffice` launcher spawns `soffice.bin` to do the work, so when a stale document
+# lock left soffice.bin blocked the launcher was killed while soffice.bin survived
+# orphaned and kept the stdout/stderr pipes open — `subprocess.run` then never
+# returned and the script hung forever. It now starts soffice in its own process
+# group and kills the whole group on timeout, which also drops the need for
+# `gtimeout` on macOS.
 
 import json
 import sys
+import signal
 import subprocess
 import os
 import platform
@@ -51,6 +61,32 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 EXCEL_ERRORS = ['#VALUE!', '#DIV/0!', '#REF!', '#NAME?', '#NULL!', '#NUM!', '#N/A']
+
+# 杀掉进程组后仍要留一点时间把管道里的残余读完，否则第二次 communicate 可能再抛超时。
+KILL_DRAIN_TIMEOUT_SECONDS = 5
+
+
+def _kill_process_tree(process):
+    """Kill the child and everything it spawned, so its pipes actually close.
+
+    On POSIX the child was started with start_new_session=True, so it leads its own
+    process group and killing that group reaches soffice.bin, which the plain
+    `timeout` command never did. On Windows there is no process group, so fall back
+    to killing the direct child.
+    """
+    if process.poll() is not None:
+        return
+    try:
+        if platform.system() == 'Windows':
+            process.kill()
+        else:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        process.kill()
+    try:
+        process.communicate(timeout=KILL_DRAIN_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def setup_libreoffice_macro():
@@ -119,25 +155,41 @@ def recalc(filename, timeout=30):
         abs_path
     ]
 
-    # Handle timeout command differences between Linux and macOS
+    # LibreOffice 的 `soffice` 启动器只负责拉起真正干活的 soffice.bin。早先这里用外部
+    # `timeout`/`gtimeout` 包住命令，但它只向直接子进程发信号：一旦 soffice.bin 因陈旧
+    # 文档锁 `.~lock.<file>#` 而阻塞，启动器被杀掉，soffice.bin 却被孤儿化并继续持有
+    # stdout/stderr 管道，`subprocess.run(capture_output=True)` 永不返回，整个脚本挂死。
+    # 改用 Python 自己的超时，并把 soffice 放进独立进程组，超时后连组一起杀，管道才会关闭。
+    popen_kwargs = {}
     if platform.system() != 'Windows':
-        timeout_cmd = 'timeout' if platform.system() == 'Linux' else None
-        if platform.system() == 'Darwin':
-            # Check if gtimeout is available on macOS
-            try:
-                subprocess.run(['gtimeout', '--version'], capture_output=True, timeout=1, check=False)
-                timeout_cmd = 'gtimeout'
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                print("Warning: 'gtimeout' not found (`brew install coreutils`); "
-                      "running LibreOffice without a timeout", file=sys.stderr)
+        popen_kwargs['start_new_session'] = True
 
-        if timeout_cmd:
-            cmd = [timeout_cmd, str(timeout)] + cmd
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            **popen_kwargs,
+        )
+    except FileNotFoundError:
+        return {'error': "LibreOffice ('soffice') not found on PATH. Install it "
+                         "(`brew install --cask libreoffice` or `apt-get install libreoffice`) and retry."}
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        _, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_process_tree(process)
+        return {
+            'error': (
+                f'LibreOffice did not finish within {timeout}s. A stale document '
+                f'lock (.~lock.<name>#) beside the file leaves soffice.bin blocked; '
+                f'remove it and retry.'
+            )
+        }
 
-    if result.returncode != 0 and result.returncode != 124:  # 124 is timeout exit code
-        error_msg = result.stderr or 'Unknown error during recalculation'
+    if process.returncode != 0:
+        error_msg = stderr or 'Unknown error during recalculation'
         if 'Module1' in error_msg or 'RecalculateAndSave' in error_msg:
             return {'error': f'LibreOffice macro not configured properly: {error_msg}'}
         return {'error': error_msg}

@@ -29,9 +29,9 @@ Two external dependencies, neither optional for their own step. Check before pro
 | `openpyxl` in the Python that runs the script | `pip install openpyxl`, or `apt-get install python3-openpyxl`     | the script dies at import: `ModuleNotFoundError: No module named 'openpyxl'`. Nothing else in this skill works              |
 | LibreOffice `soffice` on `PATH`               | `apt-get install libreoffice` / `brew install --cask libreoffice` | `recalc()` returns `{"error": "LibreOffice ('soffice') not found on PATH…"}`, and the script prints that JSON and exits `0` |
 | `pandas`                                      | `pip install pandas`                                              | only §9 is unavailable; the openpyxl paths are unaffected                                                                   |
-| `gtimeout` (coreutils), macOS only            | `brew install coreutils`                                          | the script prints a warning on stderr and runs LibreOffice without a timeout                                                |
+| `gtimeout` (coreutils), macOS only | not needed | no longer used — the timeout is enforced in-process |
 
-The timeout argument only guards against a hung LibreOffice in the normal case. It wraps the `soffice` launcher, not the `soffice.bin` process that does the work, so it cannot always break a LibreOffice that blocks on a stale document lock — see §11.
+The timeout argument is enforced in-process. `soffice` is started in its own process group and, on expiry, the whole group is killed — the `soffice` launcher spawns `soffice.bin` to do the work, and killing only the launcher used to leave `soffice.bin` orphaned while it kept the pipes open, which hung the script forever.
 
 The script declares `requires-python = ">=3.10"` and `dependencies = ["openpyxl"]` in its PEP 723 header; it runs on the 3.10 the CLI already assumes.
 
@@ -163,7 +163,8 @@ python3 <plugin>/skills/xlsx/scripts/recalc.py <excel_file> [timeout_seconds]
 
 `<plugin>` is the plugin root that carries this skill, so the real path is
 `skills/xlsx/scripts/recalc.py` inside this plugin. The timeout defaults to 30
-seconds and is only used on Linux (`timeout`) and macOS (`gtimeout`).
+seconds and is enforced in-process, so it needs no external `timeout` or
+`gtimeout` binary on any platform.
 
 What the script does, in order:
 
@@ -286,10 +287,10 @@ Performance and correctness notes:
 - **The script does not own the file.** It only runs LibreOffice over a path it is given; it never reads a directory, never writes a second file, and never touches anything else in the tree.
 - **`total_formulas` is not a validation.** It counts text starting with `=`, including cells that are not meant to be formulas — a leading `=` in a note is counted.
 - **openpyxl is not Excel.** It does not evaluate, so a formula that is syntactically valid can still be semantically wrong; the scan finds error _values_, not intent. A wrong `SUM` range that picks up an empty row returns `0`, not an error.
-- **A stale document lock can wedge LibreOffice, and the timeout will not save you.** LibreOffice signals an open workbook with a `.~lock.<file>#` file beside it. Headless LibreOffice sometimes blocks outright on such a lock. When it does, the `timeout` / `gtimeout` wrapper around `soffice` signals only the launcher: `soffice.bin` survives and keeps the pipes open, so the script's `subprocess.run` never returns and the timeout has no effect. This is observed, not theoretical — the condition is also intermittent, so a lock that wedges one run may not wedge the next. Close the workbook in Excel, WPS or LibreOffice before running, and if the script stops returning, kill the stray `soffice.bin` and retry.
+- **A stale document lock can wedge LibreOffice, but the timeout now breaks it.** LibreOffice signals an open workbook with a `.~lock.<file>#` file beside it, and headless LibreOffice sometimes blocks outright on such a lock. When it does, the script kills the whole process group after the timeout and returns `{"error": "LibreOffice did not finish within <N>s. A stale document lock (.~lock.<name>#) beside the file leaves soffice.bin blocked; remove it and retry."}` instead of hanging. The condition is intermittent — a lock that wedges one run may not wedge the next — so the reliable move is still to close the workbook in Excel, WPS or LibreOffice before running.
 - **`Font(color=...)` takes `AARRGGBB`**, and `PatternFill` needs `fill_type='solid'` to render.
 - **Merged cells hide the data under them.** Write to the top-left anchor only; the rest read back `None`.
 
 ## 12. Environment
 
-Python 3.10 or later with `openpyxl` installed (the only hard third-party dependency; `pandas` is optional, `gtimeout` is a macOS nicety), plus LibreOffice `soffice` on `PATH` for recalculation.
+Python 3.10 or later with `openpyxl` installed (the only hard third-party dependency; `pandas` is optional), plus LibreOffice `soffice` on `PATH` for recalculation. No external `timeout` or `gtimeout` binary is needed — the timeout is enforced in-process.
