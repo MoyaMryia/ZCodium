@@ -1,464 +1,437 @@
-# Computer Use
+# Computer Use — execution chain reference
 
-Fetch this reference on demand with
-`nodeRepl.write(await agent.documentation.get("computer-use"))`. It largely repeats the
-resident Computer Use skill, so read it only when you need an argument shape or a response
-field that page does not give.
+This file is the on-demand reference for Computer Use. The SDK serves it verbatim through
+`agent.documentation.get("computer-use")`, which reads
+`join(bridge.documentationRoot, "computer-use.md")`; the host resolves that root from
+`ZCODE_CUA_PLUGIN_ROOT` (falling back to `ZCODE_PLUGIN_ROOT`, then the working directory)
+plus `docs`.
 
-Control native apps on the user's computer by reading or operating their UI. Prefer a
-purpose-built skill, connector, API or CLI when one can complete the task.
+`OFFICIAL_CUA_REQUIRED_SEED_PATHS` pins seven paths for this plugin: this file, the five
+SDK modules, and `skills/computer-use/SKILL.md`. A seed that drops any of them fails loudly
+instead of installing a plugin whose documentation call or first tool call cannot resolve.
 
-- Use `node_repl` (JavaScript) for all Computer Use actions.
-- Do not use AppleScript, `osascript`, JXA, System Events, shell commands, or any other
-  UI-automation technology unless the user explicitly asks for it.
-- Main agent only. Never delegate Computer Use to a subagent.
-- Use only the APIs described here.
+The resident skill page is the short version. This document is the long one: it covers the
+five modules and their exports, the five layers a call crosses, the platform differences, the
+result-reading rules, and the error model in full.
 
-## Bootstrap every call
+## 1. The five modules
 
-`mcp__node_repl__js` creates a fresh Worker per call. JavaScript globals, imports, the
-module cache and any binding do not survive into the next call, so a `const app` does
-**not** live past the end of the cell. The UI state itself does survive: the host keeps
-each app's accessibility state and raster, so re-binding in the next cell is cheap and does
-not re-observe.
+| File                                | Lines | Responsibility                                                                                                      |
+| ----------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| `scripts/computer-use-client.mjs`   | 340   | Assembly: `setupComputerUseRuntime`, app binding, the `computer.*` escape hatch, the `agent.documentation` hand-off |
+| `scripts/computer-use-errors.mjs`   | 108   | Error object, broker-code mapping, retry policy                                                                     |
+| `scripts/computer-use-envelope.mjs` | 416   | MCP result reading, cold-start retry, projection to the host                                                        |
+| `scripts/computer-use-target.mjs`   | 400   | App/Window interaction surface and target resolution                                                                |
+| `scripts/computer-use-keys.mjs`     | 71    | Keyboard input-side normalization                                                                                   |
+| `scripts/check-sdk.mjs`             | 25    | Smoke test: every module exists and the entry imports cleanly                                                       |
 
-The first executable statement of every CUA cell must be this bootstrap, and the bootstrap
-and the actions must be in the **same** cell:
+The dependency direction is one-way and acyclic — each module imports only from modules below
+it in this list:
 
-```js
-const root =
-  process.env.ZCODE_CUA_PLUGIN_ROOT ??
-  process.env.ZCODE_PLUGIN_ROOT ??
-  process.env.CLAUDE_PLUGIN_ROOT;
-const { join } = await import("node:path");
-const { pathToFileURL } = await import("node:url");
-const { setupComputerUseRuntime } = await import(
-  pathToFileURL(join(root, "scripts", "computer-use-client.mjs")).href,
-);
-await setupComputerUseRuntime({ globals: globalThis });
-
-const app = await agent.computerUse.getApp("Notes");
-await app.click(42);
-await app.getAXState();
+```text
+client   ──▶ errors, envelope, target, keys
+target   ──▶ errors, envelope, keys
+envelope ──▶ errors
+keys     ──▶ (nothing)
+errors   ──▶ (nothing)
 ```
 
-## API
+`client` is the only module the outside world imports, and nothing imports `client`, which is
+what keeps the cycle out. `errors` is a leaf; `envelope` sits on it; `target` sits on both plus
+`keys`.
 
-```typescript
-type Vec2 = [x: number, y: number];
-type ObservationOptions = { emit?: boolean };
-type StateOptions = ObservationOptions & { disableDiffing?: boolean };
-type StateAndScreenshot = { state: string; screenshot?: Uint8Array };
-type Direction = "up" | "down" | "left" | "right" | "u" | "d" | "l" | "r";
-type MouseButton = "left" | "right" | "middle" | "l" | "r" | "m";
-type SelectionType = "text" | "cursor_before" | "cursor_after";
-type Strategy = "auto" | "a11y" | "event";
+### `computer-use-client.mjs` — assembly (340 lines)
 
-type ClickOptions = {
-  mouseButton?: MouseButton;
-  clickCount?: number;
-  modifiers?: string;   // "cmd+shift"; macOS cmd, Linux/Windows ctrl
-  strategy?: Strategy;
-};
-type SelectTextOptions = { prefix?: string; suffix?: string; selectionType?: SelectionType };
-type PasteOptions = { format?: "text" | "md" | "html" };
-type PressKeyOptions = { holdSeconds?: number; strategy?: Strategy };
-type ScrollOptions = { strategy?: Strategy };
-type DragOptions = { modifiers?: string; strategy?: Strategy };
+Exports six names:
 
-type AXElement = {
-  index: number;
-  kind: string;
-  title: string | null;
-  value: string | null;
-  actions: string[];
-};
+| Export                                 | What it is                                                                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `setupComputerUseRuntime({ globals })` | Async factory. Reads the bridge out of `globals`, builds the invoker, and returns the `cua` object after mounting it at `globals.agent.computerUse`.               |
+| `BRIDGE_SYMBOL`                        | `Symbol.for("zcode.node-repl.computer-use-bridge")`. The injection point is a registered symbol so the bridge and the SDK agree without sharing a module instance. |
+| `COMPUTER_METHOD_NAMES`                | The 14 tool names, frozen.                                                                                                                                         |
+| `PLATFORM_EXCLUDED_METHODS`            | Per-platform tool removal table. Currently `{}` on every platform.                                                                                                 |
+| `ComputerUseError`                     | Re-exported so a caller that imports only the entry still gets the type.                                                                                           |
+| `normalizeKeyChord`                    | Re-exported for the same reason.                                                                                                                                   |
 
-interface Target {
-  getAXState(options?: StateOptions): Promise<string>;
-  getScreenshot(options?: ObservationOptions): Promise<Uint8Array>;
-  getAXStateAndScreenshot(options?: StateOptions): Promise<StateAndScreenshot>;
-  elements(): Promise<AXElement[]>;
+Behaviour worth knowing:
 
-  paste(text: string, options?: PasteOptions): Promise<void>;
-  click(target: number | Vec2, options?: ClickOptions): Promise<void>;
-  drag(from: number | Vec2, to: number | Vec2, options?: DragOptions): Promise<void>;
-  pressKey(key: string, options?: PressKeyOptions): Promise<void>;
-  scroll(target: number | Vec2, direction: Direction, pages?: number,
-         options?: ScrollOptions): Promise<void>;
-  selectText(elementIndex: number, text: string, options?: SelectTextOptions): Promise<void>;
-  setValue(elementIndex: number, value: string): Promise<void>;
-  typeText(text: string): Promise<void>;
-  performSecondaryAction(elementIndex: number, action: string): Promise<void>;
-}
+- **The bridge is mandatory.** A missing or malformed bridge, or a failing
+  `bridge.assertAvailable()`, throws a plain `Error` — not a `ComputerUseError` — before
+  anything is mounted.
+- **Binding is observing.** `getApp` runs one full `get_app_state` with
+  `include_screenshot: false`, `disable_diffing: true`, `tree_shown_to_model: false`. That
+  observation resolves identity, validates the window pin, and seeds the index baseline, but
+  it is deliberately not displayed: every cell re-binds, so displaying it would spend a whole
+  tree per cell on a tree that is stale by the time the cell ends.
+- **Identity converges.** After a successful bind, `app_ref` is rebuilt from the observed
+  `pid` and `bundle_id` (keeping `window_id` when it was pinned). Observation is lenient — a
+  localized name can resolve through the host's own lookup — while input is strict, so a name
+  that observed fine would otherwise fail on the very next `pressKey`.
+- **Window pins fail closed.** When `window_id` was requested and the observation reports
+  `window_id_fallback: true`, binding throws `STALE_STATE` naming the window and pointing at
+  `list_windows`. A silent fallback to the frontmost window would leave the model operating
+  the wrong one.
+- **`computer` is frozen**, and `computer.target` is `"mac"` on `darwin`, `"windows"` on
+  `win32`, `"linux"` otherwise.
+- **`elements` and `getWindow` are non-enumerable.** They are named escape hatches; keeping
+  them out of `Object.keys` preserves the documented enumerable surface while still allowing
+  a caller that knows the name to use it.
+- **`agent.documentation` is wrapped, not replaced.** A request for `computer-use` reads this
+  file from `bridge.documentationRoot`; any other name is forwarded to the previous loader
+  when one exists, and otherwise rejected with `Unknown documentation entry: <name>`.
 
-interface App extends Target {}
+### `computer-use-errors.mjs` — failure semantics (108 lines)
 
-type AppRef = { name?: string; bundle_id?: string; pid?: number; window_id?: number };
+| Export                                | What it is                                                                                                                    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `BROKER_CODE_TO_SDK_CODE`             | 17 broker codes mapped onto 14 SDK codes. Anything unregistered lands on `INTERNAL` by design.                                |
+| `REACQUIRE_FIRST_CODES`               | `ELEMENT_UNAVAILABLE`, `STALE_STATE`, `STRUCTURED_STATE_UNAVAILABLE` — the UI probably moved, so re-observe before resending. |
+| `POINTLESS_RETRY_CODES`               | Eight codes where a retry only amplifies the side effect.                                                                     |
+| `decideRetryPolicy(actionSent, code)` | Returns `"reobserve"`, `"never"` or `"retry"`. `actionSent` is checked first and wins outright.                               |
+| `ComputerUseError`                    | `Error` subclass carrying `code`, `actionSent`, optional `dispatchStatus`, frozen `details`, and a precomputed `retry`.       |
 
-type AppInfo = {
-  pid: number;
-  name: string | null;
-  bundle_id: string | null;
-  active: boolean;
-};
-type State = { apps: AppInfo[] };
+`actionSent` defaults to `false` and is only ever set `true` when the broker says so. The
+reverse default would make a recoverable blip permanent.
 
-type AccessStatus = {
-  ready: boolean;
-  accessibility: "granted" | "denied" | "unknown";
-  screenRecording: "granted" | "denied" | "unknown";
-  message?: string;
-};
+### `computer-use-envelope.mjs` — result reading (416 lines)
 
-// Every registered tool is a method here, on every platform. See "Tool results"
-// for what a call resolves to.
-type Computer = { readonly target: "mac" | "windows" | "linux" } & Record<
-  string,
-  (args?: object) => Promise<unknown>
->;
+Sixteen exports, in two groups.
 
-declare const agent: {
-  computerUse: {
-    getState(options?: ObservationOptions): Promise<State>;
-    getApp(target: string | AppRef): Promise<App>;
-    listApps(options?: ObservationOptions): Promise<AppInfo[]>;
-    computer: Computer;
+Reading a result:
 
-    requestAccess(capabilities?: string[]): Promise<AccessStatus>;
-    stop(reason?: string): Promise<void>;
+| Export                                | What it does                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collectTexts(result)`                | Every `type: "text"` block's text, in order.                                                                                                                                                                                                                                                               |
+| `parseJsonObject(text)`               | `JSON.parse` that rejects arrays — for positions expecting a record.                                                                                                                                                                                                                                       |
+| `parseJsonAny(text)`                  | `JSON.parse` that accepts any value, because `list_apps` returns a bare array.                                                                                                                                                                                                                             |
+| `readReceipt(result)`                 | Merges `state_id`, `frame_id`, `action_sent`, `dispatch_status`, `state_sync_status`, `code`, `reason`, `snapshot_mode`, `base_state_id` from three sources: the envelope top level, `structuredContent`, and the JSON text blocks including their `action_outcome` nesting. First sighting of a key wins. |
+| `readFrameId(result, receipt)`        | `receipt.frame_id`, else `image_ref.frame_id` inside a JSON text block — the frame authority is signed next to the image, not at the top level.                                                                                                                                                            |
+| `readMessage(result, fallback)`       | The producer's own `message`, else the first non-JSON text, else the first text block, else the caller's fallback.                                                                                                                                                                                         |
+| `readImageBytes(result)`              | Base64 `image` block decoded to `Uint8Array`, or `undefined`.                                                                                                                                                                                                                                              |
+| `readAdvisoryTexts(result, treeText)` | The producer's informational blocks (`[effect_evidence unchanged]`, `[screenshot_blank]`), excluding the tree text, the JSON blocks and the frame-authority block.                                                                                                                                         |
+| `isFrameAuthorityText(value)`         | True for a JSON object whose only key is `image_ref`.                                                                                                                                                                                                                                                      |
+| `readNotReady(result)`                | The `kind: "CUA_NOT_READY"` record, and only on a non-error result.                                                                                                                                                                                                                                        |
+| `readAppState(methodName, result)`    | The structured observation. Requires a string `state_id`, an array `elements`, and both `app` and `window`; anything missing throws `STRUCTURED_STATE_UNAVAILABLE` naming exactly what was absent.                                                                                                         |
+| `assertUsable(methodName, result)`    | The single success/failure gate. Returns the receipt on success; throws on `isError` or on a `possibly_sent` dispatch.                                                                                                                                                                                     |
+
+Two helpers stay internal: `collectJsonRecords` (the object-shaped JSON blocks that
+`readReceipt`, `readMessage` and `readNotReady` all walk) and `readBrokerCode` (the broker's
+`code`, read from a JSON record or from the receipt).
+
+Projecting to the host:
+
+| Export                               | What it does                                                                                                                                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectToHost(globals, result)`     | Sends image blocks and the frame-authority block to `nodeRepl.emitStructuredResult`, an error result unchanged, and otherwise the `structuredContent` plus `_meta` with an empty content array. |
+| `stripForDisplay(structured)`        | Replaces the `elements` array with `element_count` and drops `text`. A single observation of a large app can carry 140 KB of element rows that the model has already read as rendered tree.     |
+| `emitToRepl(globals, text, options)` | `nodeRepl.write`, suppressed by `{ emit: false }`, with failures swallowed — display is a side effect and must not fail the call.                                                               |
+| `createInvoker(bridge, globals)`     | Wraps call + cold-start retry + projection into one function. See §6.                                                                                                                           |
+
+### `computer-use-target.mjs` — interaction surface (400 lines)
+
+| Export                                                  | What it does                                                                                                                                                                                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `createAppTarget(ctx, binding)`                         | Builds the twelve-method bound object for one app.                                                                                                                                                                             |
+| `createBinding(label, appRef)`                          | The per-target view: `label`, `appRef`, `stateId`, `frameId`, `elements`, `treeSeen`. The cross-cell truth lives in the host session, not here.                                                                                |
+| `resolveTarget(binding, target, what)`                  | A number becomes `{type: "element", index}` and requires a `stateId`; `[x, y]` becomes `{type: "coordinate", frame_id?, x, y}`. Anything else is refused.                                                                      |
+| `buildAppRef(value, windowId)`                          | A string containing a dot and no whitespace or slash becomes `bundle_id`; everything else becomes `name`.                                                                                                                      |
+| `buildAlternateAppRef(value, windowId)`                 | The opposite field, used for exactly one retry.                                                                                                                                                                                |
+| `isAppUnresolved(result)`                               | Detects the "target app is not running" signal so the alternate field is tried.                                                                                                                                                |
+| `locateTextRange(binding, elementIndex, text, options)` | Computes `[start, length]` locally from the observed element `value`, using `prefix`/`suffix` to disambiguate and `selectionType` to fold the selection into a cursor. Ambiguity throws `NOT_SELECTABLE` with the match count. |
+
+Two decisions in this module are worth knowing because they look like omissions:
+
+- **Actions do not clear `stateId`.** The guard that used to invalidate the index after every
+  action fought the documented action pattern (click an index, then type into it, in one
+  cell) and had no evidence behind it: the SDK knows an action happened, not whether the UI
+  changed. The real check is the frozen index-to-native-token mapping on the producer side,
+  which already fails closed when an element disappears.
+- **A coordinate without a local frame is allowed.** The tool layer permits omitting
+  `frame_id`, and the implicit path binds the session's most recent actionable raster. The
+  fail-closed properties are unchanged: an expired, replaced, non-actionable frame, or a
+  frame whose owner is not this `app_ref`, is still refused.
+
+### `computer-use-keys.mjs` — keyboard normalization (71 lines)
+
+One export, `normalizeKeyChord(chord, platform)`: splits on `+`, maps each segment through a
+canonical spelling table, drops empty segments, and rejoins. `super`, `super_l` and
+`super_r` are the only spellings that fork on platform — `cmd` on `darwin`, `win` on
+`win32`, `super` elsewhere. Unregistered spellings pass through untouched.
+
+## 2. The five layers a call crosses
+
+```text
+model cell
+└─ scripts/computer-use-client.mjs            340 lines — model-visible surface
+   │  globals[Symbol.for("zcode.node-repl.computer-use-bridge")]
+   └─ node-repl-host/src/cua-bridge.ts        204 lines — host bridge
+      │  one JSON line per request, over a socket or a named pipe
+      └─ node-repl-host/src/cua-broker.ts     181 lines — host broker
+         │  runtime.execute({toolName, arguments, context, signal})
+         └─ @zcode/zcode-cua                  FAIL-CLOSED PLACEHOLDER here
+            └─ ZCode Computer Use.app         Helper binary — absent, macOS-only
+```
+
+### Layer 1 — model-visible surface
+
+Owns everything the model can see: the bound-app API, the 14-tool escape hatch, envelope
+unwrapping, key normalization, and the retry decision. It caches only what a binding needs
+to address the current observation — `stateId`, `frameId` and the element table — and never
+a window list, a coordinate or a clipboard value: window-id semantics differ per platform, so
+a cached value goes stale silently.
+
+It also owns the documentation hand-off: `agent.documentation.get("computer-use")` reads this
+file, and any other name is forwarded to the loader that was there before.
+
+### Layer 2 — host bridge
+
+`createComputerUseBridgeGlobals` produces a single object under the registered symbol with
+three members: `call(method, input)`, `assertAvailable()` and `documentationRoot`. What it
+enforces:
+
+| Guard                                       | Refusal                                                    |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Call does not belong to the live generation | `Computer Use runtime binding is stale after kernel reset` |
+| `runtime_scope` is `subagent`               | `Computer Use is not available in subagent`                |
+| No broker connection for this session       | `Computer Use is unavailable for this node_repl session`   |
+| Response exceeds 32 MiB                     | `Computer Use broker response exceeded the 32 MiB limit`   |
+| Response id does not match the request id   | `Computer Use broker response id mismatch`                 |
+| Broker answers `ok: false`                  | the broker's own error text                                |
+| Socket closes before a response             | `Computer Use broker closed before returning a response`   |
+
+The request context is assembled here and carries `runtimeScope`, `sessionId`,
+`workspacePath`, `workspaceIdentity`, `workspaceKey`, optional `remoteSessionId`, `turnId`,
+`clientMode`, `deliveryKind` and the trace triple. Both `session_id` and a workspace key are
+mandatory — a request missing either is refused rather than sent unidentifiable.
+
+Target-app identity is captured **here**, not downstream: the bridge reads the `primary`
+association out of the response `_meta` and records it on the session. Waiting until
+`projectToHost` would put that data on the model-writable channel, where producer-supplied
+and cell-authored values could no longer be told apart.
+
+### Layer 3 — host broker
+
+Owns the transport and nothing else. Per connection: one line of JSON in, one line out, a
+fresh random UUID as the request id, and a random 32-byte token compared with
+`timingSafeEqual`. The socket is a Unix domain socket under `tmpdir()` (`znrc-<uuid>.sock`) on
+every platform except Windows, where it is a `\\\\.\pipe\zcode-node-repl-cua-<uuid>` named
+pipe; the file socket is removed on close, the pipe is not.
+
+Limits: 1 MiB per request, and the socket is aborted as soon as the peer disconnects or the
+call's signal fires, so an abandoned call stops consuming the runtime.
+
+The broker calls `runtime.execute({ toolName, arguments, context, signal })`. It treats the
+runtime as an opaque parameter, which is precisely why swapping the placeholder for a real
+implementation touches neither the bridge nor the broker.
+
+### Layer 4 — runtime
+
+`packages/zcode-cua/index.js` is 335 bytes and fails closed on purpose:
+
+```js
+const UNAVAILABLE_TEXT = "Computer Use is not available in this build.";
+
+export function createComputerUseRuntime(_options) {
+  return {
+    async execute() {
+      return {
+        content: [{ type: "text", text: UNAVAILABLE_TEXT }],
+        isError: true,
+      };
+    },
+    async closeSession() {},
+    async dispose() {},
   };
-};
-```
-
-`agent.computerUse.computer` exposes the low-level tool surface. Prefer the bound API
-above; reach for a tool only for what the API does not express.
-
-## Tool arguments
-
-Every tool takes **one** arguments object; the names below are its keys, not positional
-parameters. Arguments are validated strictly — an undeclared key is refused with
-`unrecognized_keys`, and a missing required key reports `expected object, received
-undefined` for that field — so do not invent options and do not flatten a nested value
-into the top level:
-
-```js
-// right
-await agent.computerUse.computer.get_app_state({
-  app_ref: { bundle_id: "com.apple.Notes" },
-  include_screenshot: true,
-});
-// wrong: `app_ref` is missing, so the union for it reports "received undefined"
-await agent.computerUse.computer.get_app_state({
-  bundle_id: "com.apple.Notes",
-  include_screenshot: true,
-});
-```
-
-```
-list_apps({})
-list_windows({app_ref})
-get_app_state({app_ref, include_screenshot?=false, disable_diffing?=false})
-
-left_click({target, mouse_button?="left", click_count?=1, modifiers?="",
-           strategy?="auto", app_ref?, return_state?="none"})
-left_click_drag({from_target, to, modifiers?="", app_ref?, return_state?="none"})
-scroll({target, scroll_direction, scroll_amount, strategy?="auto", app_ref?,
-       return_state?="none"})
-
-type({text, target?, app_ref?, strategy?="auto", return_state?="none"})
-set_value({target, value, strategy?="auto", app_ref?, return_state?="none"})
-select_text({target, text_range?, app_ref?, return_state?="none"})
-key({text, repeat?, hold_seconds?, app_ref?, strategy?="auto", return_state?="none"})
-paste({text, format?="text", app_ref?, return_state?="none"})
-perform_action({target, action, app_ref?, return_state?="none"})
-
-request_access({capabilities?})
-stop_computer_control({reason?})
-```
-
-- `app_ref` — `{name: "Notes"}` for a display name, `{bundle_id: "com.apple.Notes"}` for an
-  identifier, or `{pid: 1234}`. Add `window_id` to bind a single window. A bare string is
-  read as a **bundle id**, never as a display name. On Windows a display name is the name
-  the OS lists (the Start-menu name), not a window title.
-- `target` — `{type: "element", index}` for an accessibility element, or
-  `{type: "coordinate", x, y}` for a raster pixel, optionally with `frame_id`. An element
-  index addresses the most recent observation of that app, so pass `app_ref` with the
-  action to say which app it belongs to. A `frame_id` names one exact raster; omit it and
-  the coordinate binds the session's most recent actionable raster. The bound API supplies
-  one when this cell took a raster and omits it otherwise — either way you never handle a
-  frame id.
-- `scroll_direction` — `up | down | left | right`. `scroll_amount` is in pages, clamped to
-  0–100.
-- `text_range` — `[start, length]` into the element's current value. `select_text` without
-  it selects the whole value.
-- `strategy` — `auto | a11y | event`. `auto` prefers accessibility and falls back to
-  synthetic events; the other two force one path. `event` sends global input and requires
-  the target app (and `window_id`, when given) to be frontmost already — it never activates
-  anything, so on a background app it is refused with `FOREGROUND_REQUIRED` and nothing is
-  sent. Target an element instead.
-- `return_state` — `compact | full | none` (default `none`). Returns the app state in the
-  same call, saving a separate observation. The bound API does its own observing, so this
-  only matters when you call a tool directly.
-- `modifiers` — a `+`-separated chord held for the duration of the action, e.g.
-  `"cmd+shift"`.
-- `repeat` — how many times `key` re-sends the chord. Use it instead of a loop of
-  `pressKey` calls.
-
-## Tool results
-
-The bound API returns typed values. `computer.*` instead hands back what the tool itself
-produced, after one unwrapping step, so a call resolves to one of three shapes:
-
-- **The parsed payload.** A result carrying exactly one text block is `JSON.parse`d for
-  you, so you get the tool's own shape with no `content` to walk. `list_apps` and
-  `list_windows` land here.
-- **A plain string.** The same single-text-block result, when its text is not JSON.
-  `get_app_state` without a screenshot lands here, so you get the rendered tree and nothing
-  else: the `structuredContent` that carried `state_id` and the element rows does not
-  survive the unwrap. Use a bound app's `elements()` for that table.
-- **The raw MCP envelope,** `{ content: [...] }`. Returned unchanged for anything else,
-  most often because `include_screenshot: true` added an image block. Read the blocks out
-  of `content`; there is no parsed payload, and the envelope also carries host-only fields
-  this contract does not cover.
-
-So branch on the shape instead of assuming one:
-
-```js
-const wins = await agent.computerUse.computer.list_windows({
-  app_ref: { name: "Notes" },
-});
-nodeRepl.write(`windows: ${JSON.stringify(wins)}`);       // parsed payload
-
-const shot = await agent.computerUse.computer.get_app_state({
-  app_ref: { name: "Notes" },
-  include_screenshot: true,
-});
-const image = shot.content.find((block) => block.type === "image");  // envelope
-```
-
-Never pass a whole envelope to `nodeRepl.write` or `JSON.stringify`: the image block is
-large, and a bound app's `getAXStateAndScreenshot()` already submits the picture for you.
-
-## Windows
-
-A capture is always scoped to one window of one app, so a multi-window app needs you to say
-which window. `list_windows` returns one row per window, in the app's own window order:
-
-- `window_id` — stable integer. Pass it back inside `app_ref` to address that window.
-- `title` — the window title; `""` or `null` for a window that carries none. `""` means the
-  window has an `AXTitle` that is empty — a Qt or custom-drawn panel typically looks like
-  this. `null` means the title could not be read at all, which happens both for an AX
-  window whose `AXTitle` read fails and for a row the broker merged in from CoreGraphics,
-  so it does not tell the two apart. Use `subrole` for that distinction.
-- `subrole` — the window's `AXSubrole`, present only on a real AX window. A row merged in
-  from CoreGraphics (a WindowServer surface the accessibility tree does not expose) has no
-  `subrole` at all, so the field's presence is what separates "a window you can bind and
-  operate" from "a leftover surface". Its own value discriminates weakly: a survey of 34
-  windows across 30 apps found 31 of them reporting `AXStandardWindow`, with `AXDialog` the
-  only other value that carried information. macOS only.
-- `text_preview` — a content sample for a window with no usable title: the first few
-  strings found inside it, joined and truncated. **Never an identifier.** The order comes
-  from the accessibility child order, which is creation order and carries no semantic
-  guarantee — in the same app a dialog yields its heading while a main window yields
-  toolbar noise. It is collected only when `title` is empty, omitted when nothing could be
-  collected, and it can contain whatever the window displays, including the user's own
-  data. Read it as a hint for choosing which window to observe, then confirm by observing
-  that window. macOS only.
-- `bounds` — `[x, y, width, height]` in global screen points. Diagnostic only: these must
-  never be copied into a coordinate target.
-- `main` — the app's AX main window. `focused` — the app's AX focused (key) window.
-  Neither one means the app is the system-frontmost application; `listApps()` reports that
-  as `active`.
-- `onscreen` — `false` marks a window CoreGraphics still owns after the app closed its real
-  windows. That row is neither user-visible nor operable, so skip it when choosing a
-  target. It carries a different meaning from occluded or minimized, both of which stay
-  operable and stay `true`.
-- `index` — the row's position in this response, not an element index and not a window id.
-
-Bind a window and every call in that cell stays on it:
-
-```js
-const app = await agent.computerUse.getApp({ pid: 23192, window_id: 27367 });
-await app.getAXState();
-```
-
-`agent.computerUse.getWindow(target, windowId)` binds the same way and reads better when the
-target is a name. Either form throws `STALE_STATE` when that window cannot be resolved,
-instead of quietly capturing a different one.
-
-Without a `window_id` the app's main/key window is captured, and that resolution runs again
-on **every** observation. A modal that opened since the last observation therefore becomes
-the captured window. Element indices are per-window and are renumbered by each observation,
-so an index taken before the window changed can address an unrelated control afterwards.
-
-So when an action fails unexpectedly, or the tree reads like a different part of the app,
-check the observation's `window` block first: a modal dialog appears there as the captured
-window. Read its contents, then decide. Dismiss it only when it is not the intended target —
-press Escape, or use the dialog's own cancel control — and observe again afterwards. When
-the dialog *is* the task, act on it. Judging "my previous action worked" from a tree that
-turns out to be the dialog's is the specific mistake this section exists to prevent: the
-element you were looking for is absent because you are reading a different window, not
-because the action removed it.
-
-## Workflow
-
-After performing one or more UI actions, call `getAXState()` before deciding what to do
-next: that is how you see what your actions did.
-
-An element index addresses the app's most recent observation, so several actions may reuse
-one index without re-observing between them — click an index, then type into it, in the same
-cell. Observing renumbers the tree, so take indices from the newest one. A vanished element
-fails closed with `ELEMENT_UNAVAILABLE`.
-
-The accessibility tree comes back as a diff only against a tree this cell already showed
-you, listing the removed, added and changed elements; the omitted rows are unchanged and
-their indices stay valid. The first tree after binding, and the first after a
-screenshot-only observation, are always complete. Pass `{ disableDiffing: true }` for a
-full tree at any point. If a standalone `getAXState()` reports no change, do not
-immediately repeat it without an intervening action.
-
-Minimize round trips while keeping the state fresh:
-
-- Batch deterministic actions and the resulting `getAXState()` into one call.
-- `agent.computerUse.getApp(...)` returns the binding and displays nothing; call
-  `getAXState()` when you need to see the state.
-- Prefer a directly relevant result already visible in the current state over opening
-  broader intermediate UI such as "Show All".
-- Once the requested result is visibly present, stop exploring and respond.
-
-```typescript
-await target.click(42);
-await target.setValue(42, "openai.com");
-await target.pressKey("Return");
-await target.typeText("hello");
-await target.scroll(42, "down", 1);
-await target.scroll([640, 480], "down", 1);
-await target.selectText(42, "hello");
-await target.performSecondaryAction(42, "Expand");
-await target.getAXState();
-```
-
-## Output
-
-- For text, use `nodeRepl.write(...)`. For images, `nodeRepl.emitImage(...)`.
-- `getAXState()`, `getScreenshot()`, `getAXStateAndScreenshot()`,
-  `agent.computerUse.getState()` and `agent.computerUse.listApps()` **display their own
-  result**; `agent.computerUse.getApp(...)` does not — it binds only. Never pass their
-  return value to `write` or `emitImage`: a second raster in one result breaks the
-  one-raster rule and the frame is removed entirely, leaving no picture at all. Pass
-  `{ emit: false }` to suppress the display and still get the value back.
-- Action methods display nothing and resolve to `undefined` on success.
-
-## Errors
-
-Actions resolve to `undefined` when they succeed and throw `ComputerUseError` when they do
-not. The fields you act on:
-
-- `code` — `PERMISSION_DENIED`, `NOT_AUTHORIZED`, `APP_NOT_FOUND`, `AMBIGUOUS_APP`,
-  `LAUNCH_FAILED`, `INVALID_APP`, `ELEMENT_UNAVAILABLE`, `STALE_STATE`, `NOT_SETTABLE`,
-  `NOT_SELECTABLE`, `ACTION_UNAVAILABLE`, `FOREGROUND_REQUIRED`, `CONTROLLER_BUSY`,
-  `CONTROL_STOPPED`, `SCREEN_LOCKED`, `HELPER_UNAVAILABLE`, `VERSION_MISMATCH`,
-  `TIMEOUT`, `STRUCTURED_STATE_UNAVAILABLE`, `INTERNAL`.
-- `actionSent` — whether the action may already have reached the app. Retry a
-  non-idempotent action only when this is `false`; otherwise observe first.
-- `FOREGROUND_REQUIRED` comes only from `strategy: "event"` (and from `paste` on a
-  background app). On macOS nothing in this surface can bring an app forward, so do not
-  retry it and do not look for an activation call: switch to an element target, `setValue`,
-  or an accessibility action, which all work on a background app.
-- `retry` — `"reobserve"`, `"retry"` or `"never"`.
-
-```js
-try {
-  await app.performSecondaryAction(7, "Show Menu");
-} catch (e) {
-  if (e.code === "ACTION_UNAVAILABLE") {
-    await app.getAXState({ disableDiffing: true });   // the tree lists each element's actions
-  } else if (e.code === "CONTROLLER_BUSY") {
-    nodeRepl.write(`another ZCode Computer Use session owns control: ${e.details.owner}`);
-  } else if (e.actionSent) {
-    await app.getAXState();                            // may already have landed; look first
-  } else throw e;
 }
 ```
 
-`CONTROLLER_BUSY` is never retryable. Report the owner from the error and ask the user to
-close the other session. Stop immediately after `agent.computerUse.stop()`, a kill switch,
-or a permission refusal, and do not switch to a different UI-automation technology after an
-access refusal.
+The host only builds a broker when it finds a runtime at all, and it finds one only when
+`ZCODE_CUA_PERMISSION_BROKER_SOCKET` is set (`captureComputerUseRuntimeFromEnvironment`). So
+in a build without that variable there is no broker, and the bridge refuses every call before
+a tool name is ever sent.
 
-## Notes
+### Layer 5 — the Helper binary, and why it is absent
 
-### Element tables and sparse indices
+The native work belongs to `ZCode Computer Use.app`, a signed macOS-only bundle. Three
+independent constraints keep it out of this repository:
 
-- `elements()` returns the element table as data, including the rows the rendered tree
-  trimmed for length, so filter it in JS instead of guessing a hidden index. It observes
-  without displaying anything, which costs one broker round trip and makes the next
-  `getAXState()` return a full tree rather than a diff — reach for it when the tree said
-  `indices are sparse`, not on every turn.
-- A container can also report only part of its children, and that is a different limit from
-  the one above: the header says `showing A-B of N items`, and those rows never entered the
-  observation, so `elements()` does not recover them either. This is what a long list or a
-  spreadsheet grid looks like — the rows you need may simply have no index. Reach the rest
-  through the app itself: scroll the container and observe again, or move the app's own
-  selection (arrow keys, a Name Box, a search field) and read the value back from the
-  focused element.
+1. **macOS only.** The install plan throws `install_failed` on any other platform, so
+   importing it here would produce a guaranteed failure rather than a working plugin.
+2. **Bundled, not downloadable.** The plan resolves to `{ kind: "bundled", appPath }`, and no
+   official Linux package ships that `.app`.
+3. **Requires a pinned build identity.** An empty `ZCODE_CUA_HELPER_BUILD_ID` is refused
+   outright — _"Packaged ZCode is missing its embedded Computer Use Helper build identity;
+   refusing an unpinned Helper install"_. The value is injected as the esbuild `define`
+   `__ZCODE_CUA_HELPER_BUILD_ID__` by `node-repl-host/scripts/build.mjs`, sourced from
+   `process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? ""`, and the build fails if the id was
+   supposed to be present but did not fold into the bundle.
 
-### Choosing an action path
+A placeholder that says "unavailable" is more honest than a stack that cannot run.
 
-- Prefer element-index actions over coordinate actions whenever an accessibility element is
-  available. They are semantic, precise, background-safe and do not steal the user's focus.
-  Fall back to a screenshot and coordinates only when accessibility cannot locate or express
-  the target.
-- Coordinates are integer pixels of the **latest returned raster**. Take them only by
-  looking at that raster. Element and window bounds in the tree are diagnostic global screen
-  points and must never be used as a coordinate. The SDK binds the raster internally; you
-  never pass a frame id.
-- A pointer action can be accepted and still do nothing where you aimed. Some apps ignore
-  the position carried by a synthesized pointer event and act on wherever the real pointer
-  happens to sit, so the same coordinate produces a different result depending on where the
-  user left the mouse. The next observation says so with `[effect_evidence unchanged]`; when
-  it does, **do not repeat the coordinate** — act on an element index, or drive the app from
-  the keyboard (arrow keys, shortcuts, or a value typed into a field), which lands on a
-  background app.
+## 3. Platform differences
 
-### Text and keyboard
+|                         | Linux / macOS                                        | Windows                                            |
+| ----------------------- | ---------------------------------------------------- | -------------------------------------------------- |
+| Broker socket           | Unix domain socket, `znrc-<uuid>.sock` in `tmpdir()` | Named pipe `\\\\.\pipe\zcode-node-repl-cua-<uuid>` |
+| Socket cleanup on close | removed                                              | not removed                                        |
+| `computer.target`       | `"linux"` or `"mac"`                                 | `"windows"`                                        |
+| `super*` in a chord     | `super` (`cmd` on macOS)                             | `win`                                              |
+| Platform-excluded tools | none                                                 | none                                               |
+| Helper install plan     | not supported                                        | not supported                                      |
+| Native execution        | placeholder                                          | placeholder                                        |
 
-- The tree always lists each element's `actions`. `performSecondaryAction` accepts only an
-  action the element advertises — do not guess one.
-- `selectText` locates text inside an editable element. Use `prefix`/`suffix` to
-  disambiguate repeated matches and `selectionType` to place the cursor instead of
-  selecting. An ambiguous match is refused rather than resolved to the first hit.
-- `pressKey` accepts xdotool-style keysyms as well as short names: `"a"`, `"Return"`,
-  `"Tab"`, `"Control_L+a"`, `"super+c"`, `"Up"`. macOS uses `cmd`; Linux and Windows use
-  `ctrl`. `{ holdSeconds }` holds the key or chord.
-- Use `paste` for rich text, or for a target `setValue` cannot set; for plain text into a
-  settable element `setValue` is the better path. It borrows the system pasteboard and
-  restores the user's clipboard afterwards. A paste no app reads fails with a timeout rather
-  than reporting success. A paste shortcut cannot name a target field, so it lands wherever
-  the keyboard focus is — check the result.
+The tool list is identical on all three platforms today. `PLATFORM_EXCLUDED_METHODS` exists so
+the first platform-specific tool has somewhere to go; until then it is empty, and the host's
+manifest and the SDK's tool table are kept in agreement so the model never sees a method that
+fails on call.
 
-### Launching and focus
+## 4. The 14 tools
 
-- There is no need to open or launch apps; `agent.computerUse.getApp(...)` launches the app
-  in the background if it is not already running. There is no separate launch tool. Its
-  argument is a display name, a bundle identifier, or the same `{name|bundle_id|pid}` object
-  the tools take. For a string the SDK sends a dotted, space-free string as `bundle_id` and
-  anything else as `name`, and retries with the other field once if the app is not found, so
-  either form works. There is no path form: `app_ref` has no path field. Nothing here fronts
-  a window or takes the user's focus, except on Windows: launching a non-packaged app takes
-  focus, and `include_screenshot=true` on a minimized window restores it. A minimized
-  window's tree stays fully usable, so keep the default unless you need pixels.
+`COMPUTER_METHOD_NAMES` is the frozen list, and every name on it becomes an enumerable member
+of `agent.computerUse.computer`. Each takes **one** arguments object; the names below are its
+keys, not positional parameters. The host's manifest validates them strictly, so an undeclared
+key is refused rather than ignored.
 
-### Timing
+| Tool                    | Arguments                                                                                        | Notes                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_apps`             | `{}`                                                                                             | The only tool with no arguments at all.                                                                                                        |
+| `list_windows`          | `{app_ref}`                                                                                      | Window enumeration — not expressible through the bound API.                                                                                    |
+| `get_app_state`         | `{app_ref, include_screenshot?=false, disable_diffing?=false}`                                   | The single observation primitive; everything else is layered on it. Both flags are host-declared; the bound API always passes them explicitly. |
+| `left_click`            | `{target, mouse_button?="left", click_count?=1, modifiers?, strategy?, app_ref?, return_state?}` | `mouse_button` also accepts `l`/`r`/`m`.                                                                                                       |
+| `left_click_drag`       | `{from_target, to, modifiers?, app_ref?, return_state?}`                                         |                                                                                                                                                |
+| `scroll`                | `{target, scroll_direction, scroll_amount, strategy?, app_ref?, return_state?}`                  | `scroll_direction` also accepts `u`/`d`/`l`/`r`; `scroll_amount` is in pages.                                                                  |
+| `type`                  | `{text, target?, app_ref?, strategy?, return_state?}`                                            | `target` optional — omit it to type at the current focus.                                                                                      |
+| `set_value`             | `{target, value, strategy?, app_ref?, return_state?}`                                            |                                                                                                                                                |
+| `select_text`           | `{target, text_range?, app_ref?, return_state?}`                                                 | `text_range` is `[start, length]`; omit it to select the whole value.                                                                          |
+| `key`                   | `{text, repeat?, hold_seconds?, app_ref?, strategy?, return_state?}`                             | `repeat` re-sends the chord — use it instead of a loop.                                                                                        |
+| `paste`                 | `{text, format?="text", app_ref?, return_state?}`                                                | Borrows the system pasteboard.                                                                                                                 |
+| `perform_action`        | `{target, action, app_ref?, return_state?}`                                                      | `action` must be one the element advertises.                                                                                                   |
+| `request_access`        | `{capabilities?}`                                                                                | Reports permission state; never escalates.                                                                                                     |
+| `stop_computer_control` | `{reason?}`                                                                                      | Releases control.                                                                                                                              |
 
-- Observations wait an appropriate amount of time before capturing. Do **not** pause or
-  delay (no `setTimeout`) before getting UI state; rely on that wait.
-- When the state does not show what you expected, observe once more before trying a
-  different approach: an animation or a load may still have been in flight.
+`app_ref` is `{name}` for a display name, `{bundle_id}` for an identifier, or `{pid}`, plus an
+optional `window_id` to pin one window. A bare string is read as a **bundle id** — a string
+containing a dot and no whitespace or slash is sent as `bundle_id`, anything else as `name`,
+and the other field is tried exactly once when the host reports the app is not running.
 
-Persist until the request is fully completed end to end. Attempting an action is not
-completion: verify that the returned UI state visibly shows the requested result. If an
-action leaves the state unchanged, produces no results, or only reaches an intermediate
-page, try another approach. Respond only after the requested state is visibly present, or
-explain a concrete blocker you cannot resolve.
+`strategy`, `return_state`, `modifiers`, `repeat`, `hold_seconds` and `format` are forwarded
+verbatim: this SDK does not validate them, so their accepted values are whatever the host's
+tool manifest declares. The SDK does normalize `scroll_direction` (`u`/`d`/`l`/`r` expand to
+the long form), `mouse_button` (`l`/`r`/`m` expand), and `key.text` (see §1,
+`computer-use-keys.mjs`).
+
+## 5. Result shapes
+
+`computer.<tool>` returns one of three things, decided by a single unwrap rule in
+`computer-use-client.mjs`: a result is unwrapped only when it has exactly one content block
+and that block is text.
+
+| Shape            | When                                                 | What you get                                                                                                                               |
+| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Parsed payload   | exactly one text block, valid JSON                   | the tool's own shape; `list_apps` and `list_windows` land here                                                                             |
+| Plain string     | exactly one text block, not JSON                     | the rendered tree for a screenshot-free `get_app_state`; the `structuredContent` with `state_id` and the element rows does **not** survive |
+| Raw MCP envelope | anything else, most often `include_screenshot: true` | `{ content: [...] }`, including host-only fields this contract does not cover                                                              |
+
+The reason the unwrap exists: without it the model receives
+`{content:[{type:"text",text:"[…]"}],_meta:{…}}` and has to `JSON.parse` it by hand, while
+`_meta` — which is host-only by design — leaks into the model's view. Unwrapping only the
+unambiguous single-text-block case avoids guessing at a shape nobody recognizes.
+
+The receipt fields the SDK reads out of any result are `state_id`, `frame_id`,
+`action_sent`, `dispatch_status`, `state_sync_status`, `code`, `reason`, `snapshot_mode` and
+`base_state_id`, taken from the first source that has each key. Producers have historically
+put the same field in three different places, so all three are consulted.
+
+## 6. Cold start
+
+The Helper is started lazily by its first caller. A call that arrives too early returns a
+**non-error** envelope carrying `kind: "CUA_NOT_READY"`, a `message`, a `reasonCode` and a
+`retryable` flag. `createInvoker` then:
+
+1. retries the identical call while `retryable === true`, up to `NOT_READY_MAX_ATTEMPTS`
+   (6) attempts;
+2. sleeps `NOT_READY_BACKOFF_MS` — 250, 500, 750, 1000, 1500 ms — clamping at the last value;
+3. on exhaustion throws `TIMEOUT` when the envelope was retryable and `CONTROLLER_BUSY` when
+   it was not, in both cases carrying the producer's own message and `reasonCode`.
+
+A `possibly_sent` dispatch is never retried by this path: `assertUsable` rejects it first, so
+the retry loop only ever replays calls that provably did nothing.
+
+## 7. Error model in full
+
+### Broker code → SDK code
+
+| Broker code           | SDK code              |
+| --------------------- | --------------------- |
+| `permission_denied`   | `PERMISSION_DENIED`   |
+| `not_authorized`      | `NOT_AUTHORIZED`      |
+| `launch_failed`       | `LAUNCH_FAILED`       |
+| `invalid_request`     | `INVALID_APP`         |
+| `element_unavailable` | `ELEMENT_UNAVAILABLE` |
+| `not_settable`        | `NOT_SETTABLE`        |
+| `not_selectable`      | `NOT_SELECTABLE`      |
+| `action_unavailable`  | `ACTION_UNAVAILABLE`  |
+| `foreground_required` | `FOREGROUND_REQUIRED` |
+| `controller_busy`     | `CONTROLLER_BUSY`     |
+| `broker_unavailable`  | `HELPER_UNAVAILABLE`  |
+| `stale_socket`        | `HELPER_UNAVAILABLE`  |
+| `version_mismatch`    | `VERSION_MISMATCH`    |
+| `timeout`             | `TIMEOUT`             |
+| `unimplemented`       | `ACTION_UNAVAILABLE`  |
+| `method_not_found`    | `INTERNAL`            |
+| `internal`            | `INTERNAL`            |
+| anything else         | `INTERNAL`            |
+
+Falling through to `INTERNAL` is deliberate: a vague failure that makes the model re-observe
+is safer than a confident mapping of a real fault onto "success".
+
+### SDK-raised codes
+
+| Code                           | Raised by            | When                                                                      |
+| ------------------------------ | -------------------- | ------------------------------------------------------------------------- |
+| `INVALID_APP`                  | `client`             | `getApp` receives neither a non-empty string nor `{name\|bundle_id\|pid}` |
+| `STALE_STATE`                  | `client`             | a pinned `window_id` fell back to the frontmost window                    |
+| `STALE_STATE`                  | `target`             | an element index arrives with no observation behind it                    |
+| `STRUCTURED_STATE_UNAVAILABLE` | `envelope`           | the observation lacks `state_id`, `elements`, `app` or `window`           |
+| `NOT_SELECTABLE`               | `target`             | `selectText` finds no value to search, no match, or more than one         |
+| `ACTION_UNAVAILABLE`           | `target`             | `performSecondaryAction` is asked for an empty or non-string action       |
+| `ELEMENT_UNAVAILABLE`          | `target`             | pixels were requested and none came back                                  |
+| `TIMEOUT`                      | `envelope`           | a `possibly_sent` dispatch, or an exhausted retryable cold start          |
+| `CONTROLLER_BUSY`              | `envelope`           | a non-retryable not-ready envelope, or the broker's own `controller_busy` |
+| `INTERNAL`                     | `target`, `envelope` | malformed target, key, direction, button or text; an unmapped broker code |
+
+### Retry policy
+
+`decideRetryPolicy(actionSent, code)`:
+
+| Condition                       | Result                               |
+| ------------------------------- | ------------------------------------ |
+| `actionSent === true`           | `reobserve` — regardless of the code |
+| code in `POINTLESS_RETRY_CODES` | `never`                              |
+| code in `REACQUIRE_FIRST_CODES` | `reobserve`                          |
+| otherwise                       | `retry`                              |
+
+`POINTLESS_RETRY_CODES` is `CONTROLLER_BUSY`, `CONTROL_STOPPED`, `PERMISSION_DENIED`,
+`NOT_AUTHORIZED`, `VERSION_MISMATCH`, `ACTION_UNAVAILABLE`, `NOT_SETTABLE`,
+`NOT_SELECTABLE`. `REACQUIRE_FIRST_CODES` is `ELEMENT_UNAVAILABLE`, `STALE_STATE`,
+`STRUCTURED_STATE_UNAVAILABLE` — the last two are SDK-raised rather than broker-raised, and
+are listed here so a caller needs only one table.
+
+`CONTROL_STOPPED` appears in the retry table but is not produced by any code path in these
+five modules; it is reserved. The same is true of `APP_NOT_FOUND`, `AMBIGUOUS_APP` and
+`SCREEN_LOCKED`, which appear nowhere in this plugin at all. Do not branch on those four
+names.
+
+## 8. Verifying an installation
+
+```sh
+node scripts/check-sdk.mjs      # or: pnpm check:sdk
+```
+
+That is the whole verification surface: it asserts each of the five modules is reachable and
+that the entry module imports without a syntax error, which is what catches a seed that
+copied `computer-use-client.mjs` without its four dependencies.
+
+There is no other command. The client module has no argument parser — `--help` and a bare
+invocation both produce no output and exit `0` — so it cannot be exercised from a shell, only
+imported from a `node_repl` cell.
