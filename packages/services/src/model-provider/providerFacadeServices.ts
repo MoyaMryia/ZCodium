@@ -15,10 +15,16 @@ import {
   type ProviderSettingsView,
   type ResolveModelConfigInput,
   type SavePersonalModelDraftInput,
+  isApiKeyAccess,
 } from "@zcode/provider";
 import { createServiceDescriptor } from "../descriptors.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
+import type {
+  ProviderModelCatalogFailure,
+  ProviderModelCatalogLister,
+  ProviderModelCatalogResult,
+} from "./providerModelCatalog.js";
 
 export type {
   ProviderSettingsProviderView,
@@ -26,6 +32,8 @@ export type {
   ModelSelectionViewInput,
   ProviderSettingsView,
 } from "@zcode/provider";
+
+export type { ProviderModelCatalogResult } from "./providerModelCatalog.js";
 
 export interface IProviderSettingsService {
   readonly onDidChange: Event<ProviderSettingsView>;
@@ -68,6 +76,15 @@ export interface IProviderSettingsService {
   testModelConnectivity(
     input: ProviderSettingsConnectivityRequest,
   ): Promise<ModelConnectivityResult>;
+  /** 读取 API Key 型 Provider 自己的模型目录，返回候选 modelId（不落库）。 */
+  listProviderModels(input: ListProviderModelsInput): Promise<ProviderModelCatalogResult>;
+}
+
+/** Renderer 侧入口参数：只描述“哪个 Environment 的哪个 Provider”。 */
+export interface ListProviderModelsInput {
+  readonly workspacePath: string;
+  readonly workspaceIdentity?: string;
+  readonly providerId: ProviderId;
 }
 
 export const IProviderSettingsService = createServiceDescriptor<IProviderSettingsService>(
@@ -110,7 +127,9 @@ export function createProviderSettingsService(
   facade: ProviderSettingsFacade,
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
+  listProviderModels?: ProviderModelCatalogLister,
 ): IProviderSettingsService {
+  const log = createServiceLogger("provider-settings");
   return {
     onDidChange: toEvent((listener) => facade.onDidChange(listener)),
     getView: async () => {
@@ -205,6 +224,65 @@ export function createProviderSettingsService(
         providerId: input.providerId,
         modelId: input.modelId,
       });
+    },
+    listProviderModels: async (input) => {
+      await ensureReady();
+      if (!listProviderModels) {
+        throw new Error("当前 Environment 未装配模型目录读取能力");
+      }
+      // 与连通性测试同一队列边界：卡片草稿刚 flush 完的 baseUrl/apiKey 必须已进入视图，
+      // 否则会用旧配置发起请求。禁用对象仍在视图里，提前拒绝比发错请求更明确。
+      await facade.waitForProviderOperations(input.providerId);
+      const provider = facade
+        .getView()
+        .providers.find((item) => item.providerId === input.providerId);
+      if (!provider) {
+        return {
+          success: false,
+          error: {
+            code: "provider-unavailable",
+            message: `Provider 不存在: ${input.providerId}`,
+          },
+        } satisfies ProviderModelCatalogFailure;
+      }
+      const access = provider.effectiveConfig.access;
+      // 账号型 Provider 的模型由权益接口决定，不读 /models。
+      if (!access || !isApiKeyAccess(access)) {
+        return {
+          success: false,
+          error: { code: "unsupported-access", message: "only api-key providers are supported" },
+        } satisfies ProviderModelCatalogFailure;
+      }
+      const baseUrl = provider.effectiveConfig.api?.baseUrl?.trim();
+      if (!baseUrl) {
+        return {
+          success: false,
+          error: { code: "base-url-missing", message: "provider baseUrl is missing" },
+        } satisfies ProviderModelCatalogFailure;
+      }
+      const apiKey = access.apiKey?.trim() ?? "";
+      const headers = provider.effectiveConfig.api?.headers ?? null;
+      // 无 Key 且无自定义鉴权头时请求必然 401；本地拒绝即可，不浪费一次往返。
+      if (!apiKey && !headers) {
+        return {
+          success: false,
+          error: { code: "api-key-missing", message: "provider apiKey is missing" },
+        } satisfies ProviderModelCatalogFailure;
+      }
+      try {
+        return await listProviderModels({
+          apiType: provider.effectiveConfig.api?.type ?? "openai-chat-completions",
+          baseUrl,
+          apiKey,
+          headers,
+        });
+      } catch (error) {
+        log.warn(undefined, `provider model catalog request failed: ${String(error)}`);
+        return {
+          success: false,
+          error: { code: "request-failed", message: "request failed" },
+        } satisfies ProviderModelCatalogFailure;
+      }
     },
   };
 }

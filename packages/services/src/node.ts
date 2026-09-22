@@ -375,6 +375,7 @@ import {
   IProviderSettingsService,
 } from "./model-provider/providerFacadeServices.js";
 import { createProviderSettingsConnectivityTester } from "./model-provider/providerSettingsConnectivity.js";
+import { createProviderModelCatalogLister } from "./model-provider/providerModelCatalog.js";
 import {
   createProviderProvisioningSource,
   listProviderProvisioningCredentialKeys,
@@ -1618,6 +1619,8 @@ export function createLocalServices(options: {
         return providerConnectivityAgentService.testModelConnectivity(input);
       },
     }),
+    // 自定义 Provider 的模型目录读取走宿主 ApiClient（代理/超时/ZCode 端点判定复用同一出口）。
+    modelCatalog: createProviderModelCatalogLister({ apiClient }),
     disposeAccountSource: () => {
       disposeAccountProviderInvalidation();
       accountProviderRefreshErrorDispose();

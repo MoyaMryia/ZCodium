@@ -6,6 +6,8 @@ export {
   IProviderSettingsService,
   type ModelSelectionView,
   type ModelSelectionViewInput,
+  type ListProviderModelsInput,
+  type ProviderModelCatalogResult,
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
 } from "./model-provider/providerFacadeServices.js";

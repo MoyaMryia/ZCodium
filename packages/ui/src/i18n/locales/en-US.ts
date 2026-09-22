@@ -3045,6 +3045,25 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.models": "Model list",
   "settings.modelProvider.modelsEmpty": "No models are configured. Add a model to use it in chat.",
   "settings.modelProvider.addModel": "Add model",
+  "settings.modelProvider.fetchModels": "Fetch models",
+  "settings.modelProvider.modelCatalog.dialogTitle": "Select models to add",
+  "settings.modelProvider.modelCatalog.dialogDescription":
+    "Models read from the {provider} endpoint. Select the ones to add.",
+  "settings.modelProvider.modelCatalog.loading": "Fetching models…",
+  "settings.modelProvider.modelCatalog.empty":
+    "The endpoint returned no models. Add them manually.",
+  "settings.modelProvider.modelCatalog.alreadyAdded": "Added",
+  "settings.modelProvider.modelCatalog.failed": "Failed to fetch models: {reason}",
+  "settings.modelProvider.modelCatalog.partialFailure": "Added {added} models, {failed} failed.",
+  "settings.modelProvider.modelCatalog.confirm": "Add selected ({count})",
+  "settings.modelProvider.modelCatalog.reason.provider-unavailable":
+    "This provider is currently unavailable",
+  "settings.modelProvider.modelCatalog.reason.unsupported-access":
+    "Only API Key providers are supported",
+  "settings.modelProvider.modelCatalog.reason.base-url-missing": "Fill in the Base URL first",
+  "settings.modelProvider.modelCatalog.reason.api-key-missing": "Fill in the API Key first",
+  "settings.modelProvider.modelCatalog.reason.request-failed": "The endpoint request failed",
+  "settings.modelProvider.modelCatalog.reason.empty-catalog": "The endpoint returned no models",
   "settings.modelProvider.modelId": "Model ID",
   "settings.modelProvider.modelDisplayName": "Display name",
   "settings.modelProvider.modelApiFormat.anthropic": "Anthropic messages",

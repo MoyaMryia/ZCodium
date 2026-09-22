@@ -7,6 +7,7 @@ import {
   type ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
+import type { ProviderModelCatalogResult } from "@zcode/services";
 import {
   isApiKeyAccess,
   type ProviderApiType,
@@ -144,6 +145,7 @@ export function InlineEditableProviderCard({
   onDeletePersonalModel,
   onDelete,
   onTestModel,
+  onFetchModels,
   onReorderModelIds,
   readOnlyEndpoints,
   presetApiKeyUrl,
@@ -171,6 +173,8 @@ export function InlineEditableProviderCard({
   onDeletePersonalModel?: (providerId: string, modelId: string) => Promise<unknown>;
   onDelete?: () => void | Promise<void>;
   onTestModel?: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
+  /** 拉取该 Provider 的模型目录；仅 API Key 型自定义 Provider 装配。 */
+  onFetchModels?: (providerId: string) => Promise<ProviderModelCatalogResult>;
   onReorderModelIds?: (modelIds: string[]) => Promise<void>;
   readOnlyEndpoints?: boolean;
   presetApiKeyUrl?: string;
@@ -848,6 +852,16 @@ export function InlineEditableProviderCard({
           providerAccess={provider.config.access}
           models={models}
           onTestModel={onTestModel ? handleTestModel : undefined}
+          onFetchModels={
+            onFetchModels
+              ? async () => {
+                  // 与连通性测试同一顺序：目录读取用的是已落盘配置，
+                  // 先把本卡片草稿 flush 出去，否则会拿旧 baseUrl/apiKey 发请求。
+                  await commitPendingDraft("model-catalog");
+                  return onFetchModels(provider.providerId);
+                }
+              : undefined
+          }
           onModelCommit={handleModelCommit}
           onModelEnabledChange={handleModelEnabledChange}
           onDeleteModel={handleDeleteModel}
