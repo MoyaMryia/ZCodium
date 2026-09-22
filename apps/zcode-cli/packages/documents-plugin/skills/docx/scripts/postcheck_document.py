@@ -147,10 +147,32 @@ def load_document(docx_path: str | Path) -> DocumentContext:
     context.tables = _read_tables(root)
     context.images = _read_images(root, context.paragraphs)
     context.fonts_declared = _read_fonts(root, styles)
-    context.numbering_ids = {
-        num.get(f"{W}numId") for num in root.iter(f"{W}numPr") if num.get(f"{W}numId")
-    }
+    context.numbering_ids = _read_numbering_ids(root)
     return context
+
+
+def _read_numbering_ids(root: ET.Element) -> set[str]:
+    """收集文档中实际引用的编号定义 ID。
+
+    历史缺陷：这里原先写成 `num.get(f"{W}numId")`，把 numId 当作 `w:numPr` 的
+    属性读取。但 OOXML 中 numId 是 `w:numPr` 的子元素：
+
+        <w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>
+
+    `w:numPr` 本身没有任何属性，`.get()` 恒返回 None，导致 `numbering_ids`
+    恒为空集，`check_numbering_continuity` 恒判 "no numbered lists" 并 PASS。
+    该规则因此对任何输入都不生效。同一函数内读取 `w:pStyle` 用的是正确的
+    `.find()`，可见这是笔误而非设计。
+    """
+    ids: set[str] = set()
+    for num_pr in root.iter(f"{W}numPr"):
+        num_id = num_pr.find(f"{W}numId")
+        if num_id is None:
+            continue
+        value = num_id.get(f"{W}val")
+        if value:
+            ids.add(value)
+    return ids
 
 
 def _read_sections(root: ET.Element) -> list[Section]:
