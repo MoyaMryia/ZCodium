@@ -676,7 +676,6 @@ export function SettingsPage({
   const [autoDownloadAndInstallUpdates, setAutoDownloadAndInstallUpdates] = useState(false);
   const [messageStreamShowReasoning, setMessageStreamShowReasoning] = useState(true);
   const [messageStreamShowTodos, setMessageStreamShowTodos] = useState(false);
-  const [disableStartupAnimation, setDisableStartupAnimation] = useState(false);
   const [toolGroupingExploreEnabled, setToolGroupingExploreEnabled] = useState(true);
   const [toolGroupingTerminalEnabled, setToolGroupingTerminalEnabled] = useState(true);
   const [toolGroupingChangesEnabled, setToolGroupingChangesEnabled] = useState(false);
@@ -761,7 +760,6 @@ export function SettingsPage({
         setAutoDownloadAndInstallUpdates(settings.autoDownloadAndInstallUpdates ?? false);
         setMessageStreamShowReasoning(settings.messageStreamShowReasoning ?? true);
         setMessageStreamShowTodos(settings.messageStreamShowTodos ?? false);
-        setDisableStartupAnimation(settings.disableStartupAnimation ?? false);
         setToolGroupingExploreEnabled(settings.toolGroupingExploreEnabled ?? true);
         setToolGroupingTerminalEnabled(settings.toolGroupingTerminalEnabled ?? true);
         setToolGroupingChangesEnabled(settings.toolGroupingChangesEnabled ?? false);
@@ -795,7 +793,6 @@ export function SettingsPage({
     }
     setMessageStreamShowReasoning(sharedSettings.messageStreamShowReasoning ?? true);
     setMessageStreamShowTodos(sharedSettings.messageStreamShowTodos ?? false);
-    setDisableStartupAnimation(sharedSettings.disableStartupAnimation ?? false);
     setToolGroupingExploreEnabled(sharedSettings.toolGroupingExploreEnabled ?? true);
     setToolGroupingTerminalEnabled(sharedSettings.toolGroupingTerminalEnabled ?? true);
     setToolGroupingChangesEnabled(sharedSettings.toolGroupingChangesEnabled ?? false);
@@ -978,13 +975,6 @@ export function SettingsPage({
     async (enabled: boolean) => {
       await updateSharedSettings({ messageStreamShowTodos: enabled });
       setMessageStreamShowTodos(enabled);
-    },
-    [updateSharedSettings],
-  );
-  const handleDisableStartupAnimationChange = useCallback(
-    async (disabled: boolean) => {
-      await updateSharedSettings({ disableStartupAnimation: disabled });
-      setDisableStartupAnimation(disabled);
     },
     [updateSharedSettings],
   );
@@ -1376,7 +1366,6 @@ export function SettingsPage({
                             taskAutoArchiveOlderThanDays={taskAutoArchiveOlderThanDays}
                             messageStreamShowReasoning={messageStreamShowReasoning}
                             messageStreamShowTodos={messageStreamShowTodos}
-                            disableStartupAnimation={disableStartupAnimation}
                             toolGroupingExploreEnabled={toolGroupingExploreEnabled}
                             toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
                             toolGroupingChangesEnabled={toolGroupingChangesEnabled}
@@ -1414,7 +1403,6 @@ export function SettingsPage({
                               handleMessageStreamShowReasoningChange
                             }
                             onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
-                            onDisableStartupAnimationChange={handleDisableStartupAnimationChange}
                             onToolGroupingExploreEnabledChange={
                               handleToolGroupingExploreEnabledChange
                             }

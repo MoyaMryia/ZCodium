@@ -1914,9 +1914,6 @@ const enUS: Record<string, string> = {
     "Show full reasoning inside the message stream. When off, the first reasoning item in each turn remains visible.",
   "settings.messageStreamShowTodos": "Show todos",
   "settings.messageStreamShowTodosDescription": "Show Todo tool cards inside the message stream. ",
-  "settings.disableStartupAnimation": "Disable startup animation",
-  "settings.disableStartupAnimationDescription":
-    "Stop playing the breathing app-icon animation while starting up; the startup screen shows a static icon instead.",
   "settings.toolGroupingExplore": "Group exploration tools",
   "settings.toolGroupingExploreDescription":
     "Group consecutive reads and searches into an Explore section.",

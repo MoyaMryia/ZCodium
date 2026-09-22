@@ -1,5 +1,4 @@
 import { measureOperation } from "@/lib/diagnostics/operations.js";
-import { writeStartupAnimationDisabled } from "@/lib/startupAnimationPreference.js";
 /**
  * useSettingService —— 设置服务 hooks
  */
@@ -138,16 +137,6 @@ export function useSettings() {
       }) ?? (() => {})
     );
   }, [platform, refresh]);
-
-  // HTML 启动壳在 React 之前渲染，读不到 settingService，按 zcode-theme 的先例读 localStorage 镜像。
-  // 真实偏好仍以 setting.json 为唯一事实源，这里只在快照到手后同步一次，不新增第二份落盘真相。
-  const startupAnimationDisabled = snapshot.settings?.disableStartupAnimation === true;
-  useEffect(() => {
-    if (!snapshot.settings) {
-      return;
-    }
-    writeStartupAnimationDisabled(startupAnimationDisabled);
-  }, [snapshot.settings, startupAnimationDisabled]);
 
   const update = useCallback(
     async (patch: Partial<AppSettings>) => {

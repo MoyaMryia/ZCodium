@@ -7,7 +7,6 @@ import type {
 } from "@zcode/shared";
 import {
   TID_SETTINGS_ASK_USER_QUESTION_AUTO_RESOLUTION_SWITCH,
-  TID_SETTINGS_DISABLE_STARTUP_ANIMATION_SWITCH,
   TID_SETTINGS_NATIVE_SEARCH_SWITCH,
 } from "@zcode/shared";
 import { useState, useCallback, useEffect } from "react";
@@ -77,7 +76,6 @@ export function GeneralSectionContent({
   taskAutoArchiveOlderThanDays,
   messageStreamShowReasoning,
   messageStreamShowTodos,
-  disableStartupAnimation = false,
   toolGroupingExploreEnabled,
   toolGroupingTerminalEnabled,
   toolGroupingChangesEnabled,
@@ -101,7 +99,6 @@ export function GeneralSectionContent({
   onAutoDownloadAndInstallUpdatesChange,
   onMessageStreamShowReasoningChange,
   onMessageStreamShowTodosChange,
-  onDisableStartupAnimationChange = async () => {},
   onToolGroupingExploreEnabledChange,
   onToolGroupingTerminalEnabledChange,
   onToolGroupingChangesEnabledChange,
@@ -140,7 +137,6 @@ export function GeneralSectionContent({
   taskAutoArchiveOlderThanDays: number;
   messageStreamShowReasoning: boolean;
   messageStreamShowTodos: boolean;
-  disableStartupAnimation?: boolean;
   toolGroupingExploreEnabled: boolean;
   toolGroupingTerminalEnabled: boolean;
   toolGroupingChangesEnabled: boolean;
@@ -164,7 +160,6 @@ export function GeneralSectionContent({
   onAutoDownloadAndInstallUpdatesChange: (enabled: boolean) => Promise<void>;
   onMessageStreamShowReasoningChange: (enabled: boolean) => Promise<void>;
   onMessageStreamShowTodosChange: (enabled: boolean) => Promise<void>;
-  onDisableStartupAnimationChange?: (disabled: boolean) => Promise<void>;
   onToolGroupingExploreEnabledChange: (enabled: boolean) => Promise<void>;
   onToolGroupingTerminalEnabledChange: (enabled: boolean) => Promise<void>;
   onToolGroupingChangesEnabledChange: (enabled: boolean) => Promise<void>;
@@ -744,22 +739,6 @@ export function GeneralSectionContent({
               checked={messageStreamShowTodos}
               onCheckedChange={(checked) => {
                 void onMessageStreamShowTodosChange(checked);
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.disableStartupAnimation" })}
-          description={intl.formatMessage({
-            id: "settings.disableStartupAnimationDescription",
-          })}
-          control={
-            <Switch
-              aria-label={intl.formatMessage({ id: "settings.disableStartupAnimation" })}
-              checked={disableStartupAnimation}
-              data-testid={TID_SETTINGS_DISABLE_STARTUP_ANIMATION_SWITCH}
-              onCheckedChange={(checked) => {
-                void onDisableStartupAnimationChange(checked);
               }}
             />
           }

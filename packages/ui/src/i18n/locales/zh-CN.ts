@@ -1805,9 +1805,6 @@ const zhCN: Record<string, string> = {
     "在消息流中展示完整的模型思考内容；关闭时每轮仍展示第一次思考。",
   "settings.messageStreamShowTodos": "显示待办",
   "settings.messageStreamShowTodosDescription": "在消息流中展示 Todo 工具卡片。",
-  "settings.disableStartupAnimation": "关闭启动动画",
-  "settings.disableStartupAnimationDescription":
-    "启动时不再播放应用图标的呼吸动画，启动画面直接显示静态图标。",
   "settings.toolGroupingExplore": "分组探索工具",
   "settings.toolGroupingExploreDescription": "将连续的读取和搜索工具聚合为 Explore 分组。",
   "settings.toolGroupingTerminal": "分组终端命令",
