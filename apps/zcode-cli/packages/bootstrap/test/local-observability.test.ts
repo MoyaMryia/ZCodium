@@ -241,6 +241,9 @@ test("question input has no analytics metadata field", () => {
 
 test("protocol maintenance retains pruning and local logs with safe resource samples", (context) => {
   context.mock.timers.enable({ apis: ["setInterval"] });
+  // fake timer 不推进 hrtime；CI 执行不足 0.5ms 时会被采样器视为零间隔，必须同步两种时钟。
+  let monotonicTimeNs = 0n;
+  context.mock.method(process.hrtime, "bigint", () => monotonicTimeNs);
   const calls: string[] = [];
   let logged: Record<string, unknown> | undefined;
   const maintenance = startProtocolMaintenance(
@@ -272,13 +275,18 @@ test("protocol maintenance retains pruning and local logs with safe resource sam
       throw new Error("closed IPC");
     },
   );
-  context.mock.timers.tick(60_000);
-  assert.deepEqual(calls, ["transport", "rebalance", "events", "publishers", "log"]);
-  assert.equal(logged?.sessionCount, 2);
-  assert.equal(logged?.eventRowCount, 12);
-  assert.equal(logged?.publisherCount, 1);
-  assert.ok(!JSON.stringify(logged).includes("privateCounterName"));
-  maintenance?.stop();
+  try {
+    monotonicTimeNs += 60_000_000_000n;
+    context.mock.timers.tick(60_000);
+    assert.deepEqual(calls, ["transport", "rebalance", "events", "publishers", "log"]);
+    assert.equal(logged?.sessionCount, 2);
+    assert.equal(logged?.eventRowCount, 12);
+    assert.equal(logged?.publisherCount, 1);
+    assert.ok(!JSON.stringify(logged).includes("privateCounterName"));
+  } finally {
+    maintenance?.stop();
+  }
+  monotonicTimeNs += 60_000_000_000n;
   context.mock.timers.tick(60_000);
   assert.equal(calls.length, 5);
 });
