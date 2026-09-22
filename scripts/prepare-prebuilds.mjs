@@ -100,6 +100,7 @@ const builtinContentPluginPackages = [
   // documents 的 Python 脚本是技能正文描述的能力的执行体，seed 必须带齐。
   "documents-plugin",
   "pdf-plugin",
+  "spreadsheets-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",

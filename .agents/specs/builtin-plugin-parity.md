@@ -18,7 +18,7 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 | 包                                      | 内容形态                              | 运行时依赖                     |
 | --------------------------------------- | ------------------------------------- | ------------------------------ |
 | `@zcode/presentations-plugin`           | skills + agents（PPTX）               | 无                             |
-| `@zcode/documents-plugin`               | skills + agents + scripts（DOCX）     | 无（Python 脚本由宿主执行）     |
+| `@zcode/documents-plugin`               | skills + agents + scripts（DOCX）     | 无（Python 脚本由宿主执行）    |
 | `@zcode/skill-creator-plugin`           | skills                                | 无                             |
 | `@zcode/plugin-creator-plugin`          | skills + scripts（纯 `.mjs`，无构建） | 无                             |
 | `@zcode/image-search-plugin`            | `.mcp.json`（HTTP MCP）               | 指向官方后端                   |
@@ -46,7 +46,7 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 
 | 位置                                                                                                                              | 职责                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts` → `OFFICIAL_PLUGIN_DEFINITIONS`                          | bootstrap 注册与 seed 校验   |
+| `apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts` → `OFFICIAL_PLUGIN_DEFINITIONS`                        | bootstrap 注册与 seed 校验  |
 | `scripts/prepare-prebuilds.mjs` → `remoteOfficialPluginPackages` / `remoteOfficialPluginRequiredPaths`                            | 远端 shared-host staging    |
 | `packages/desktop/scripts/prepare-agent-node-bundle.mjs` → `officialPluginPackages`                                               | 桌面 agent node bundle seed |
 | `packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts` → `REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES` / `..._ASSET_PATHS` | 远端合同                    |

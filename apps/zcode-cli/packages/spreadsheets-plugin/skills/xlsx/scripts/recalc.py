@@ -1,0 +1,221 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["openpyxl"]
+# ///
+#
+# Excel Formula Recalculation Script
+# Recalculates all formulas in an Excel file using LibreOffice
+#
+# Derived from `xlsx/recalc.py` of appautomaton/document-SKILLs
+# (https://github.com/appautomaton/document-SKILLs),
+# Copyright (c) 2026 appautomaton, MIT License.
+#
+# MIT License
+#
+# Copyright (c) 2026 appautomaton
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# Changes from the upstream file: the PEP 723 header declares the lowest
+# interpreter that actually runs it (`>=3.10` instead of `>=3.12`; the code
+# uses no post-3.10 syntax), and the usage text names this repository's
+# `python3` invocation instead of `uv run`. Formula recalculation, macro setup,
+# error scanning and the JSON result shape are unchanged. External
+# dependencies are still `openpyxl` (import) and LibreOffice `soffice` (PATH);
+# when `soffice` is missing `recalc()` returns `{'error': ...}` rather than
+# raising.
+
+import json
+import sys
+import subprocess
+import os
+import platform
+import shutil
+from pathlib import Path
+from openpyxl import load_workbook
+
+EXCEL_ERRORS = ['#VALUE!', '#DIV/0!', '#REF!', '#NAME?', '#NULL!', '#NUM!', '#N/A']
+
+
+def setup_libreoffice_macro():
+    """Setup LibreOffice macro for recalculation if not already configured"""
+    if platform.system() == 'Darwin':
+        macro_dir = os.path.expanduser('~/Library/Application Support/LibreOffice/4/user/basic/Standard')
+    else:
+        macro_dir = os.path.expanduser('~/.config/libreoffice/4/user/basic/Standard')
+
+    macro_file = os.path.join(macro_dir, 'Module1.xba')
+
+    if os.path.exists(macro_file):
+        with open(macro_file, 'r') as f:
+            if 'RecalculateAndSave' in f.read():
+                return True
+
+    if not os.path.exists(macro_dir):
+        subprocess.run(['soffice', '--headless', '--terminate_after_init'],
+                      capture_output=True, timeout=10)
+        os.makedirs(macro_dir, exist_ok=True)
+
+    macro_content = '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic">
+    Sub RecalculateAndSave()
+      ThisComponent.calculateAll()
+      ThisComponent.store()
+      ThisComponent.close(True)
+    End Sub
+</script:module>'''
+
+    try:
+        with open(macro_file, 'w') as f:
+            f.write(macro_content)
+        return True
+    except Exception:
+        return False
+
+
+def recalc(filename, timeout=30):
+    """
+    Recalculate formulas in Excel file and report any errors
+
+    Args:
+        filename: Path to Excel file
+        timeout: Maximum time to wait for recalculation (seconds)
+
+    Returns:
+        dict with error locations and counts
+    """
+    if not Path(filename).exists():
+        return {'error': f'File {filename} does not exist'}
+
+    if shutil.which('soffice') is None:
+        return {'error': "LibreOffice ('soffice') not found on PATH. Install it "
+                         "(`brew install --cask libreoffice` or `apt-get install libreoffice`) and retry."}
+
+    abs_path = str(Path(filename).absolute())
+
+    if not setup_libreoffice_macro():
+        return {'error': 'Failed to setup LibreOffice macro'}
+
+    cmd = [
+        'soffice', '--headless', '--norestore',
+        'vnd.sun.star.script:Standard.Module1.RecalculateAndSave?language=Basic&location=application',
+        abs_path
+    ]
+
+    # Handle timeout command differences between Linux and macOS
+    if platform.system() != 'Windows':
+        timeout_cmd = 'timeout' if platform.system() == 'Linux' else None
+        if platform.system() == 'Darwin':
+            # Check if gtimeout is available on macOS
+            try:
+                subprocess.run(['gtimeout', '--version'], capture_output=True, timeout=1, check=False)
+                timeout_cmd = 'gtimeout'
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                print("Warning: 'gtimeout' not found (`brew install coreutils`); "
+                      "running LibreOffice without a timeout", file=sys.stderr)
+
+        if timeout_cmd:
+            cmd = [timeout_cmd, str(timeout)] + cmd
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0 and result.returncode != 124:  # 124 is timeout exit code
+        error_msg = result.stderr or 'Unknown error during recalculation'
+        if 'Module1' in error_msg or 'RecalculateAndSave' in error_msg:
+            return {'error': f'LibreOffice macro not configured properly: {error_msg}'}
+        return {'error': error_msg}
+
+    # Check for Excel errors in the recalculated file - scan ALL cells
+    try:
+        wb = load_workbook(filename, data_only=True)
+
+        error_details = {err: [] for err in EXCEL_ERRORS}
+        total_errors = 0
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # Check ALL rows and columns - no limits
+            for row in ws.iter_rows():
+                for cell in row:
+                    if cell.value is not None and isinstance(cell.value, str):
+                        for err in EXCEL_ERRORS:
+                            if err in cell.value:
+                                location = f"{sheet_name}!{cell.coordinate}"
+                                error_details[err].append(location)
+                                total_errors += 1
+                                break
+
+        wb.close()
+
+        # Build result summary
+        result = {
+            'status': 'success' if total_errors == 0 else 'errors_found',
+            'total_errors': total_errors,
+            'error_summary': {}
+        }
+
+        # Add non-empty error categories
+        for err_type, locations in error_details.items():
+            if locations:
+                result['error_summary'][err_type] = {
+                    'count': len(locations),
+                    'locations': locations[:20]  # Show up to 20 locations
+                }
+
+        # Add formula count for context - also check ALL cells
+        wb_formulas = load_workbook(filename, data_only=False)
+        formula_count = 0
+        for sheet_name in wb_formulas.sheetnames:
+            ws = wb_formulas[sheet_name]
+            for row in ws.iter_rows():
+                for cell in row:
+                    if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
+                        formula_count += 1
+        wb_formulas.close()
+
+        result['total_formulas'] = formula_count
+
+        return result
+
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python3 recalc.py <excel_file> [timeout_seconds]")
+        print("\nRecalculates all formulas in an Excel file using LibreOffice")
+        print("\nReturns JSON with error details:")
+        print("  - status: 'success' or 'errors_found'")
+        print("  - total_errors: Total number of Excel errors found")
+        print("  - total_formulas: Number of formulas in the file")
+        print("  - error_summary: Breakdown by error type with locations")
+        print("    - #VALUE!, #DIV/0!, #REF!, #NAME?, #NULL!, #NUM!, #N/A")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    timeout = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+
+    result = recalc(filename, timeout)
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == '__main__':
+    main()

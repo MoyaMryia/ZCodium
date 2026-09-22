@@ -164,6 +164,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       ["presentations", "pptx", "Presentations", "演示文档"],
       ["documents", "docx", "Documents", "Word 文档"],
       ["pdf", "pdf", "PDF", "PDF 文档"],
+      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName]): OfficialPluginDefinition => ({
@@ -215,6 +216,14 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
                 "skills/pdf/briefs/report.md",
                 "skills/pdf/briefs/resume.md",
                 "skills/pdf/briefs/poster.md",
+              ]
+            : // recalc.py 是 SKILL.md「Recalculating formulas」章节的唯一执行体，
+            // openpyxl 读取与 soffice 重算都走它；漏掉就是看得见技能、调不到脚本。
+            name === "spreadsheets"
+            ? [
+                "agents/visual-judge.md",
+                "skills/xlsx/SKILL.md",
+                "skills/xlsx/scripts/recalc.py",
               ]
             : ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
       rootCandidates: [

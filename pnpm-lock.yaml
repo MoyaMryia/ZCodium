@@ -517,6 +517,8 @@ importers:
 
   apps/zcode-cli/packages/skill-creator-plugin: {}
 
+  apps/zcode-cli/packages/spreadsheets-plugin: {}
+
   apps/zcode-cli/packages/swift-bridge:
     dependencies:
       '@zcode/shared-types':

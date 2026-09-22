@@ -45,10 +45,18 @@ const PDF_PLUGIN_SEED_PATHS = [
   "skills/pdf/briefs/poster.md",
 ] as const;
 
+const SPREADSHEETS_PLUGIN_SEED_PATHS = [
+  // recalc.py 是 SKILL.md「Recalculating formulas」章节的唯一执行体。
+  "agents/visual-judge.md",
+  "skills/xlsx/SKILL.md",
+  "skills/xlsx/scripts/recalc.py",
+] as const;
+
 const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
   "presentations-plugin": ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
   "documents-plugin": DOCUMENTS_PLUGIN_SEED_PATHS,
   "pdf-plugin": PDF_PLUGIN_SEED_PATHS,
+  "spreadsheets-plugin": SPREADSHEETS_PLUGIN_SEED_PATHS,
   "image-search-plugin": [".mcp.json"],
   "plugin-creator-plugin": [
     "skills/plugin-creator/SKILL.md",
@@ -80,6 +88,7 @@ const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES = [
   "presentations-plugin",
   "documents-plugin",
   "pdf-plugin",
+  "spreadsheets-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",
