@@ -14,9 +14,9 @@ import {
 
 const version = "3.14.0";
 const allNames = [
-  "ZCodium-3.14.0-linux-x64.AppImage",
-  "ZCodium-3.14.0-linux-x64.deb",
-  "ZCodium-3.14.0-linux-x64.rpm",
+  "ZCodium-3.14.0-linux-x86_64.AppImage",
+  "ZCodium-3.14.0-linux-amd64.deb",
+  "ZCodium-3.14.0-linux-x86_64.rpm",
   "ZCodium-3.14.0-linux-x64.pkg.tar.zst",
   "ZCodium-3.14.0-win-x64.exe",
 ];

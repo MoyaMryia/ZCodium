@@ -5,6 +5,7 @@
 - 首个 CI/CD PR 只覆盖 Linux x64、Windows x64；使用 GitHub 托管的原生 runner。
 - PR、main 推送、手动运行和 `v*` 标签推送均执行检查与双平台打包。
 - Linux 沿用现有 AppImage、deb、rpm、pkg.tar.zst，Windows 沿用 NSIS exe。
+- 产物文件名遵循现有打包器的架构命名：deb 使用 amd64，AppImage / rpm 使用 x86_64，pacman / Windows 使用 x64。
 - 只有版本标签推送允许创建 GitHub **草稿** Release，公开发布由维护者审核后操作。
 - 带预发布标识的版本同时标记为 prerelease，审核发布时不会被误当作稳定版本。
 - 标签必须为 `v<package.json.version>`，版本需满足 SemVer（可带预发布标识，不接受 build metadata）。无效标签在构建前失败。

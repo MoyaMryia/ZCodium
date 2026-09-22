@@ -6,7 +6,11 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const extensions = { linux: ["AppImage", "deb", "rpm", "pkg.tar.zst"], win: ["exe"] };
+// electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
+const extensions = {
+  linux: { AppImage: "x86_64", deb: "amd64", rpm: "x86_64", "pkg.tar.zst": "x64" },
+  win: { exe: "x64" },
+};
 const number = "(?:0|[1-9][0-9]*)";
 const identifier = `(?:${number}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)`;
 const versionPattern = new RegExp(
@@ -27,7 +31,9 @@ export function validateTag(tag, version) {
 export function artifactNames(platform, version) {
   validateVersion(version);
   if (!Object.hasOwn(extensions, platform)) throw new Error(`Unsupported platform: ${platform}`);
-  return extensions[platform].map((ext) => `ZCodium-${version}-${platform}-x64.${ext}`);
+  return Object.entries(extensions[platform]).map(
+    ([ext, arch]) => `ZCodium-${version}-${platform}-${arch}.${ext}`,
+  );
 }
 
 async function assertInstaller(file) {
