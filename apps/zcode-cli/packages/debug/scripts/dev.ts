@@ -2,21 +2,10 @@ import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import { startDebugServer } from "../server/index.js";
-import { createNetworkCaptureServiceFromEnv } from "../server/network-capture.js";
 
 const apiPort = 4174;
 const root = fileURLToPath(new URL("..", import.meta.url));
-const networkCapture = createNetworkCaptureServiceFromEnv();
-
-networkCapture?.subscribe((event) => {
-  if (event.type === "status" && event.status.running) {
-    console.log(
-      `[debug] Network proxy listening on ${event.status.proxyUrl}; CA ${event.status.certificate.caCertPath}`,
-    );
-  }
-});
-
-const apiServer = startDebugServer({ port: apiPort, networkCapture });
+const apiServer = startDebugServer({ port: apiPort });
 await once(apiServer, "listening");
 
 const vite = await createViteServer({

@@ -1,19 +1,14 @@
 import {
   AlertTriangle,
   BarChart3,
-  Check,
   Clock3,
-  Clipboard,
   Database,
   FileJson,
-  Globe2,
   Layers3,
   Maximize2,
   Minimize2,
   Radio,
   RefreshCw,
-  Search,
-  ShieldCheck,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -30,9 +25,6 @@ import type {
   ContextSnapshotView,
   ContextUsageSnapshotView,
   ContextUsageSource,
-  NetworkCaptureStatus,
-  NetworkRequestRecord,
-  NetworkRequestsResponse,
   ObservationChangeEvent,
   ObservationHelloEvent,
   ObservationSourceErrorEvent,
@@ -73,19 +65,11 @@ const emptyInputs: SourceInputs = {
 };
 
 const lastProjectStorageKey = "zcode-debug:last-project-id";
-type EnvShell = "posix" | "powershell" | "cmd";
-type DebugView = "trace" | "gantt" | "network";
-
-const envShellLabels: Record<EnvShell, string> = {
-  posix: "POSIX",
-  powershell: "PowerShell",
-  cmd: "CMD",
-};
+type DebugView = "trace" | "gantt";
 
 const viewLabels: Record<DebugView, string> = {
   trace: "Trace",
   gantt: "甘特图",
-  network: "网络请求",
 };
 
 const laneOrder: TraceSpanLane[] = [
@@ -156,16 +140,11 @@ export function App() {
   const [sources, setSources] = useState<SourceStatus[]>([]);
   const [detail, setDetail] = useState<TraceDetailResponse | null>(null);
   const [view, setView] = useState<DebugView>(() => viewFromHash(window.location.hash));
-  const [networkFilter, setNetworkFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const network = useNetworkCapture();
 
   const query = useMemo(() => buildQuery(inputs), [inputs]);
-  const spans = useMemo(
-    () => mergeNetworkSpans(detail?.spans ?? [], network.requests, traceId),
-    [detail?.spans, network.requests, traceId],
-  );
+  const spans = detail?.spans ?? [];
   const setDebugView = useCallback((nextView: DebugView) => {
     setView(nextView);
     window.history.replaceState(null, "", `#${nextView}`);
@@ -310,21 +289,6 @@ export function App() {
           <ExecutionGanttPanel spans={spans} traceId={traceId} />
         </div>
       ) : null}
-
-      {view === "network" ? (
-        <NetworkPage
-          activeTraceId={traceId}
-          error={network.error}
-          filter={networkFilter}
-          onFilterChange={setNetworkFilter}
-          onTraceSelect={(nextTraceId) => {
-            selectTrace(nextTraceId);
-            setDebugView("gantt");
-          }}
-          requests={network.requests}
-          status={network.status}
-        />
-      ) : null}
     </main>
   );
 }
@@ -423,194 +387,6 @@ function SourceBar({
       ))}
       <div className={`loading-dot ${showLoading ? "visible" : ""}`} aria-hidden={!showLoading}>
         加载中
-      </div>
-    </section>
-  );
-}
-
-function NetworkPage(props: {
-  activeTraceId: string;
-  error: string | null;
-  filter: string;
-  onFilterChange: (value: string) => void;
-  onTraceSelect: (traceId: string) => void;
-  requests: NetworkRequestRecord[];
-  status: NetworkCaptureStatus | null;
-}) {
-  const filteredRequests = useMemo(
-    () => filterNetworkRequests(props.requests, props.filter),
-    [props.filter, props.requests],
-  );
-
-  return (
-    <div className="network-page">
-      <section className="network-control-strip" aria-label="网络请求过滤">
-        <label>
-          <span>过滤</span>
-          <div className="input-with-icon">
-            <Search size={16} />
-            <input
-              value={props.filter}
-              onChange={(event) => props.onFilterChange(event.target.value)}
-              placeholder="trace、host、URL、method"
-            />
-          </div>
-        </label>
-        <button
-          className="secondary-button"
-          disabled={!props.activeTraceId}
-          onClick={() => props.onFilterChange(props.activeTraceId)}
-          type="button"
-        >
-          当前 Trace
-        </button>
-        <button
-          className="secondary-button"
-          disabled={!props.filter}
-          onClick={() => props.onFilterChange("")}
-          type="button"
-        >
-          清空
-        </button>
-      </section>
-      <NetworkPanel
-        activeTraceId={props.activeTraceId}
-        error={props.error}
-        requests={filteredRequests}
-        status={props.status}
-        onTraceSelect={props.onTraceSelect}
-      />
-    </div>
-  );
-}
-
-function NetworkPanel(props: {
-  activeTraceId: string;
-  error: string | null;
-  requests: NetworkRequestRecord[];
-  status: NetworkCaptureStatus | null;
-  onTraceSelect: (traceId: string) => void;
-}) {
-  const [envShell, setEnvShell] = useState<EnvShell>("posix");
-  const [copiedShell, setCopiedShell] = useState<EnvShell | null>(null);
-  const activeTraceCount = props.activeTraceId
-    ? props.requests.filter((request) => request.traceId === props.activeTraceId).length
-    : 0;
-  const envCommand = useMemo(
-    () => formatEnvCommand(props.status?.env ?? {}, envShell),
-    [envShell, props.status?.env],
-  );
-
-  useEffect(() => {
-    if (!copiedShell) return;
-    const timer = window.setTimeout(() => setCopiedShell(null), 1600);
-    return () => window.clearTimeout(timer);
-  }, [copiedShell]);
-
-  const copyEnvCommand = useCallback(async () => {
-    if (!envCommand) return;
-    await copyTextToClipboard(envCommand);
-    setCopiedShell(envShell);
-  }, [envCommand, envShell]);
-
-  return (
-    <section className="panel network-panel">
-      <PanelTitle icon={<Globe2 size={17} />} title="网络请求" />
-      {props.error ? (
-        <div className="network-error">
-          <AlertTriangle size={15} />
-          <span>{props.error}</span>
-        </div>
-      ) : null}
-      <div className="network-head">
-        <div className={props.status?.running ? "network-state ready" : "network-state muted"}>
-          <ShieldCheck size={16} />
-          <div>
-            <strong>{props.status?.running ? "代理运行中" : "代理未运行"}</strong>
-            <span>{props.status?.proxyUrl ?? "未启用"}</span>
-          </div>
-        </div>
-        <div className="network-stat">
-          <span>最近请求</span>
-          <strong>{props.requests.length}</strong>
-        </div>
-        <div className="network-stat">
-          <span>当前 Trace</span>
-          <strong>{activeTraceCount}</strong>
-        </div>
-        <div className="network-stat wide">
-          <span>CA</span>
-          <strong>{props.status?.certificate.caCertPath ?? "未生成"}</strong>
-        </div>
-      </div>
-      {envCommand ? (
-        <div className="env-copy-box">
-          <div className="env-copy-toolbar">
-            <div className="segmented-control" aria-label="环境变量 shell 格式">
-              {(Object.keys(envShellLabels) as EnvShell[]).map((shell) => (
-                <button
-                  aria-pressed={envShell === shell}
-                  className={envShell === shell ? "active" : ""}
-                  key={shell}
-                  onClick={() => setEnvShell(shell)}
-                  type="button"
-                >
-                  {envShellLabels[shell]}
-                </button>
-              ))}
-            </div>
-            <button className="copy-button" onClick={() => void copyEnvCommand()} type="button">
-              {copiedShell === envShell ? <Check size={15} /> : <Clipboard size={15} />}
-              <span>{copiedShell === envShell ? "已复制" : "复制环境"}</span>
-            </button>
-          </div>
-          <pre className="env-command">
-            <code>{envCommand}</code>
-          </pre>
-        </div>
-      ) : null}
-      <div className="network-list">
-        {props.requests.length === 0 ? <EmptyLine text="等待被测 CLI 的网络请求" /> : null}
-        {props.requests.map((request) => (
-          <article
-            className={
-              request.traceId && request.traceId === props.activeTraceId
-                ? "network-row active"
-                : "network-row"
-            }
-            key={request.id}
-          >
-            <div className="network-row-main">
-              <span className={`method method-${request.method.toLowerCase()}`}>
-                {request.method}
-              </span>
-              <strong title={request.url}>{request.url}</strong>
-              <span className={`request-status status-${request.status}`}>
-                {formatNetworkStatus(request)}
-              </span>
-            </div>
-            <div className="network-row-meta">
-              <time>{formatTime(request.startedAt)}</time>
-              <span>{formatDuration(request.durationMs)}</span>
-              <span>{formatBytes(request.requestBodyBytes)} up</span>
-              <span>{formatBytes(request.responseBodyBytes)} down</span>
-              {request.traceId ? (
-                <button
-                  className="trace-chip"
-                  onClick={() => props.onTraceSelect(request.traceId ?? "")}
-                  title="选择这个 Trace"
-                  type="button"
-                >
-                  {request.traceId}
-                </button>
-              ) : (
-                <code>未归因</code>
-              )}
-              {request.sessionId ? <code>{request.sessionId}</code> : null}
-              {request.error ? <span className="network-row-error">{request.error}</span> : null}
-            </div>
-          </article>
-        ))}
       </div>
     </section>
   );
@@ -1132,67 +908,6 @@ function useDelayedVisible(visible: boolean, delayMs: number): boolean {
   return delayedVisible;
 }
 
-function useNetworkCapture(): {
-  status: NetworkCaptureStatus | null;
-  requests: NetworkRequestRecord[];
-  error: string | null;
-} {
-  const [status, setStatus] = useState<NetworkCaptureStatus | null>(null);
-  const [requests, setRequests] = useState<NetworkRequestRecord[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let closed = false;
-
-    async function loadInitialState() {
-      try {
-        const response = await fetchJson<NetworkRequestsResponse>(
-          "/api/network/requests?limit=200",
-        );
-        if (closed) return;
-        setStatus(response.status);
-        setRequests(response.requests);
-      } catch (fetchError) {
-        if (!closed)
-          setError(fetchError instanceof Error ? fetchError.message : String(fetchError));
-      }
-    }
-
-    void loadInitialState();
-    const events = new EventSource("/api/network/events");
-    events.addEventListener("status", (event) => {
-      const parsed = parseMessageEvent<NetworkCaptureStatus>(event);
-      if (parsed && !closed) setStatus(parsed);
-    });
-    events.addEventListener("snapshot", (event) => {
-      const parsed = parseMessageEvent<NetworkRequestRecord[]>(event);
-      if (parsed && !closed) setRequests(parsed);
-    });
-    events.addEventListener("request", (event) => {
-      const parsed = parseMessageEvent<NetworkRequestRecord>(event);
-      if (parsed && !closed) {
-        setRequests((current) => mergeNetworkRequest(current, parsed));
-      }
-    });
-    events.addEventListener("reset", () => {
-      if (!closed) setRequests([]);
-    });
-    events.addEventListener("error", () => {
-      if (!closed) setError("网络抓包事件流已断开，正在等待浏览器重连。");
-    });
-    events.addEventListener("open", () => {
-      if (!closed) setError(null);
-    });
-
-    return () => {
-      closed = true;
-      events.close();
-    };
-  }, []);
-
-  return { status, requests, error };
-}
-
 function groupSections(snapshot?: ContextSnapshotView) {
   const groups = new Map<ContextSectionSource, number>();
   for (const section of snapshot?.sections ?? []) {
@@ -1240,112 +955,6 @@ function parseMessageEvent<T>(event: Event): T | null {
   } catch {
     return null;
   }
-}
-
-async function copyTextToClipboard(text: string): Promise<void> {
-  if (navigator.clipboard) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
-  document.body.append(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
-}
-
-function formatEnvCommand(env: Record<string, string>, shell: EnvShell): string {
-  const entries = Object.entries(env);
-  if (entries.length === 0) return "";
-  if (shell === "powershell") {
-    return entries.map(([name, value]) => `$env:${name} = ${quotePowerShell(value)}`).join("\n");
-  }
-  if (shell === "cmd") {
-    return entries
-      .map(([name, value]) => `set "${name}=${value.replaceAll('"', '\\"')}"`)
-      .join("\n");
-  }
-  return entries.map(([name, value]) => `export ${name}=${quotePosix(value)}`).join("\n");
-}
-
-function quotePosix(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function quotePowerShell(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
-}
-
-function mergeNetworkRequest(
-  current: NetworkRequestRecord[],
-  next: NetworkRequestRecord,
-): NetworkRequestRecord[] {
-  const byId = new Map(current.map((request) => [request.id, request]));
-  byId.set(next.id, next);
-  return [...byId.values()]
-    .toSorted((left, right) => compareDateDesc(left.startedAt, right.startedAt))
-    .slice(0, 200);
-}
-
-function mergeNetworkSpans(
-  spans: TraceSpan[],
-  requests: NetworkRequestRecord[],
-  traceId: string,
-): TraceSpan[] {
-  if (!traceId) return spans;
-  const networkSpans = requests
-    .filter((request) => request.traceId === traceId)
-    .map(networkRequestToSpan);
-  return [...spans, ...networkSpans];
-}
-
-function networkRequestToSpan(request: NetworkRequestRecord): TraceSpan {
-  return {
-    id: `network:${request.id}`,
-    traceId: request.traceId,
-    sessionId: request.sessionId,
-    turnId: request.turnId,
-    spanId: request.spanId,
-    lane: "network",
-    label: `${request.method} ${request.host}`,
-    source: "network",
-    startAt: request.startedAt,
-    endAt: request.completedAt,
-    status: request.status === "pending" ? "running" : request.status === "error" ? "error" : "ok",
-    summary: `${request.method} ${request.url}\n${formatNetworkStatus(request)} · ${formatBytes(
-      request.requestBodyBytes,
-    )} up · ${formatBytes(request.responseBodyBytes)} down`,
-    payload: request,
-  };
-}
-
-function filterNetworkRequests(
-  requests: NetworkRequestRecord[],
-  filter: string,
-): NetworkRequestRecord[] {
-  const normalized = filter.trim().toLowerCase();
-  if (!normalized) return requests;
-  return requests.filter((request) =>
-    [
-      request.traceId,
-      request.sessionId,
-      request.turnId,
-      request.spanId,
-      request.method,
-      request.host,
-      request.path,
-      request.url,
-      request.status,
-      request.statusCode ? String(request.statusCode) : "",
-    ]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(normalized)),
-  );
 }
 
 function buildGanttGroups(spans: TraceSpan[]): VisTimelineGroup[] {
@@ -1398,11 +1007,6 @@ function ganttItemTitle(span: TraceSpan): string {
 }
 
 function ganttItemMeta(span: TraceSpan): string {
-  const request = networkRequestFromPayload(span.payload);
-  if (request) {
-    return [formatNetworkStatus(request), formatDuration(request.durationMs)].join(" · ");
-  }
-
   return [formatSpanStatus(span.status), formatSpanDuration(span)].join(" · ");
 }
 
@@ -1416,20 +1020,6 @@ function ganttIdentifierLine(span: TraceSpan): string {
   ]
     .filter(Boolean)
     .join(" · ");
-}
-
-function networkRequestFromPayload(payload: unknown): NetworkRequestRecord | null {
-  if (!isPlainObject(payload)) return null;
-  if (typeof payload.id !== "string") return null;
-  if (typeof payload.startedAt !== "string") return null;
-  if (typeof payload.method !== "string") return null;
-  if (typeof payload.url !== "string") return null;
-  if (typeof payload.status !== "string") return null;
-  return payload as unknown as NetworkRequestRecord;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function ganttOptions(isFullscreen: boolean): TimelineOptions {
@@ -1460,7 +1050,7 @@ function escapeTimelineContent(value: string): string {
 
 function viewFromHash(hash: string): DebugView {
   const normalized = hash.replace(/^#/, "");
-  if (normalized === "gantt" || normalized === "network") return normalized;
+  if (normalized === "gantt") return normalized;
   return "gantt";
 }
 
@@ -1562,22 +1152,10 @@ function formatSegmentLabel(value?: string): string {
   }
 }
 
-function formatNetworkStatus(request: NetworkRequestRecord): string {
-  if (request.status === "pending") return "进行中";
-  if (request.status === "error") return "错误";
-  return request.statusCode ? String(request.statusCode) : "完成";
-}
-
 function formatDuration(value?: number): string {
   if (value === undefined) return "-- ms";
   if (value < 1000) return `${value} ms`;
   return `${(value / 1000).toFixed(1)} s`;
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function formatTime(value?: string): string {
@@ -1589,10 +1167,6 @@ function formatTime(value?: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function compareDateDesc(left?: string, right?: string): number {
-  return new Date(right ?? 0).getTime() - new Date(left ?? 0).getTime();
 }
 
 function compareDateAsc(left?: string, right?: string): number {

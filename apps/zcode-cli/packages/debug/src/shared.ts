@@ -1,4 +1,4 @@
-export type ObservationSourceKind = "log" | "eventlog" | "sqlite" | "network";
+export type ObservationSourceKind = "log" | "eventlog" | "sqlite";
 
 export interface SourceStatus {
   kind: ObservationSourceKind;
@@ -79,7 +79,11 @@ export interface TraceSpan {
 }
 
 export type ContextSectionSource = "system_prompt" | "skills" | "tools" | "other";
-export type TokenMethod = "estimated" | "provider_count" | "proportional_estimate" | "provider_usage";
+export type TokenMethod =
+  | "estimated"
+  | "provider_count"
+  | "proportional_estimate"
+  | "provider_usage";
 export type TokenConfidence = "high" | "medium" | "low";
 
 export interface TokenMeasurement {
@@ -215,66 +219,6 @@ export interface DeveloperRequest {
   eventName: string;
   schema: string[];
 }
-
-export interface NetworkCaptureCertificateStatus {
-  caDir?: string;
-  caCertPath?: string;
-  caPrivateKeyPath?: string;
-  caPublicKeyPath?: string;
-  caCertAvailable: boolean;
-}
-
-export interface NetworkCaptureStatus {
-  enabled: boolean;
-  running: boolean;
-  host?: string;
-  port?: number;
-  proxyUrl?: string;
-  library: string;
-  maxEntries: number;
-  certificate: NetworkCaptureCertificateStatus;
-  env: Record<string, string>;
-  lastError?: string;
-}
-
-export interface NetworkRequestAttribution {
-  traceId?: string;
-  sessionId?: string;
-  turnId?: string;
-  spanId?: string;
-}
-
-export interface NetworkRequestRecord extends NetworkRequestAttribution {
-  id: string;
-  startedAt: string;
-  completedAt?: string;
-  durationMs?: number;
-  protocol: "http" | "https" | "ws" | "wss";
-  method: string;
-  host: string;
-  path: string;
-  url: string;
-  status: "pending" | "complete" | "error";
-  statusCode?: number;
-  requestHeaders: Record<string, string>;
-  responseHeaders: Record<string, string>;
-  requestHeaderCount: number;
-  responseHeaderCount: number;
-  requestBodyBytes: number;
-  responseBodyBytes: number;
-  error?: string;
-}
-
-export interface NetworkRequestsResponse {
-  status: NetworkCaptureStatus;
-  requests: NetworkRequestRecord[];
-}
-
-export type NetworkCaptureEvent =
-  | { type: "status"; status: NetworkCaptureStatus }
-  | { type: "snapshot"; requests: NetworkRequestRecord[] }
-  | { type: "request"; request: NetworkRequestRecord }
-  | { type: "reset" };
 
 export interface ObservationSourceFingerprint {
   kind: ObservationSourceKind;
