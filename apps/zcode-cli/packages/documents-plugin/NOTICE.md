@@ -15,11 +15,15 @@ reference are enumerated in the module docstring of `document.py`. The five
 `templates/*.xml` parts are byte-identical to the reference's and are covered by
 the MIT notice above.
 
-## skills/docx/LICENSE.txt
+## Everything else in this plugin
 
-The remainder of this plugin — the SKILL.md body, the references/, routes/ and
-scenes/ documents, `postcheck.py`, `add_toc_placeholders.py`,
-`fix_footer_fields.py` and the env_setup scripts — is covered by the proprietary
-non-commercial license in `skills/docx/LICENSE.txt`. It is not MIT-licensed and
-not Apache-2.0-licensed, and the repository's root Apache-2.0 license does not
-extend to it.
+`postcheck.py`, `postcheck_document.py`, `postcheck_rules.py`,
+`fix_footer_fields.py`, `add_toc_placeholders.py` and the `SKILL.md`,
+`references/`, `routes/` and `scenes/` documents are original work written for
+this repository. They are covered by the repository's root Apache-2.0 license.
+
+No upstream vendor's source, license text or copyright notice is distributed
+with this plugin. The previous `skills/docx/LICENSE.txt` carried a proprietary
+non-commercial license that conflicted with the repository's Apache-2.0 license
+and did not describe any of the code actually shipped here; it was removed in
+favour of the two sections above.

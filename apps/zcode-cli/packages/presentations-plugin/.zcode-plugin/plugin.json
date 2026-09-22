@@ -9,7 +9,7 @@
   "author": {
     "name": "ZCodium"
   },
-  "license": "SEE LICENSE IN skills/pptx/LICENSE.txt",
+  "license": "Apache-2.0",
   "skills": "skills",
   "agents": "agents"
 }
