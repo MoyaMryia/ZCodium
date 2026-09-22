@@ -8,7 +8,9 @@ import {
   type OAuthProviderId,
   type OAuthStateRegistration,
   PlatformChannels,
+  ZCODE_PRODUCT_FLAVOR,
 } from "@zcode/shared";
+import { desktopProductIdentities } from "../../scripts/desktop-product-identity.mjs";
 import {
   extractWorkspaceOpenPath,
   extractShareImportCode,
@@ -431,10 +433,17 @@ export function registerDeepLinkProtocol(
   }
 
   if (process.platform === "linux" && app.isPackaged) {
+    // 桌面条目的 Name/id 取构建期产品身份，不能用 app.name：后者来自 desktopRuntimeEnv 的
+    // 运行时应用名，改名后仍可能是旧名，会把 Name=ZCode 的条目写进启动器，与系统级
+    // ZCodium 条目并列成两个图标。id 按 flavor 取包名，Preview 不遮蔽正式版系统条目。
+    const desktopProductIdentity =
+      desktopProductIdentities[ZCODE_PRODUCT_FLAVOR === "preview" ? "preview" : "production"];
     registerLinuxDeepLinkProtocol({
       executablePath: process.execPath,
       homeDir: app.getPath("home"),
-      productName: app.name,
+      productName: desktopProductIdentity.productName,
+      desktopEntryId: desktopProductIdentity.linuxPackageName,
+      iconName: desktopProductIdentity.linuxPackageName,
       iconSourcePath: options.iconPath,
       env: process.env,
       argv: process.argv,

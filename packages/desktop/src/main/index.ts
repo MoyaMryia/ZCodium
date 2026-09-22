@@ -154,6 +154,7 @@ import {
   runtimeHomePath,
   runtimeSessionDataPath,
   runtimeUserDataPath,
+  migrateRuntimeUserDataDir,
   shouldUseElectronDefaultUserDataPath,
 } from "./desktopRuntimeEnv.js";
 import {
@@ -215,6 +216,9 @@ app.setName(runtimeApplicationName);
 if (runtimeHomePath) {
   app.setPath("home", runtimeHomePath);
 }
+// 必须在 app.setPath("userData") 之前：把旧应用名的用户数据目录搬到新身份目录，
+// 否则改了 runtimeApplicationName 之后用户会在空 profile 里重新登录。
+migrateRuntimeUserDataDir(logger);
 if (!shouldUseElectronDefaultUserDataPath) {
   if (!runtimeUserDataPath || !runtimeSessionDataPath) {
     throw new Error(

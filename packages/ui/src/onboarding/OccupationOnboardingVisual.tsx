@@ -51,7 +51,7 @@ export function OccupationOnboardingVisual({
       />
       <div className="relative my-auto flex w-full max-w-[640px] shrink-0 flex-col items-start [container-type:inline-size]">
         <div aria-hidden="true" className="relative mb-10 rounded-3xl">
-          <ZCodeStartupLogoBadge animated={false} />
+          <ZCodeStartupLogoBadge />
           <div className="onboarding-logo-sweep">
             <div />
           </div>

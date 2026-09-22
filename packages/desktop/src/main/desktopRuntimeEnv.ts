@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- desktop runtime/env 解析需要集中维护 main/host/remote assets 的启动边界，拆分会扩大远程连接回归面。 */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, win32 } from "node:path";
 import type { ConnectOptions } from "@zcode/server/remote";
@@ -26,6 +26,7 @@ import {
   type ZCodeRuntimeEnv,
 } from "@zcode/shared";
 import { resolvePlatformKeyForPackagedApp } from "../../scripts/target-platform.mjs";
+import { desktopProductIdentities } from "../../scripts/desktop-product-identity.mjs";
 import {
   getAppConfigDir,
   getDataBaseDir,
@@ -58,9 +59,16 @@ function isTruthyRuntimeEnvOverride(name: string): boolean {
 // e2e 运行的是生产构建，默认会和本机正式版 ZCode 共用 app name / userData，
 // 触发 Electron 单实例锁后只激活已有窗口，Chromedriver 无法接管测试进程。
 // 这里允许测试显式隔离运行时身份，正常桌面/远控路径保持原来的默认值。
+// 应用名取构建期产品身份（desktop-product-identity.mjs），与安装包身份同源：
+// 之前这里硬编码 "ZCode"，导致 app 菜单、process.title、Linux desktop 条目的 Name
+// 和 Electron 用户数据目录都还是旧名，和包里的 ZCodium 身份不一致。
 export const runtimeApplicationName =
   readRuntimeEnvOverride("ZCODE_DESKTOP_APPLICATION_NAME") ??
-  (isLocalDevelopmentRuntime ? "ZCode Dev" : isPreviewPackagedRuntime ? "ZCode Preview" : "ZCode");
+  (isLocalDevelopmentRuntime
+    ? `${desktopProductIdentities.production.productName} Dev`
+    : desktopProductIdentities[isPreviewPackagedRuntime ? "preview" : "production"].productName);
+// 改名前的 Electron 用户数据目录名，只用于一次性迁移。
+const LEGACY_RUNTIME_APPLICATION_NAME = "ZCode";
 // Electron 的 app.getPath("home") 不一定跟随测试进程里的 HOME 覆盖。
 // e2e 默认工作区依赖 home 路径，因此提供显式覆盖，避免测试写到开发者真实 ~/ZCodeProject。
 export const runtimeHomePath = readRuntimeEnvOverride("ZCODE_DESKTOP_HOME_DIR");
@@ -76,6 +84,52 @@ export const runtimeUserDataPath =
 export const runtimeSessionDataPath =
   readRuntimeEnvOverride("ZCODE_DESKTOP_SESSION_DATA_DIR") ??
   (runtimeUserDataPath ? join(runtimeUserDataPath, "session") : undefined);
+
+interface RuntimeUserDataMigrationLogger {
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+}
+
+/**
+ * 把改名前的 Electron 用户数据目录整体搬到新身份目录，只搬一次。
+ *
+ * 运行时应用名从 ZCode 改成 ZCodium 后，userData 会从 ~/config/ZCode 换到 ~/config/ZCodium。
+ * 这里在 app.setPath("userData") 之前做 rename，让登录态、会话、缓存跟着一起搬家；
+ * 与 `.zcode` → `.zcodium` 数据目录那次「不迁移」不同：那是一次产品级数据换根，
+ * 而这是同一份桌面身份数据改名，搬过去用户才不用重新登录。
+ *
+ * 只在同时满足「新目录不存在、旧目录存在、没有显式 userData 覆盖」时搬迁：
+ * 两边都在时保留现状并告警，避免覆盖任何一方的数据。
+ */
+export function migrateRuntimeUserDataDir(logger: RuntimeUserDataMigrationLogger): void {
+  if (
+    shouldUseElectronDefaultUserDataPath ||
+    readRuntimeEnvOverride("ZCODE_DESKTOP_USER_DATA_DIR")
+  ) {
+    return;
+  }
+  const appDataDir = getElectronAppPath("appData");
+  const nextPath = join(appDataDir, runtimeApplicationName);
+  const legacyPath = join(appDataDir, LEGACY_RUNTIME_APPLICATION_NAME);
+  if (nextPath === legacyPath || !existsSync(legacyPath)) {
+    return;
+  }
+  if (existsSync(nextPath)) {
+    logger.warn("[runtime] 新旧用户数据目录同时存在，跳过迁移", {
+      legacyPath,
+      nextPath,
+    });
+    return;
+  }
+  try {
+    renameSync(legacyPath, nextPath);
+    logger.info("[runtime] 用户数据目录已迁移到新应用名", { legacyPath, nextPath });
+  } catch (error) {
+    // 目录被占用或跨设备时 rename 会失败；不能因此阻断启动，应用只在新目录重建，
+    // 旧目录原地保留，用户重新登录一次即可。
+    logger.warn("[runtime] 用户数据目录迁移失败，保留旧目录", { legacyPath, nextPath, error });
+  }
+}
 // Chromedriver 会注入临时 --user-data-dir，并在该目录等待 DevToolsActivePort。
 // e2e 如果再用 app.setPath 覆盖 userData/sessionData，端口文件会被写到另一个目录，
 // 导致 Electron 已启动但 WebDriver session 一直创建失败。测试态打开该开关后保留 Chromedriver 的目录。
