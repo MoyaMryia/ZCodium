@@ -88,7 +88,43 @@ export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = [
   "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
   "skills/pdf/scripts/check_bounding_boxes.py",
   "skills/pdf/scripts/check_bounding_boxes_test.py",
+]
+
+export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = [
+  // 脚本与模板是技能正文描述的能力的执行体；routes/references 是 SKILL.md 的下一步
+  // 阅读路径。缺任一项都会装出「看得见技能、读不到参考」的残缺插件。
+  "agents/visual-judge.md",
+  "skills/docx/SKILL.md",
+  "skills/docx/scripts/__init__.py",
+  "skills/docx/scripts/document.py",
+  "skills/docx/scripts/utilities.py",
+  "skills/docx/scripts/packing.py",
+  "skills/docx/scripts/identifiers.py",
+  "skills/docx/scripts/docx_editor.py",
+  "skills/docx/scripts/tracked_changes.py",
+  "skills/docx/scripts/comments.py",
+  "skills/docx/scripts/postcheck.py",
+  "skills/docx/scripts/postcheck_document.py",
+  "skills/docx/scripts/postcheck_rules.py",
+  "skills/docx/scripts/fix_footer_fields.py",
+  "skills/docx/scripts/add_toc_placeholders.py",
+  "skills/docx/scripts/templates/comments.xml",
+  "skills/docx/scripts/templates/commentsExtended.xml",
+  "skills/docx/scripts/templates/commentsExtensible.xml",
+  "skills/docx/scripts/templates/commentsIds.xml",
+  "skills/docx/scripts/templates/people.xml",
+  "skills/docx/setup.sh",
+  "skills/docx/routes/create.md",
+  "skills/docx/routes/read.md",
+  "skills/docx/routes/comment.md",
+  "skills/docx/routes/edit.md",
+  "skills/docx/routes/format.md",
+  "skills/docx/references/python-api.md",
+  "skills/docx/references/toc.md",
+  "skills/docx/env_setup/setup.md",
+  "skills/docx/env_setup/env_check.sh",
 ] as const;
+ as const;
  as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
@@ -206,28 +242,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       // document.py 的残缺插件。与 OFFICIAL_CUA_REQUIRED_SEED_PATHS 扩项同理。
       requiredSeedPaths:
         name === "documents"
-          ? [
-              "agents/visual-judge.md",
-              "skills/docx/SKILL.md",
-              "skills/docx/scripts/__init__.py",
-              "skills/docx/scripts/document.py",
-              "skills/docx/scripts/utilities.py",
-              "skills/docx/scripts/packing.py",
-              "skills/docx/scripts/identifiers.py",
-              "skills/docx/scripts/docx_editor.py",
-              "skills/docx/scripts/tracked_changes.py",
-              "skills/docx/scripts/comments.py",
-              "skills/docx/scripts/postcheck.py",
-              "skills/docx/scripts/postcheck_document.py",
-              "skills/docx/scripts/postcheck_rules.py",
-              "skills/docx/scripts/fix_footer_fields.py",
-              "skills/docx/scripts/add_toc_placeholders.py",
-              "skills/docx/scripts/templates/comments.xml",
-              "skills/docx/scripts/templates/commentsExtended.xml",
-              "skills/docx/scripts/templates/commentsExtensible.xml",
-              "skills/docx/scripts/templates/commentsIds.xml",
-              "skills/docx/scripts/templates/people.xml",
-            ]
+          ? OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS
           : // pdf 的 Phase 1 只有技能与三个 brief，没有 scripts/。brief 是 SKILL.md
             // 路由表的目的地，缺任一即"看得见技能、读不到 brief"；scripts 落地后必须
             // 同步扩项，否则会装出技能描述了却调不到的残缺插件。

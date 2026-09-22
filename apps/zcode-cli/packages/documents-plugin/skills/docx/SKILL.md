@@ -40,7 +40,7 @@ doc = Document("unpacked", track_revisions=False, author="ZCodium", initials="C"
 
 Constructor arguments:
 
-- `unpacked_dir` — must exist and be a directory (`ValueError` otherwise); the unpacked `word/` subtree lives inside it, and a missing `word/document.xml` only surfaces later, from `validate()` or `save()`.
+- `unpacked_dir` — must exist and be a directory (`ValueError` otherwise); the unpacked `word/` subtree lives inside it. A missing `word/document.xml` fails **in the constructor**, because `__init__` opens that part eagerly — not later from `validate()` or `save()`.
 - `rsid` — revision-save ID stamped onto new elements; an 8-hex-digit one is generated when omitted, and the chosen value is printed to stdout.
 - `track_revisions` — when true, also writes `<w:trackRevisions/>` into `word/settings.xml`.
 - `author`, `initials` — defaults for comments and tracked changes.
@@ -56,7 +56,7 @@ Public methods:
 
 - `add_comment(start, end, text) -> int` — `start` and `end` are elements of `word/document.xml`'s DOM (run-level anchors are allowed). Inserts `<w:commentRangeStart>` before `start`, and `<w:commentRangeEnd>` plus a reference run after `end` — appended *inside* `end` when `end` is a `w:p`. Writes the comment into `word/comments.xml` and its metadata into `commentsExtended.xml`, `commentsIds.xml`, and `commentsExtensible.xml`, copying those parts from `scripts/templates/` on first use. Returns the new `w:id`.
 - `reply_to_comment(parent_comment_id, text) -> int` — raises `ValueError` when the parent id is unknown (neither in the file nor created in this session). Anchors the reply's range after the parent's `commentRangeStart` and reference run, and records the parent link in `commentsExtended.xml`.
-- `validate() -> None` — fails closed when `word/document.xml` is missing. It is a presence check, not a schema check.
+- `validate() -> None` — a presence check, not a schema check. In practice the constructor has already opened `word/document.xml`, so the missing-part branch is unreachable through the normal path; call it to catch parts that vanish mid-session.
 - `save(destination=None, validate=True)` — ensures comment relationships and content types once comment parts exist, writes every part touched through an editor, validates unless disabled, then copies the whole unpacked tree to `destination`, or back over the input directory when `destination` is omitted.
 
 ## 4. The editor returned by `doc[...]`

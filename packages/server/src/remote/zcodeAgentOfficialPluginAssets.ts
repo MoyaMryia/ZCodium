@@ -14,6 +14,7 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
  * 「看得见 docx 技能却 import 不到 document.py」的残缺插件。
  */
 const DOCUMENTS_PLUGIN_SEED_PATHS = [
+  // 与 bootstrap 的 OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS 同源。
   "agents/visual-judge.md",
   "skills/docx/SKILL.md",
   "skills/docx/scripts/__init__.py",
@@ -34,6 +35,16 @@ const DOCUMENTS_PLUGIN_SEED_PATHS = [
   "skills/docx/scripts/templates/commentsExtensible.xml",
   "skills/docx/scripts/templates/commentsIds.xml",
   "skills/docx/scripts/templates/people.xml",
+  "skills/docx/setup.sh",
+  "skills/docx/routes/create.md",
+  "skills/docx/routes/read.md",
+  "skills/docx/routes/comment.md",
+  "skills/docx/routes/edit.md",
+  "skills/docx/routes/format.md",
+  "skills/docx/references/python-api.md",
+  "skills/docx/references/toc.md",
+  "skills/docx/env_setup/setup.md",
+  "skills/docx/env_setup/env_check.sh",
 ] as const;
 
 const PDF_PLUGIN_SEED_PATHS = [
