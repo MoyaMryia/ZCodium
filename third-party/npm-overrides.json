@@ -162,12 +162,6 @@
     "source": "https://raw.githubusercontent.com/remarkjs/remark-math/d5d0660b150810a535bbb07eac6cc96a4510aa24/license"
   },
   {
-    "package": "http-mitm-proxy@1.1.0",
-    "file": "third-party/upstream/6ae13df543a24b3fb18c25182cf4f084132f799ea9225410f7037888401b7469.txt",
-    "sha256": "6ae13df543a24b3fb18c25182cf4f084132f799ea9225410f7037888401b7469",
-    "source": "node_modules/http-mitm-proxy/README.md"
-  },
-  {
     "package": "@tokenizer/token@0.3.0",
     "file": "third-party/upstream/c5adaf9051f20a1bbeecfb39de415cac1fef591d4fcda2b55d66b31354fdba1e.txt",
     "sha256": "c5adaf9051f20a1bbeecfb39de415cac1fef591d4fcda2b55d66b31354fdba1e",
@@ -236,24 +230,6 @@
       "npmArchiveSha256": "7d8602ad98db3d19fbd5b46fbf3831dd996197a013ef1ff7badc205e41435372",
       "sourceRevision": "b69ad4119f1b19bdab13c61ee2fcc88d46b89071",
       "sourceTreeUrl": "https://api.github.com/repos/develar/lazy-val/git/trees/b69ad4119f1b19bdab13c61ee2fcc88d46b89071?recursive=1",
-      "upstreamLicenseFiles": []
-    }
-  },
-  {
-    "package": "semaphore@1.1.0",
-    "repo": "abrkn/semaphore.js",
-    "refs": ["88a33875b168cc7b5943d7fe987c36d08321d252"],
-    "file": "third-party/upstream/1b8910ad1a22011c632f7ff544708be6cf08818ef80e8d4b45b6808ee8b05c17.txt",
-    "sha256": "1b8910ad1a22011c632f7ff544708be6cf08818ef80e8d4b45b6808ee8b05c17",
-    "source": "https://registry.npmjs.org/semaphore/1.1.0",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "MIT",
-    "reviewEvidence": {
-      "checkedOn": "2026-09-21",
-      "result": "The versioned npm archive contains no standalone complete LICENSE; existing publisher declaration and original README license sections remain preserved. Upstream authorization/copyright material is still required to close this review.",
-      "npmArchiveSha256": "72002cc502d607af8e2dbcbdafa3495bf4efe34394e1a037b92038d157f077a2",
-      "sourceRevision": "88a33875b168cc7b5943d7fe987c36d08321d252",
-      "sourceTreeUrl": "https://api.github.com/repos/abrkn/semaphore.js/git/trees/88a33875b168cc7b5943d7fe987c36d08321d252?recursive=1",
       "upstreamLicenseFiles": []
     }
   },
@@ -445,67 +421,5 @@
     "package": "khroma@2.1.0",
     "license": "MIT",
     "evidence": "The package does not declare a license field; its license contains the MIT grant and copyright notice."
-  },
-  {
-    "package": "@rrweb/types@2.1.6",
-    "file": "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt",
-    "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
-    "source": "https://raw.githubusercontent.com/rrweb-io/rrweb/rrweb%402.1.6/LICENSE"
-  },
-  {
-    "package": "@rrweb/utils@2.1.6",
-    "file": "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt",
-    "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
-    "source": "https://raw.githubusercontent.com/rrweb-io/rrweb/rrweb%402.1.6/LICENSE"
-  },
-  {
-    "package": "rrdom@2.1.6",
-    "file": "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt",
-    "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
-    "source": "https://raw.githubusercontent.com/rrweb-io/rrweb/rrweb%402.1.6/LICENSE"
-  },
-  {
-    "package": "rrweb-snapshot@2.1.6",
-    "file": "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt",
-    "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
-    "source": "https://raw.githubusercontent.com/rrweb-io/rrweb/rrweb%402.1.6/LICENSE"
-  },
-  {
-    "package": "rrweb@2.1.6",
-    "file": "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt",
-    "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
-    "source": "https://raw.githubusercontent.com/rrweb-io/rrweb/rrweb%402.1.6/LICENSE"
-  },
-  {
-    "package": "keyv@4.5.4",
-    "file": "third-party/upstream/6f7e6eae2a2afbaa67b266650f7342e7bf8e82cb57f6ab98148b3d6e0fb4450a.txt",
-    "sha256": "6f7e6eae2a2afbaa67b266650f7342e7bf8e82cb57f6ab98148b3d6e0fb4450a",
-    "source": "https://registry.npmjs.org/keyv/4.5.4",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "MIT"
-  },
-  {
-    "package": "@arms/rum-browser@0.1.8",
-    "file": "third-party/upstream/2c976d327b293bd74c257cd53e9b4ecef97a06b1651baa3b24327c97192cb3de.txt",
-    "sha256": "2c976d327b293bd74c257cd53e9b4ecef97a06b1651baa3b24327c97192cb3de",
-    "source": "https://registry.npmjs.org/%40arms%2frum-browser%400.1.8",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "ISC"
-  },
-  {
-    "package": "@arms/rum-core@0.1.4",
-    "file": "third-party/upstream/328eb7864c20ab77607b26ee1913b65a9b880f6300eea9e667b890da896a2f40.txt",
-    "sha256": "328eb7864c20ab77607b26ee1913b65a9b880f6300eea9e667b890da896a2f40",
-    "source": "https://registry.npmjs.org/%40arms%2frum-core%400.1.4",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "ISC"
-  },
-  {
-    "package": "@arms/rum-electron@0.0.3",
-    "file": "third-party/upstream/38b6f63a0aa422b5c329e75f1aeecd2b02e83caab1747644c00810870d77bacb.txt",
-    "sha256": "38b6f63a0aa422b5c329e75f1aeecd2b02e83caab1747644c00810870d77bacb",
-    "source": "https://registry.npmjs.org/%40arms%2frum-electron%400.0.3",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "MIT"
   }
 ]
