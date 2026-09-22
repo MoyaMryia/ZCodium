@@ -95,10 +95,8 @@ const browserUseRequiredRuntimePaths = [
 // 新增条目必须同步 packages/desktop/scripts/prepare-agent-node-bundle.mjs 的桌面 seed 清单与
 // packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts 的远端合同。
 const builtinContentPluginPackages = [
-  "documents-plugin",
-  "pdf-plugin",
+  // 与桌面发行清单保持一致，避免远端要求未发行的插件资源。
   "presentations-plugin",
-  "spreadsheets-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",

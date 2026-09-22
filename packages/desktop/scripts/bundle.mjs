@@ -705,6 +705,9 @@ async function main() {
     "electron-builder",
     "--config",
     "electron-builder.config.js",
+    // 标签 CI 下 electron-builder 会推断发布行为；Release 统一由工作流的草稿 job 写入。
+    "--publish",
+    "never",
     osBuilderFlagMap[os],
     archBuilderFlagMap[arch],
   ];

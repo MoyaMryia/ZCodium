@@ -26,7 +26,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 **已补全**（见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)）：
 
-- 9 个内置插件：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide。开源提交 `44b25ed46c` 删掉了它们的源码，但官方包仍在打包。
+- 内置插件与技能。安装包只分发源码资源完整且明确注册的插件，范围见对应 spec。
 - Computer Use 的模型可见面：`scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
 **尚未补全**（按 i18n 键缺口定位，共 528 个键）：
@@ -190,6 +190,14 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 ## 打包
 
+### 自动构建与发布
+
+[Desktop CI](.github/workflows/desktop.yml) 在 PR、main 推送和手动运行时检查代码，并用原生 runner 构建 Linux x64 与 Windows x64。Linux 产物为 AppImage、deb、rpm、pkg.tar.zst，Windows 为 exe；可从 Actions 页面下载，保留 14 天。
+
+推送 `v<package.json.version>` 标签会在全部检查和双平台构建成功后创建**草稿 Release**，附安装包和 `SHA256SUMS`。版本允许预发布标识（如 `-rc.1`），不接受 build metadata。维护者测试后手动公开发布；重新运行可补传草稿资产，不会覆盖已公开版本。手动运行工作流只生成构建产物。
+
+流程使用仓库自带的 `GITHUB_TOKEN`，无需额外服务凭据或签名证书。安装包未签名；应用内更新和独立远程运行资源不由此流程发布。规则见 [CI/CD spec](.agents/specs/desktop-ci-release.md)。
+
 第三方声明生成、发行校验流程及声明在发行物中的位置见 [third-party/README.md](third-party/README.md)。
 
 ### 桌面版
@@ -277,7 +285,7 @@ ZCodium 新增的内容：
 | 路径                                         | 职责                                                  |
 | -------------------------------------------- | ----------------------------------------------------- |
 | `.agents/specs/`                             | 能力补全的 spec：范围、状态所有者、接口契约与验收场景 |
-| `apps/zcode-cli/packages/*-plugin`           | 内置插件（documents、pdf、cua 等）                    |
+| `apps/zcode-cli/packages/*-plugin`           | 内置插件与技能源码                                   |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | 仓库快照上传的 localhost 复现，仅用于审计对照         |
 
 ## 项目声明

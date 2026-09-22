@@ -8,8 +8,8 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 未同步收敛，导致 `bootstrap:with-remote` 在 staging 第一个 manifest 时就抛
 `missing remote official plugin manifest`。
 
-本 spec 的目标是把其中 **9 个纯内容插件** 从官方 `resources/glm/packages/` 恢复到
-`apps/zcode-cli/packages/`，并保持三处注册契约一致。
+插件源码归属 `apps/zcode-cli/packages/`。发行清单只包含资源完整且满足 seed 契约的插件；
+桌面 staging、远端资源和 bootstrap 注册保持一致，不因资源缺失而降低完整性校验。
 
 ## 范围
 
@@ -17,9 +17,6 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 
 | 包                                      | 内容形态                              | 运行时依赖                     |
 | --------------------------------------- | ------------------------------------- | ------------------------------ |
-| `@zcode/documents-plugin`               | skills + agents（DOCX）               | 无                             |
-| `@zcode/pdf-plugin`                     | skills + agents（PDF）                | 无                             |
-| `@zcode/spreadsheets-plugin`            | skills + agents（XLSX）               | 无                             |
 | `@zcode/presentations-plugin`           | skills + agents（PPTX）               | 无                             |
 | `@zcode/skill-creator-plugin`           | skills                                | 无                             |
 | `@zcode/plugin-creator-plugin`          | skills + scripts（纯 `.mjs`，无构建） | 无                             |
@@ -64,7 +61,7 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
    `name` 后缀一致。
 2. `pnpm typecheck` 与 `pnpm lint` 保持基线（0 error；warning 不新增）。
 3. 新增包被 `pnpm-workspace.yaml` 的 `packages/*` 自动纳入，无需改 workspace 配置。
-4. 三处清单条目数与 9 一致，且 `stagedPath` 均为 `packages/<dir>`。
+4. 三处内容插件清单一致，且 `stagedPath` 均为 `packages/<dir>`。
 5. 不引入 `node_modules`、`.venv`、`__pycache__`、`*.pyc`（staging 过滤器已排除，
    提交时也不得带入）。
 

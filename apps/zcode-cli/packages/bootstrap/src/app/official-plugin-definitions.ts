@@ -160,10 +160,8 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   },
   ...(
     [
-      ["documents", "docx", "Documents", "Word文档"],
-      ["pdf", "pdf", "PDF", "PDF"],
+      // seed 注册与发行清单一致，资源完整性仍由 requiredSeedPaths 严格校验。
       ["presentations", "pptx", "Presentations", "演示文档"],
-      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName]): OfficialPluginDefinition => ({
