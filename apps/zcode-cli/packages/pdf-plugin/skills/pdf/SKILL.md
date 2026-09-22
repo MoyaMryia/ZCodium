@@ -1,6 +1,6 @@
 ---
 name: pdf
-description: Use whenever a PDF is the artifact being produced — a report, resume or CV, poster, academic paper, thesis, letter, invoice, handout or slide notes — in other words whenever the deliverable is a typeset PDF rather than an editable Office file or a web page. Covers routing the document to a typesetting brief, choosing a LaTeX document class and engine, driving a latexmk build with xelatex / lualatex / pdflatex, resolving bibliography passes with biber or bibtex, and rasterizing pages to PNG for the visual-judge gate. Use it when the user asks to write, generate, typeset, lay out or format a PDF, asks why a generated PDF looks wrong, or reports symptoms such as a blank page, a table broken across pages, tofu boxes or missing glyphs, fonts that exist only on the build machine, a bibliography printed as question marks, a table of contents with placeholder page numbers, text running into the margin, a resume spilling onto a second page, or a poster whose body text is unreadable at arm's length.
+description: Use whenever a PDF is the artifact being produced — a report, resume or CV, poster, academic paper, thesis, letter, invoice, handout or slide notes — in other words whenever the deliverable is a typeset PDF rather than an editable Office file or a web page. Covers routing the document to a typesetting brief, choosing a LaTeX document class and engine, driving a latexmk build with xelatex / lualatex / pdflatex, resolving bibliography passes with biber or bibtex, and rasterizing pages to PNG for the visual-judge gate. Also use it to finish an existing PDF — fill its AcroForm fields or stamp text annotations onto a flat page — and to render a PDF's pages to PNG. Use it when the user asks to write, generate, typeset, lay out or format a PDF, asks why a generated PDF looks wrong, or reports symptoms such as a blank page, a table broken across pages, tofu boxes or missing glyphs, fonts that exist only on the build machine, a bibliography printed as question marks, a table of contents with placeholder page numbers, text running into the margin, a resume spilling onto a second page, a poster whose body text is unreadable at arm's length, or asks to fill out or complete a PDF form.
 ---
 
 # PDF Production
@@ -9,15 +9,15 @@ Typeset a PDF from LaTeX source. This skill routes the document to a brief, driv
 
 ## 1. What this skill covers
 
-Producing a PDF whose content is _typeset_: the source is LaTeX, the output is a `.pdf`, and the layout is decided by a document class plus a preamble rather than by dragging boxes.
+Two jobs, one artifact. The first is **producing** a PDF whose content is _typeset_: the source is LaTeX, the output is a `.pdf`, and the layout is decided by a document class plus a preamble rather than by dragging boxes. The second is **finishing an existing PDF**: filling its form — whether it exposes AcroForm fields or is only a flat page you annotate — and rendering its pages to PNG so the `visual-judge` gate can look at them (§6).
 
 It does **not**:
 
-- edit an existing PDF's page content — no form filling, annotation, redaction or page surgery, and no script ships here for any of it;
-- convert between formats — no `.docx` → PDF exporter, no PDF → text extraction pipeline;
-- ship a design engine, a template library or a renderer of its own. Everything below runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it.
+- convert between formats — no `.docx` → PDF exporter, no PDF → text extraction pipeline, no HTML or poster renderer;
+- redact or do page surgery — no script here removes content, splits or merges pages, or strips annotations; form filling adds fields and annotations, it does not rewrite page content;
+- ship a design engine, a template library or a LaTeX renderer of its own. The typesetting path runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it; the scripts under `skills/pdf/scripts/` are thin Python wrappers over `pdf2image` and `pypdf`, and `pdf2image` in turn shells out to poppler.
 
-Keep the `.tex` source next to the output. The build is reproducible, the reader will ask for changes, and a PDF whose source has been thrown away cannot be revised.
+Keep the `.tex` source next to the output. The build is reproducible, the reader will ask for changes, and a PDF whose source has been thrown away cannot be revised. A form you fill is different in kind: keep the `fields.json` and the field values beside the output so a correction is a re-run of the fill step, not a fresh analysis of the page.
 
 ## 2. Route the document to a brief first
 
@@ -167,19 +167,107 @@ pdffonts main.pdf       # every font, and whether it is embedded
 
 ### Step 7 — Rasterize and run the visual gate
 
+Render the pages, then dispatch the `visual-judge` agent with the page paths and the brief items.
+
 ```bash
-pdftoppm -png -r 150 main.pdf page        # page-1.png, page-2.png, …
+python3 skills/pdf/scripts/convert_pdf_to_images.py main.pdf pages/   # pages/page_1.png, pages/page_2.png, …
 ```
 
-Then dispatch the `visual-judge` agent with the page paths and the brief items. This is the only visual gate: either dispatch `visual-judge`, or (only when it is unavailable) read the images directly — do not skim the pages first and then dispatch, because that reviews the same pages twice and burns a render pass. `visual-judge` reports one JSON line per page and fixes nothing; act on what it returns, rebuild, and re-gate the pages that failed.
+`convert_pdf_to_images.py` is the executor of this gate — the piece that turns a PDF page into a PNG `visual-judge` can actually read. It renders at 200 dpi through `pdf2image` (which shells out to poppler's `pdftoppm`) and downscales each page so no side exceeds `max_dim` (default 1000 px), keeping the images small enough to hand to the judge without a separate resize step. It needs `pdf2image` importable and `pdftoppm` on `PATH`; when either is missing it fails at import or raises inside `convert_from_path` rather than emitting a page (§6.1). A bare `pdftoppm -png -r 150 main.pdf page` is an acceptable substitute when you are already in a shell that has poppler and you do not want the Python dependency — but the script is the path this skill ships and tests.
 
-Resolution: 150 dpi is enough to read type and spot overflow on A4. For a poster, rasterize at a lower dpi (the point is the composition) but never below the resolution at which the smallest text is legible to you.
+This is the only visual gate: either dispatch `visual-judge`, or (only when it is unavailable) read the images directly — do not skim the pages first and then dispatch, because that reviews the same pages twice and burns a render pass. `visual-judge` reports one JSON line per page and fixes nothing; act on what it returns, rebuild, and re-gate the pages that failed.
+
+Resolution: 200 dpi downscaled to ≤1000 px is enough to read type and spot overflow on A4. For a poster, the default downscale keeps the composition legible; rasterize finer only when the smallest text is still unreadable to you.
 
 ### Step 8 — Iterate
 
-Fix the source, rebuild, re-rasterize, re-gate. The loop is source → PDF → PNG → verdict → source. Never patch the PDF; there is no tool here that edits one, and a hand-patched PDF diverges from its source on the next build.
+Fix the source, rebuild, re-rasterize, re-gate. The loop is source → PDF → PNG → verdict → source. Never patch a typeset PDF by hand; a hand-patched PDF diverges from its source on the next build. Filling a form is the one case that edits a finished PDF, and it goes through §6 rather than through the page.
 
-## 6. Defects and self-check
+## 6. Rendering, inspection and form filling
+
+The scripts under `skills/pdf/scripts/` are thin, MIT-derived Python wrappers over `pdf2image` and `pypdf`. They are utilities, not a framework: each takes file paths on the command line, prints a short human-readable line, and exits. None of them touches the LaTeX path above, and none is required to typeset — they cover the two jobs §1 names: render a page for the judge, and fill a form.
+
+### 6.1 Dependencies are real, not assumed
+
+| Dependency         | Used by                                                                                                    | Missing behaviour                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `pdf2image`        | `convert_pdf_to_images.py`                                                                                 | `import` fails — the script will not start                    |
+| poppler `pdftoppm` | the raster backend `pdf2image` shells out to                                                                | `convert_from_path` raises (`PDFInfoNotInstalledError`)        |
+| `pypdf`            | `check_fillable_fields.py`, `extract_form_field_info.py`, `fill_fillable_fields.py`, `fill_pdf_form_with_annotations.py` | `import` fails — the script will not start |
+| `Pillow` (`PIL`)   | `create_validation_image.py`                                                                               | `import` fails — the script will not start                    |
+
+Detect before promising a result:
+
+```bash
+python3 -c "import pdf2image, pypdf, PIL"   # the three Python packages
+which pdftoppm                              # the raster backend pdf2image calls
+```
+
+`check_bounding_boxes.py` and `check_bounding_boxes_test.py` are the exception: they import only the standard library and run anywhere. Do not describe any of the others as unconditionally available — a missing dependency is an `ImportError` at start (or, for poppler, a raised exception on first render), not a degraded run.
+
+### 6.2 Render a page to PNG — `convert_pdf_to_images.py`
+
+```bash
+python3 skills/pdf/scripts/convert_pdf_to_images.py <input.pdf> <output_dir>
+```
+
+Writes one `page_N.png` per page into `<output_dir>` (1-indexed), rendering at 200 dpi and downscaling so no side exceeds `max_dim` (default 1000). This is the renderer both the §5 visual gate and the form workflow call; hand its output straight to `visual-judge` or read it to locate form fields. Needs `pdf2image` + poppler `pdftoppm` (§6.1).
+
+### 6.3 Fill a PDF form
+
+These scripts serve **form filling**, not typesetting; they never touch the LaTeX pipeline. First decide which of two paths applies — a PDF either exposes AcroForm fields, or it does not:
+
+```bash
+python3 skills/pdf/scripts/check_fillable_fields.py <input.pdf>
+```
+
+It prints one of two lines: the PDF **has** fillable form fields, or it **does not** and you must locate the entry areas by eye. Both paths need `pypdf`.
+
+**Fillable path** — the PDF reports fields:
+
+1. Extract the fields to JSON. Each entry carries `field_id`, `page`, `rect`, and per-type extras — `checked_value`/`unchecked_value` for a checkbox, `radio_options` for a radio group, `choice_options` for a choice list:
+
+   ```bash
+   python3 skills/pdf/scripts/extract_form_field_info.py <input.pdf> <field_info.json>
+   ```
+
+2. Render the pages (`convert_pdf_to_images.py`) and, reading them beside the extracted rects, write a `field_values.json` — one object per field you fill, each with the `field_id`, its `page`, and the `value` to set. A checkbox or radio uses its `checked_value` / a `radio_options` value.
+
+3. Fill, letting the script validate:
+
+   ```bash
+   python3 skills/pdf/scripts/fill_fillable_fields.py <input.pdf> <field_values.json> <output.pdf>
+   ```
+
+   It checks every `field_id` against the real fields and every value against the field's type **before** writing; a bad id, a wrong page, or an out-of-range checkbox / radio / choice value prints an `ERROR:` line and exits 1 without writing anything. On success it writes the filled PDF and sets `NeedAppearances` so viewers render the values. Read the value back to confirm the fill landed.
+
+**Non-fillable path** — no AcroForm fields, so you supply the geometry as a `fields.json` (`pages[]` with each page's `image_width`/`image_height`, and `form_fields[]` with a `label_bounding_box`, an `entry_bounding_box`, and the `entry_text` to stamp):
+
+1. Render the pages and, looking at each PNG, mark the label box and the entry box for every field. The two boxes must not overlap, and an entry box must be tall enough for its text.
+2. Check the geometry (§6.4) and draw a preview (§6.4) until the red entry boxes cover only input areas.
+3. Stamp the text as annotations:
+
+   ```bash
+   python3 skills/pdf/scripts/fill_pdf_form_with_annotations.py <input.pdf> <fields.json> <output.pdf>
+   ```
+
+   It transforms each `entry_bounding_box` from image coordinates to PDF coordinates against the page's real size and writes a `FreeText` annotation carrying `entry_text`; empty text is skipped. The text is an overlay, not a form field, and its font size and colour are best-effort across viewers.
+
+### 6.4 Inspect the geometry — `check_bounding_boxes.py` and `create_validation_image.py`
+
+```bash
+python3 skills/pdf/scripts/check_bounding_boxes.py <fields.json>
+```
+
+Reads a `fields.json` and prints `SUCCESS: All bounding boxes are valid`, or one `FAILURE:` line per problem — a label/entry intersection, an intersection between two fields on the same page, or an entry box shorter than its font size — stopping after roughly twenty messages so the output stays readable. Standard-library only. Its unit test, `check_bounding_boxes_test.py`, runs under `unittest` (`python3 check_bounding_boxes_test.py`) and needs no extra dependencies; run it after any change to the checker.
+
+```bash
+python3 skills/pdf/scripts/create_validation_image.py <page_number> <fields.json> <input.png> <output.png>
+```
+
+Draws red rectangles over entry boxes and blue over label boxes onto a rendered page PNG, so you can confirm the geometry by eye before stamping text. Needs `Pillow`.
+
+## 7. Defects and self-check
 
 These are the ones a reader notices and a clean compile log walks past. Read the log for them; do not wait for the visual gate.
 
@@ -203,7 +291,7 @@ Two log lines worth reading every time:
 - `Overfull \hbox (...pt too wide)` — real, visible, and almost always a reader-visible defect. A few points of overhang on a URL is tolerable; a line that runs off the paper is not.
 - `Underfull \hbox` — loose, gappy justification. Usually a long unbreakable token in a narrow column; `microtype` and `\emergencystretch` fix most of it.
 
-## 7. Pitfalls
+## 8. Pitfalls
 
 - **`hyperref` late, `cleveref` after it.** Load order is not cosmetic.
 - **Never `\label` before `\caption`.** The label resolves to the section counter instead of the figure counter.
@@ -214,3 +302,5 @@ Two log lines worth reading every time:
 - **Bitmapped fonts do not scale.** A `Type 3` font in `pdffonts` output means a bitmap font was used; it prints badly and zooms badly.
 - **`\resizebox` scales the type inside a table too.** A table shrunk to fit also shrinks its font below the body size, which is a defect the reader sees. Prefer `tabularx`, `longtable` or a smaller table.
 - **The PDF is a build artifact.** Regenerate it; never edit it.
+- **The `scripts/` tools are not unconditional.** `pdf2image`, `pypdf` and `Pillow` each fail at import when absent, and `convert_pdf_to_images.py` also needs poppler's `pdftoppm` on `PATH`. Detect the dependencies (§6.1) before promising a render, a fill or a validation image.
+- **`fill_pdf_form_with_annotations.py` overlays text; it does not create a field.** The stamped text is a `FreeText` annotation a viewer shows but a recipient cannot edit as a form value. A PDF whose filled values must stay editable needs real AcroForm fields, which the non-fillable path does not add.

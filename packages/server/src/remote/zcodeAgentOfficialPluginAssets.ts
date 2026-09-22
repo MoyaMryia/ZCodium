@@ -37,12 +37,21 @@ const DOCUMENTS_PLUGIN_SEED_PATHS = [
 ] as const;
 
 const PDF_PLUGIN_SEED_PATHS = [
-  // Phase 1 无 scripts/；brief 是 SKILL.md 路由表的目的地。scripts 落地后必须同步扩项。
+  // 与 bootstrap 的 OFFICIAL_PDF_REQUIRED_SEED_PATHS 同源。scripts/ 是渲染与表单
+  // 能力的执行体，convert_pdf_to_images.py 同时是 visual-judge 工作流的渲染门。
   "agents/visual-judge.md",
   "skills/pdf/SKILL.md",
   "skills/pdf/briefs/report.md",
   "skills/pdf/briefs/resume.md",
   "skills/pdf/briefs/poster.md",
+  "skills/pdf/scripts/convert_pdf_to_images.py",
+  "skills/pdf/scripts/create_validation_image.py",
+  "skills/pdf/scripts/check_fillable_fields.py",
+  "skills/pdf/scripts/extract_form_field_info.py",
+  "skills/pdf/scripts/fill_fillable_fields.py",
+  "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
+  "skills/pdf/scripts/check_bounding_boxes.py",
+  "skills/pdf/scripts/check_bounding_boxes_test.py",
 ] as const;
 
 const SPREADSHEETS_PLUGIN_SEED_PATHS = [

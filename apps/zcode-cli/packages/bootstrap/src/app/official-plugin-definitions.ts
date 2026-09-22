@@ -69,7 +69,27 @@ export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
   "scripts/browser-client.mjs",
   "skills/control-browser/SKILL.md",
   "skills/web-gui-tester/SKILL.md",
+]
+
+export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = [
+  // 三个 brief 是 SKILL.md 路由表的目的地；scripts/ 是渲染与表单能力的执行体，
+  // convert_pdf_to_images.py 同时是 visual-judge 工作流的渲染门。缺任一项都会装出
+  // 「看得见技能、调不到脚本」的残缺插件。
+  "agents/visual-judge.md",
+  "skills/pdf/SKILL.md",
+  "skills/pdf/briefs/report.md",
+  "skills/pdf/briefs/resume.md",
+  "skills/pdf/briefs/poster.md",
+  "skills/pdf/scripts/convert_pdf_to_images.py",
+  "skills/pdf/scripts/create_validation_image.py",
+  "skills/pdf/scripts/check_fillable_fields.py",
+  "skills/pdf/scripts/extract_form_field_info.py",
+  "skills/pdf/scripts/fill_fillable_fields.py",
+  "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
+  "skills/pdf/scripts/check_bounding_boxes.py",
+  "skills/pdf/scripts/check_bounding_boxes_test.py",
 ] as const;
+ as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
   "docs/computer-use.md",
@@ -161,13 +181,15 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
   ...(
     [
       // seed 注册与发行清单一致，资源完整性仍由 requiredSeedPaths 严格校验。
-      ["presentations", "pptx", "Presentations", "演示文档"],
-      ["documents", "docx", "Documents", "Word 文档"],
-      ["pdf", "pdf", "PDF", "PDF 文档"],
-      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格"],
+      // version 与各自 package.json / plugin.json 逐字一致：三处不一致会让官方 seed
+      // 继续加载旧缓存目录（见上方 browser-use 的同类注释）。
+      ["presentations", "pptx", "Presentations", "演示文档", "0.1.7"],
+      ["documents", "docx", "Documents", "Word 文档", "0.1.7"],
+      ["pdf", "pdf", "PDF", "PDF 文档", "0.2.0"],
+      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.1.7"],
     ] as const
   ).map(
-    ([name, skill, displayName, chineseName]): OfficialPluginDefinition => ({
+    ([name, skill, displayName, chineseName, version]): OfficialPluginDefinition => ({
       defaultEnabled: true,
       listing: {
         author: ZAI_AUTHOR,
@@ -210,13 +232,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
             // 路由表的目的地，缺任一即"看得见技能、读不到 brief"；scripts 落地后必须
             // 同步扩项，否则会装出技能描述了却调不到的残缺插件。
             name === "pdf"
-            ? [
-                "agents/visual-judge.md",
-                "skills/pdf/SKILL.md",
-                "skills/pdf/briefs/report.md",
-                "skills/pdf/briefs/resume.md",
-                "skills/pdf/briefs/poster.md",
-              ]
+            ? OFFICIAL_PDF_REQUIRED_SEED_PATHS
             : // recalc.py 是 SKILL.md「Recalculating formulas」章节的唯一执行体，
             // openpyxl 读取与 soffice 重算都走它；漏掉就是看得见技能、调不到脚本。
             name === "spreadsheets"
@@ -232,7 +248,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
         `../../${name}-plugin`,
         `../../../${name}-plugin`,
       ],
-      version: "0.1.7",
+      version,
     }),
   ),
   {
