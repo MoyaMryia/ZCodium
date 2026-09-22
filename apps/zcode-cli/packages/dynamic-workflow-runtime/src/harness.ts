@@ -9,7 +9,7 @@
  * 时序（happy path）：
  *
  *   parent                         child(vm)
- *     │  write <cwd>/.zcode/workflow-runs/<runId>.mjs（payload: lowered+args 内嵌）
+ *     │  write <cwd>/.zcodium/workflow-runs/<runId>.mjs（payload: lowered+args 内嵌）
  *     │  spawn(node <entry>)
  *     │──────────────────────────▶│  build __host in context
  *     │◀── create-actor(local#1) ──│  createActor 同步返回 local#1
@@ -101,7 +101,7 @@ export interface RunWorkflowOptions {
    */
   childSpawn?: { argsPrefix: readonly string[] };
   /**
-   * 非致命状况的上报口（今日只有一种：入口文件写不进项目 `.zcode/`，回落到了 OS 临时目录）。
+   * 非致命状况的上报口（今日只有一种：入口文件写不进项目 `.zcodium/`，回落到了 OS 临时目录）。
    * harness 是 app-free 的，没有 logger；bootstrap 把它接到自己的 warn 日志。
    */
   onWarning?: (warning: HarnessWarning) => void;

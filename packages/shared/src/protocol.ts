@@ -345,7 +345,7 @@ export interface AppSettings {
   lastActiveTabIndex?: number;
   /** 每个 workspace 的最后活跃 taskId，下次打开自动恢复 */
   lastActiveTaskByWorkspace?: Record<string, string>;
-  /** 数据目录的根路径（替代 homedir），默认为 os.homedir()；.zcode/v2 后缀不变 */
+  /** 数据目录的根路径（替代 homedir），默认为 os.homedir()；.zcodium/v2 后缀不变 */
   dataBaseDir?: string;
   /** 自动更新安装完成后，等待首次启动展示的版本说明 */
   pendingPostUpdateReleaseNotes?: {

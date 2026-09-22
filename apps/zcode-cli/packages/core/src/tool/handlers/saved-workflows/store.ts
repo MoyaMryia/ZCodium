@@ -50,7 +50,7 @@ export interface SavedWorkflowRootsOptions {
 /**
  * 本次会话的查找根，**按优先级排列**：`[project, global]`。
  *
- * 项目档落在会话工作目录的 `.zcode/workflows/`，全局档落在家目录的 `~/.zcode/workflows/`。
+ * 项目档落在会话工作目录的 `.zcodium/workflows/`，全局档落在家目录的 `~/.zcodium/workflows/`。
  * 所有查找按顺序 first-wins：项目里的那份永远赢过全局那份（同名遮蔽）。
  */
 export function savedWorkflowRoots(
@@ -395,7 +395,7 @@ function fileExists(path: string): boolean {
 
 function isNotFound(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
-  // ENOTDIR：路径中间有一段是文件（`.zcode/workflows` 被人建成了文件）。对查找而言与
+  // ENOTDIR：路径中间有一段是文件（`.zcodium/workflows` 被人建成了文件）。对查找而言与
   // "目录不存在"是同一件事。
   return code === "ENOENT" || code === "ENOTDIR";
 }

@@ -53,7 +53,7 @@ function parseArgs(argv) {
   return {
     command: commandAndArgs[0],
     args: commandAndArgs.slice(1),
-    logDir: logDir || join(homedir(), ".zcode", "v2", "dev", "stdio-traffic"),
+    logDir: logDir || join(homedir(), ".zcodium", "v2", "dev", "stdio-traffic"),
     workspaceKey,
   };
 }

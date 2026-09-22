@@ -3,7 +3,7 @@
  * 数据由 main 进程持有的 StorageService 产生，经 preload `window.resourceManager.storage` 送到资源管理器 renderer；
  * services 层的 storage 模块与 UI 都只引用这里的类型。
  */
-/** 两个数据根：用户家目录下的 .zcode，以及「数据存储路径」下的 .zcode。 */
+/** 两个数据根：用户家目录下的 .zcodium，以及「数据存储路径」下的 .zcodium。 */
 export type StorageRootId = "home" | "dataBaseDir";
 
 export const STORAGE_CATEGORY_IDS = [

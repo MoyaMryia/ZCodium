@@ -53,7 +53,7 @@ export async function upsertDevMarketplace({
   if (errors.length) throw new Error(errors.join("\n"));
 
   const manifest = JSON.parse(
-    await readFile(join(pluginRoot, ".zcode-plugin", "plugin.json"), "utf8"),
+    await readFile(join(pluginRoot, ".zcodium-plugin", "plugin.json"), "utf8"),
   );
   const name = normalizePluginName(manifest.name);
   // 目录名、manifest 名、规范化名三者必须一致：manifest 名是条目的稳定 ID，

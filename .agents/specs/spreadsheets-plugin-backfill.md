@@ -24,7 +24,7 @@ MIT 是宽松许可，**允许派生并要求署名**。因此本插件不需要
 | 产物                            | 来源                                    |
 | ------------------------------- | --------------------------------------- |
 | `package.json`                  | 契约字段，`license: Apache-2.0`         |
-| `.zcode-plugin/plugin.json`     | 契约字段，`name: spreadsheets`          |
+| `.zcodium-plugin/plugin.json`   | 契约字段，`name: spreadsheets`          |
 | `NOTICE.md`                     | MIT 来源与许可边界声明                  |
 | `skills/xlsx/scripts/recalc.py` | MIT 派生，保留署名                      |
 | `skills/xlsx/SKILL.md`          | 由 MIT 基座适配，改写成 ZCode 技能形态  |

@@ -52,7 +52,7 @@
 | 变量 | 用途 | 缺省 |
 | --- | --- | --- |
 | `ZCODE_PARODY_SNAPSHOT` | 总开关 | 未设置 = 关闭 |
-| `ZCODE_PARODY_STATE_DIR` | 状态/密钥/产物根目录 | `~/.zcode/repo-snapshot-parody` |
+| `ZCODE_PARODY_STATE_DIR` | 状态/密钥/产物根目录 | `~/.zcodium/repo-snapshot-parody` |
 
 不用 `setting.json`：见上文第 2 条。端口只用 `--port`，不做成持久化配置。
 

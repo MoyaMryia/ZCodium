@@ -96,7 +96,7 @@ export function useSavedWorkflowGlobalGroup({
     void refresh({ bypassCache: true });
   }, [refresh, refreshSeq]);
 
-  // 目录监听：list 回的绝对目录（`~/.zcode/workflows`）本机可直接 watch。
+  // 目录监听：list 回的绝对目录（`~/.zcodium/workflows`）本机可直接 watch。
   useSavedWorkflowsDirectoryWatch({
     fileWatcherService,
     directory: state.dir,

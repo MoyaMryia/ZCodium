@@ -1,6 +1,7 @@
 import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 
 export interface ServerLayout {
   readonly dataBaseDir: string;
@@ -22,7 +23,7 @@ export interface ServerLayout {
 
 function getDefaultServerDataRoot(): string {
   const configured = process.env.ZCODE_DATA_BASE_DIR?.trim();
-  return join(configured || homedir(), ".zcode", "server");
+  return join(configured || homedir(), ZCODE_USER_DATA_DIR_NAME, "server");
 }
 
 export function resolveServerLayout(serverRoot = getDefaultServerDataRoot()): ServerLayout {
@@ -79,7 +80,7 @@ export async function resolveCanonicalServerLayout(
 
 function inferDataBaseDir(serverRoot: string): string {
   const parent = dirname(serverRoot);
-  if (basename(serverRoot) === "server" && basename(parent) === ".zcode") {
+  if (basename(serverRoot) === "server" && basename(parent) === ZCODE_USER_DATA_DIR_NAME) {
     return dirname(parent);
   }
   // 非标准的显式 server root 仍保持隔离，不向其父目录扩散 Agent/SQLite 数据。

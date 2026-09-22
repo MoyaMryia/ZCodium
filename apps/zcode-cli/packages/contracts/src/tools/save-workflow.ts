@@ -68,7 +68,7 @@ export const SaveWorkflowInputSchema = z
     // 作用域由**模型**说出，不由系统猜——没有默认值，每次都要判断。判据中性：脚本是否
     // 引用本仓库的东西？是 → project，否 → global。
     scope: SavedWorkflowScopeSchema.describe(
-      'Where the workflow is saved. "project" when the script references this repository\'s files, commands, conventions or directory layout; "global" when it depends on nothing in this project and should be available from every project (saved under ~/.zcode/workflows). Decide every time; there is no default.',
+      'Where the workflow is saved. "project" when the script references this repository\'s files, commands, conventions or directory layout; "global" when it depends on nothing in this project and should be available from every project (saved under ~/.zcodium/workflows). Decide every time; there is no default.',
     ),
     // ——以下三个字段由 `resolveInput` 解析回填，模型不填——
     // 它们是**确认窗要展示的事实**：这次保存落到哪个文件、是不是一次覆盖、是否遮蔽了另一档。

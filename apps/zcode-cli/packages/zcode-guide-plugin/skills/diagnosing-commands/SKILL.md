@@ -16,15 +16,15 @@ A person inspects commands from the **`/` menu** (Commands group) in the input b
 Scanned earliest-first, and the first location that defines a name wins:
 
 1. Explicitly configured command roots
-2. User `~/.zcode/commands`, then `~/.agents/commands`
-3. Workspace `.zcode/commands` and `.agents/commands` — from the working directory up to the repository root, every level counted
+2. User `~/.zcodium/commands`, then `~/.agents/commands`
+3. Workspace `.zcodium/commands` and `.agents/commands` — from the working directory up to the repository root, every level counted
 4. Enabled **plugin** command roots, last
 
-Inside a level `.zcode` comes before `.agents`. Subdirectories are walked recursively (symlinks included, depth-capped), and each nesting level joins into the name with a colon.
+Inside a level `.zcodium` comes before `.agents`. Subdirectories are walked recursively (symlinks included, depth-capped), and each nesting level joins into the name with a colon.
 
 ## 2. Deduplication: first match wins
 
-The key is the **normalized command name** — the path relative to its root with `.md` stripped, separators turned into `:`, lowercased. The **first occurrence, meaning the highest-precedence location, wins**: user beats workspace, `.zcode` beats `.agents`, local files beat plugins. Every later duplicate is ignored and surfaces as a `custom_command_duplicate_name` warning diagnostic.
+The key is the **normalized command name** — the path relative to its root with `.md` stripped, separators turned into `:`, lowercased. The **first occurrence, meaning the highest-precedence location, wins**: user beats workspace, `.zcodium` beats `.agents`, local files beat plugins. Every later duplicate is ignored and surfaces as a `custom_command_duplicate_name` warning diagnostic.
 
 There is also an **interactive-surface-only** filter: a command whose name collides with a built-in slash command or its aliases (`init`, `compact`, `expert`, `goal`, `model`, `plugins`, …), or with `compress` or `plan`, is hidden from the live `/` menu while remaining on disk — and a command marked `disable-noninteractive: true` is hidden the same way. Neither filter changes what discovery returns, so `zcode commands list` still shows them.
 
@@ -44,7 +44,7 @@ There is also an **interactive-surface-only** filter: a command whose name colli
 
 ## 5. Pitfalls, by symptom
 
-1. **Missing, wrong directory.** The `.md` is not under a scanned root — a singular `.zcode/command/`, or somewhere above the repository root. → Move it to `~/.zcode/commands/` or `<repo>/.zcode/commands/`.
+1. **Missing, wrong directory.** The `.md` is not under a scanned root — a singular `.zcodium/command/`, or somewhere above the repository root. → Move it to `~/.zcodium/commands/` or `<repo>/.zcodium/commands/`.
 2. **Missing, invalid name.** The file is there but no command appears: the name breaks the pattern through uppercase, spaces, dots, a leading `-` or `_`, or length over 64. → Rename to a valid lowercase name, and namespace with subdirectories, which become `:`, not with dots.
 3. **A different command runs.** A higher-precedence duplicate took the slot; first match wins. → Find the copy that outranks yours in discovery order and rename or remove it. Local files always beat plugins.
 4. **A frontmatter key is silently gone.** The flat parser reads only single-line top-level keys, so indented lines and multi-line arrays are dropped. → Keep every value on one line and write lists inline, e.g. `allowed-tools: Read, Bash`.

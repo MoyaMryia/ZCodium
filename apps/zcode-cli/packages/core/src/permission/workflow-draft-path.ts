@@ -70,7 +70,7 @@ export function isPreapprovedWorkflowDraftWrite(input: WorkflowDraftWriteInput):
   });
 }
 
-/** `filePath` 是否落在 `<workingDirectory>/.zcode/workflow-drafts/` 之内。 */
+/** `filePath` 是否落在 `<workingDirectory>/.zcodium/workflow-drafts/` 之内。 */
 function isWorkflowDraftPath(input: WorkflowDraftPathInput): boolean {
   const path = input.pathModule ?? nodePath;
   // 没有工作目录就没有"哪个项目的草稿目录"可言，宁可不放行：免确认的前提是目标可被定位。
@@ -82,7 +82,7 @@ function isWorkflowDraftPath(input: WorkflowDraftPathInput): boolean {
 
   // 三个条件缺一不可：非空排除「目标就是目录本身」，非绝对排除跨盘符（Windows 上
   // `relative("C:\\a", "D:\\b")` 返回的是绝对路径而不是 `..`），不以 `..` 开头排除穿越。
-  // 只看路径字符串，不看文件系统：`.zcode/workflow-drafts-other/x.ts` 因此不会因为前缀
+  // 只看路径字符串，不看文件系统：`.zcodium/workflow-drafts-other/x.ts` 因此不会因为前缀
   // 相同被误判为目录内——`relative` 给出的是 `../workflow-drafts-other/x.ts`。
   return (
     relativePath.length > 0 && !path.isAbsolute(relativePath) && !relativePath.startsWith("..")

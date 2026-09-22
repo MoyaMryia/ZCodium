@@ -148,7 +148,7 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = [
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS = [
   ".mcp.json",
-  ".zcode-plugin",
+  ".zcodium-plugin",
   "README.md",
   // 开发态远程插件复制使用独立白名单，遗漏 agents 会只在远端丢失子代理。
   "agents",
@@ -167,7 +167,7 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS = [
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   ...REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES.map(
-    (packageName) => `${packageName}/.zcode-plugin/plugin.json`,
+    (packageName) => `${packageName}/.zcodium-plugin/plugin.json`,
   ),
   // 只校验 Browser Use manifest 会把“有插件壳”的残缺目录
   // 误判为可复用。生产 remote、开发态 remote 与 release source 校验共用这份必需资产合同。

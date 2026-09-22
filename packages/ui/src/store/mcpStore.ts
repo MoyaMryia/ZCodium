@@ -251,7 +251,7 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
 
     loadConfig: () => {
       const config = loadPersistedConfig();
-      // MCP 启停状态已经迁移到 ~/.zcode/cli/config.json，不能再读取旧 localStorage，
+      // MCP 启停状态已经迁移到 ~/.zcodium/cli/config.json，不能再读取旧 localStorage，
       // 否则旧的本地开关会覆盖新的 ZCode Agent 配置来源。
       const enabledStates: Record<string, boolean> = {};
       const deletedPreload = new Set<string>(safeReadJson<string[]>(MCP_DELETED_PRELOAD_KEY, []));

@@ -6,7 +6,7 @@ import type { RemoteSyncWriteAccessResult } from "@zcode/shared";
 export async function checkRemoteSyncDirectoryWriteAccess(
   directoryPath: string,
 ): Promise<RemoteSyncWriteAccessResult> {
-  const markerPath = join(directoryPath, `.zcode-sync-preflight-${process.pid}-${randomUUID()}`);
+  const markerPath = join(directoryPath, `.zcodium-sync-preflight-${process.pid}-${randomUUID()}`);
   try {
     await mkdir(directoryPath, { recursive: true });
     await writeFile(markerPath, "ok", { encoding: "utf-8", flag: "wx" });

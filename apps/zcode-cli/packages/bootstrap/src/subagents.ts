@@ -53,7 +53,7 @@ export async function loadZCodeAgentProfiles(
   await migrateSubagentStateFile(join(input.storageRoot, "v2", "agents-state.json"));
   const roots = [
     { path: join(input.storageRoot, "agents"), source: "user" as const },
-    { path: join(input.workingDirectory, ".zcode", "agents"), source: "project" as const },
+    { path: join(input.workingDirectory, ".zcodium", "agents"), source: "project" as const },
   ];
   const diagnostics: AgentProfileParseDiagnostic[] = [];
   for (const failure of migration.failures) {
@@ -117,7 +117,7 @@ function sanitizeProjectAgentProfile(profile: AgentProfile): AgentProfile {
     return profile;
   }
 
-  // 项目级 .zcode/agents/*.md 是仓库内容，不能通过 frontmatter
+  // 项目级 .zcodium/agents/*.md 是仓库内容，不能通过 frontmatter
   // 把 child runtime 切到 bypass/yolo；用户级与受信插件 profile 不受影响。
   const { permissionMode: _permissionMode, ...safeProfile } = profile;
   return safeProfile;

@@ -1,6 +1,6 @@
 ---
 name: plugin-creator
-description: Author, validate and locally test ZCode plugins. Use when creating a new plugin (skills, commands, hooks or MCP servers), changing an existing plugin's manifest or components, preparing a local dev marketplace to try a plugin before publishing, or diagnosing why a plugin will not add, install, update or load. Covers `.zcode-plugin/plugin.json`, the five bundled scripts, and the manual add/install/update handoff in the app.
+description: Author, validate and locally test ZCode plugins. Use when creating a new plugin (skills, commands, hooks or MCP servers), changing an existing plugin's manifest or components, preparing a local dev marketplace to try a plugin before publishing, or diagnosing why a plugin will not add, install, update or load. Covers `.zcodium-plugin/plugin.json`, the five bundled scripts, and the manual add/install/update handoff in the app.
 ---
 
 # Plugin Creator
@@ -60,7 +60,7 @@ node scripts/create-basic-plugin.mjs <name> [--path parent] [--with-skills] [--w
 | `--with-scripts`  | `scripts/.gitkeep`                              | —                               |
 | `--with-assets`   | `assets/.gitkeep`                               | —                               |
 
-- `README.md` and `.zcode-plugin/plugin.json` are always written. The manifest carries `name`, `version` `0.1.0`, `description` `<name> plugin`, `author.name` `Local developer`, plus the component fields above in the fixed order skills, commands, hooks, mcpServers — the order is fixed so identical inputs produce identical files.
+- `README.md` and `.zcodium-plugin/plugin.json` are always written. The manifest carries `name`, `version` `0.1.0`, `description` `<name> plugin`, `author.name` `Local developer`, plus the component fields above in the fixed order skills, commands, hooks, mcpServers — the order is fixed so identical inputs produce identical files.
 - `--marketplace-path` also upserts an entry for the new plugin into that catalog (a missing file starts as `{"name":"personal","plugins":[]}`). Without the flag, no catalog is touched.
 - `--force` allows overwriting an existing plugin directory, existing files, and an existing marketplace entry.
 - Ordering guarantee: every check — marketplace plan, directory existence, a symlink walk over each destination's ancestors, per-file existence — runs before the first byte is written, so a rejected run leaves nothing behind.
@@ -101,7 +101,7 @@ node scripts/validate-plugin.mjs <plugin-path> [--cli zcode-executable-or-js-ent
 Two stages:
 
 1. **Preflight** (`preflightPlugin`, also imported by `upsert-dev-marketplace.mjs`). This is deliberately not a copy of the ZCode manifest schema — it adds the two classes of problem schema validation does not cover:
-   - resolves `.zcode-plugin/plugin.json` through `realpath` and rejects a manifest symlink that escapes the plugin;
+   - resolves `.zcodium-plugin/plugin.json` through `realpath` and rejects a manifest symlink that escapes the plugin;
    - walks every string in the manifest for unresolved placeholders: `TODO`, `FIXME`, `<your …>`, `YOUR_API_KEY`;
    - collects resource paths from the `skills`, `commands`, `hooks` and `mcpServers` fields (string or array entries) plus any `${CLAUDE_PLUGIN_ROOT}/…` reference found inside manifest strings, then for each one resolves it inside the plugin root (escape is an error), follows symlinks (escape is an error), expands directories while skipping `node_modules` and `.git`, and scans text files (`.json`, `.md`, `.mjs`, `.cjs`, `.js`, `.ts`, `.txt`, `.yaml`, `.yml`, `.toml`) for placeholders — `.json` files are parsed and walked recursively.
    - error shapes: `Unresolved TODO/placeholder`, `Unresolved placeholder: <resource>`, `Resource escapes outside plugin: <resource>`, `Resource symlink escapes outside plugin: <resource>`, `Resource unavailable: <resource>: <reason>`, `Manifest symlink escapes outside plugin`.

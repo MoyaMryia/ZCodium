@@ -156,7 +156,7 @@ const remoteOfficialPluginPackages = [
 ];
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
-  ".zcode-plugin",
+  ".zcodium-plugin",
   "README.md",
   // 生产远程预构建有独立顶层白名单，遗漏 agents 会在上传前永久裁掉子代理。
   "agents",
@@ -182,8 +182,8 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
 const remoteOfficialPluginRequiredPaths = [
-  "packages/browser-use-plugin/.zcode-plugin/plugin.json",
-  "packages/node-repl-host/.zcode-plugin/plugin.json",
+  "packages/browser-use-plugin/.zcodium-plugin/plugin.json",
+  "packages/node-repl-host/.zcodium-plugin/plugin.json",
   // computer-use 的 client 及其四个依赖模块 / skill / 文档，缺一即 seed 出不可用插件。
   "packages/zcode-cua-plugin/scripts/computer-use-client.mjs",
   "packages/zcode-cua-plugin/scripts/computer-use-errors.mjs",
@@ -193,7 +193,7 @@ const remoteOfficialPluginRequiredPaths = [
   "packages/zcode-cua-plugin/skills/computer-use/SKILL.md",
   "packages/zcode-cua-plugin/docs/computer-use.md",
   ...builtinContentPluginPackages.map(
-    ({ stagedPath }) => `${stagedPath}/.zcode-plugin/plugin.json`,
+    ({ stagedPath }) => `${stagedPath}/.zcodium-plugin/plugin.json`,
   ),
 ];
 
@@ -503,7 +503,7 @@ function assertRemoteOfficialPluginRuntime(plugin) {
 function stageRemoteOfficialPlugins(glmDir) {
   for (const plugin of remoteOfficialPluginPackages) {
     const sourceRoot = join(rootDir, plugin.relativePath);
-    const manifestPath = join(sourceRoot, ".zcode-plugin", "plugin.json");
+    const manifestPath = join(sourceRoot, ".zcodium-plugin", "plugin.json");
     if (!existsSync(manifestPath)) {
       throw new Error(
         `[prepare-prebuilds] missing remote official plugin manifest: ${manifestPath}`,

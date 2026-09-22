@@ -5,7 +5,7 @@ export function installScriptSource(baseUrl) {
 set -eu
 
 BASE_URL="\${ZCODE_DIST_BASE_URL:-${baseUrl}}"
-INSTALL_DIR="\${ZCODE_DIST_HOME:-$HOME/.zcode/runtime}"
+INSTALL_DIR="\${ZCODE_DIST_HOME:-$HOME/.zcodium/runtime}"
 BIN_DIR="\${ZCODE_DIST_BIN_DIR:-$HOME/.local/bin}"
 
 need_cmd() {

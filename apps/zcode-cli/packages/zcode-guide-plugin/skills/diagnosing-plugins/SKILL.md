@@ -9,14 +9,14 @@ The goal is one concrete fix per problem.
 
 Plugins are managed in **Settings → Plugin Management** — the **Installed** tab for enable/disable, details, configuration and uninstall, and the **Discover** tab for browsing, installing and adding marketplaces through the **`+`** button.
 
-> Three facts worth holding onto: enable/disable state lives under `plugins` in `~/.zcode/cli/config.json`; the official marketplace is `zcode-plugins-official`; and to clone marketplace repositories behind a proxy, ZCode reads the proxy from `ZCODE_HTTP_PROXY` — a bare `http_proxy` is ignored.
+> Three facts worth holding onto: enable/disable state lives under `plugins` in `~/.zcodium/cli/config.json`; the official marketplace is `zcode-plugins-official`; and to clone marketplace repositories behind a proxy, ZCode reads the proxy from `ZCODE_HTTP_PROXY` — a bare `http_proxy` is ignored.
 
 ## 1. Lifecycle and where state is kept
 
 - **Discovery sources**, first match winning: inline directories, bundled official plugins, the official plugin cache, then marketplace-installed plugins. The whole subsystem hangs off the `plugins.enabled` master switch.
-- **Manifest location**, probed in order: `.zcode-plugin/plugin.json` first, then `.claude-plugin/plugin.json`, then `.codex-plugin/plugin.json`. A plugin's identity is `<name>@<marketplace>`.
+- **Manifest location**, probed in order: `.zcodium-plugin/plugin.json` first, then `.claude-plugin/plugin.json`, then `.codex-plugin/plugin.json`. A plugin's identity is `<name>@<marketplace>`.
 - **Enable/disable resolution**: an explicit entry always wins; only with no entry at all does the plugin's own default-enabled status apply. A disabled plugin still shows in the list as disabled, but its components resolve to nothing.
-- **Persistence**, all under `plugins` in `~/.zcode/cli/config.json`: the enable/disable map, per-plugin configuration values, and the suppressed-built-ins list. Since a built-in plugin ships inside the application and cannot be deleted, "uninstalling" one writes a suppression marker that hides it from discovery.
+- **Persistence**, all under `plugins` in `~/.zcodium/cli/config.json`: the enable/disable map, per-plugin configuration values, and the suppressed-built-ins list. Since a built-in plugin ships inside the application and cannot be deleted, "uninstalling" one writes a suppression marker that hides it from discovery.
 - **Built-in seeding**: on first launch, bundled official plugins are materialized into the plugin cache and registered in the official marketplace listing. That is idempotent and only re-materializes when content or version changes.
 
 ## 2. The manifest schema
@@ -40,7 +40,7 @@ Plugins are managed in **Settings → Plugin Management** — the **Installed** 
 1. **Not listed at all.** Its marketplace was never added, so there is no installation record and no cache; or `plugins.enabled` is false. → Add the marketplace on Discover and install it, or set `plugins.enabled: true`.
 2. **Marketplace add or install fails to clone.** An error such as `RPC failed`, `timed out` or `early EOF` after retries, because the clone never inherited the shell proxy. → **Set `ZCODE_HTTP_PROXY=http://host:port`** — ZCode reads the proxy only from that variable and ignores a bare `http_proxy`.
 3. **Enabled, yet its skills or commands are missing.** A component path escapes the plugin root, the plugin is actually disabled, or it is not treated as enabled where the session reads it. → Open the detail view to see the invalid component, then make the manifest path relative and inside the plugin root.
-4. **A built-in plugin still appears after being disabled, or comes back after uninstalling.** The suppression state was not applied where it was read. → Confirm the plugin id sits in the suppressed-built-ins list in `~/.zcode/cli/config.json`; restoring it removes that entry and re-seeds.
+4. **A built-in plugin still appears after being disabled, or comes back after uninstalling.** The suppression state was not applied where it was read. → Confirm the plugin id sits in the suppressed-built-ins list in `~/.zcodium/cli/config.json`; restoring it removes that entry and re-seeds.
 5. **Listed as enabled but a skill reports "not found" in the session.** The default-enabled set was not applied along the session's discovery path even though the listing says enabled. → Verify the plugin's skills are actually available in the session through **Settings → Skills** and the `/` menu, not merely that the plugin reads as enabled.
 6. **Manifest parse error.** The JSON is invalid, is not an object, or `name` is missing or invalid. → Fix it into a valid object whose `name` matches the pattern.
 7. **Invalid plugin name.** It breaks `^[a-z0-9][a-z0-9._-]{0,127}$`. → Rename.

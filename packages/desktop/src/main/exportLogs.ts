@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { ZipFile } from "yazl";
 import { getAppConfigDir, getExportLogDir, getFeedbackLogArchiveDir } from "@zcode/services/node";
-import { ZCODE_VERSION } from "@zcode/shared";
+import { ZCODE_USER_DATA_DIR_NAME, ZCODE_VERSION } from "@zcode/shared";
 import { readSafeDiagnosticArchive } from "./safeDiagnosticArchive.js";
 import { logger, flushDesktopLogs } from "./logger.js";
 
@@ -14,7 +14,7 @@ async function archiveContents(sourceDir: string): Promise<string> {
   await flushDesktopLogs();
   return readSafeDiagnosticArchive([
     join(sourceDir, "logs", "diagnostics-v1"),
-    join(homedir(), ".zcode", "cli", "log", "diagnostics-v1"),
+    join(homedir(), ZCODE_USER_DATA_DIR_NAME, "cli", "log", "diagnostics-v1"),
   ]);
 }
 async function writeZip(path: string, content: string): Promise<void> {

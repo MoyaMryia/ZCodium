@@ -48,7 +48,7 @@ function extractRawDestination(node: MarkdownNode, slice: string): string | null
 /**
  * 从 VFile 原文里取回该节点未被反转义的 destination 原文。
  *
- * `[x](C:\Users\developer\.zcode\a.png)` 在 remark-parse 阶段就会把 `\.`
+ * `[x](C:\Users\developer\.zcodium\a.png)` 在 remark-parse 阶段就会把 `\.`
  * 当成标点转义吃掉（`\U` `\z` `\w` 这些因为后面不是标点而幸存），mdast 拿到的
  * 是 `C:\Users\developer.zcode\a.png`。丢失发生在解析期，rehype 阶段的既有改写插件
  * 看到的已经是丢失后的字符串，无从还原——所以必须在 remark 阶段做。

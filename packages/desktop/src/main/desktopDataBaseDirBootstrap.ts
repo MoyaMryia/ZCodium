@@ -2,9 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { setDataBaseDir } from "@zcode/services/node";
+import { ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 
 function resolveBootstrapSettingsFile(homePath: string = homedir()): string {
-  return join(homePath, ".zcode", "v2", "setting.json");
+  return join(homePath, ZCODE_USER_DATA_DIR_NAME, "v2", "setting.json");
 }
 
 function extractBootstrapDataBaseDir(rawValue: unknown): string | null {

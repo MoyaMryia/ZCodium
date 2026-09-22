@@ -2,12 +2,14 @@
 import { access, lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
-  createAgentStateId,
-  createPluginAgentStateId,
-  parsePluginSubagentModelSelectionOverrides,
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
   ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  ZCODE_PLUGIN_MANIFEST_DIR_NAME,
+  ZCODE_USER_DATA_DIR_NAME,
+  createAgentStateId,
+  createPluginAgentStateId,
   modelSelectionSchema,
+  parsePluginSubagentModelSelectionOverrides,
   type AgentCreateParams,
   type AgentDeleteParams,
   type AgentDiagnostic,
@@ -82,7 +84,7 @@ interface PluginAgentDiscovery {
 
 const BUILT_IN_AGENT_NAMES = new Set(["general-purpose", "Explore"]);
 const PLUGIN_MANIFEST_PATHS = [
-  join(".zcode-plugin", "plugin.json"),
+  join(ZCODE_PLUGIN_MANIFEST_DIR_NAME, "plugin.json"),
   join(".claude-plugin", "plugin.json"),
   join(".codex-plugin", "plugin.json"),
 ] as const;
@@ -396,7 +398,12 @@ async function discoverPluginAgents(params: {
 
 async function readPluginConfig(options?: SubagentStorageOptions): Promise<PluginConfigSummary> {
   try {
-    const configPath = join(resolveUserHomeDir(options), ".zcode", "cli", "config.json");
+    const configPath = join(
+      resolveUserHomeDir(options),
+      ZCODE_USER_DATA_DIR_NAME,
+      "cli",
+      "config.json",
+    );
     const raw = await readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed)) return { enabledPlugins: {}, suppressedBuiltins: [] };

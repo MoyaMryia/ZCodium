@@ -1,7 +1,7 @@
 /**
  * 沙箱子进程逻辑。**一份实现，一份入口文件，两种启动方式**：
  *   - {@link renderChildEntry} 把 {@link childMain} 经 `toString()` 与 payload 一起渲染成一份
- *     自包含 ESM，harness 写到 `<cwd>/.zcode/workflow-runs/<runId>.mjs`（child-entry-file.ts）；
+ *     自包含 ESM，harness 写到 `<cwd>/.zcodium/workflow-runs/<runId>.mjs`（child-entry-file.ts）；
  *   - 普通 Node：`node --max-old-space-size=N <entry>`，入口文件发现自己就是进程入口时自启；
  *   - SEA 单文件二进制：CLI 的隐藏子命令 `__zcode-dwf-child <entry>` `import()` 这份文件并调
  *     它导出的 `start(deps)`，注入 CLI 进程的 vm/readline/stdio（SEA 主程序不解释 Node CLI

@@ -9,9 +9,9 @@
  *   scan-legacy-sessions.mjs conversations --agent <provider> --workspace <path> [--query <text>] [--limit <n>] [--json]
  *
  * 选项：
- *   --legacy-dir <path>   旧快照根目录。默认 ~/.zcode/v2/sessions
- *   --task-index <path>   任务索引 sqlite。默认 ~/.zcode/v2/tasks-index.sqlite
- *   --cli-db <path>       新 ZCode 会话 sqlite。默认 ~/.zcode/cli/db/db.sqlite
+ *   --legacy-dir <path>   旧快照根目录。默认 ~/.zcodium/v2/sessions
+ *   --task-index <path>   任务索引 sqlite。默认 ~/.zcodium/v2/tasks-index.sqlite
+ *   --cli-db <path>       新 ZCode 会话 sqlite。默认 ~/.zcodium/cli/db/db.sqlite
  *   --agent <provider>    按 provider 过滤，如 glm、claude、codex、opencode
  *   --workspace <path>    按 workspace 路径精确过滤
  *   --query <text>        按标题、ID 或可见正文过滤会话
@@ -25,9 +25,9 @@ import { join } from "node:path";
 
 import { runScan } from "./legacy-scan.mjs";
 
-const DEFAULT_LEGACY_DIR = join(homedir(), ".zcode", "v2", "sessions");
-const DEFAULT_TASK_INDEX_PATH = join(homedir(), ".zcode", "v2", "tasks-index.sqlite");
-const DEFAULT_CLI_DB_PATH = join(homedir(), ".zcode", "cli", "db", "db.sqlite");
+const DEFAULT_LEGACY_DIR = join(homedir(), ".zcodium", "v2", "sessions");
+const DEFAULT_TASK_INDEX_PATH = join(homedir(), ".zcodium", "v2", "tasks-index.sqlite");
+const DEFAULT_CLI_DB_PATH = join(homedir(), ".zcodium", "cli", "db", "db.sqlite");
 
 const USAGE = `Usage:
   scan-legacy-sessions.mjs summary [--json]

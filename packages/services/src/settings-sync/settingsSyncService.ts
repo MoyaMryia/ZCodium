@@ -1,3 +1,8 @@
+import {
+  ZCODE_PLUGIN_MANIFEST_DIR_NAME,
+  ZCODE_USER_DATA_DIR_NAME,
+  ZCODE_WORKSPACE_CONFIG_DIR_NAME,
+} from "@zcode/shared";
 /* eslint-disable max-lines -- settings-sync 需要集中维护外部 skills/commands/plugins/MCP 扫描、去重和导入状态机，后续按资源类别拆分 */
 import type {
   McpServerConfig,
@@ -411,7 +416,7 @@ const SUPPORTED_MCP_AGENT_SOURCES: ExternalAgentMcpPathSource[] = [
   },
 ];
 
-const ZCODE_PLUGIN_MANIFEST_PATH = [".zcode-plugin", "plugin.json"] as const;
+const ZCODE_PLUGIN_MANIFEST_PATH = [ZCODE_PLUGIN_MANIFEST_DIR_NAME, "plugin.json"] as const;
 const CLAUDE_PLUGIN_MANIFEST_PATH = [".claude-plugin", "plugin.json"] as const;
 const CODEX_PLUGIN_MANIFEST_PATH = [".codex-plugin", "plugin.json"] as const;
 const INLINE_PLUGIN_MARKETPLACE = "inline";
@@ -422,35 +427,35 @@ function resolveUserHomeDir(): string {
 }
 
 function getWorkspaceZcodeSkillRoot(workspacePath: string): string {
-  return join(workspacePath, ".zcode", "skills");
+  return join(workspacePath, ZCODE_WORKSPACE_CONFIG_DIR_NAME, "skills");
 }
 
 function getUserZcodeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".zcode", "skills");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "skills");
 }
 
 function getWorkspaceZcodeCommandRoot(workspacePath: string): string {
-  return join(workspacePath, ".zcode", "commands");
+  return join(workspacePath, ZCODE_WORKSPACE_CONFIG_DIR_NAME, "commands");
 }
 
 function getUserZcodeCommandRoot(): string {
-  return join(resolveUserHomeDir(), ".zcode", "commands");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "commands");
 }
 
 function getWorkspaceZcodePluginRoot(workspacePath: string): string {
-  return join(workspacePath, ".zcode", "plugins");
+  return join(workspacePath, ZCODE_WORKSPACE_CONFIG_DIR_NAME, "plugins");
 }
 
 function getUserZcodePluginRoot(): string {
-  return join(resolveUserHomeDir(), ".zcode", "plugins");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "plugins");
 }
 
 function getUserZcodeCliConfigPath(): string {
-  return join(resolveUserHomeDir(), ".zcode", "cli", "config.json");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "cli", "config.json");
 }
 
 function getWorkspaceZcodeConfigPath(workspacePath: string): string {
-  return join(workspacePath, ".zcode", "config.json");
+  return join(workspacePath, ZCODE_WORKSPACE_CONFIG_DIR_NAME, "config.json");
 }
 
 function getClaudeUserAgentsFileSourcePath(): string {
@@ -458,7 +463,7 @@ function getClaudeUserAgentsFileSourcePath(): string {
 }
 
 function getUserZcodeAgentsFilePath(): string {
-  return join(resolveUserHomeDir(), ".zcode", "AGENTS.md");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "AGENTS.md");
 }
 
 function resolveTargetRootForScope(

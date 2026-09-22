@@ -54,7 +54,7 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 ### seed 路径是校验闸门，不是复制过滤器
 
 顶层白名单（`bundled-plugins.ts` 的 `includedTopLevelPaths`、`prepare-agent-node-bundle.mjs` 的
-`includedOfficialPluginTopLevelPaths`）决定**复制哪些目录**，已覆盖 `.mcp.json`、`.zcode-plugin`、
+`includedOfficialPluginTopLevelPaths`）决定**复制哪些目录**，已覆盖 `.mcp.json`、`.zcodium-plugin`、
 `README.md`、`agents`、`commands`、`dist`、`docs`、`hooks`、`output-styles`、`package.json`、
 `scripts`、`skills`、`templates`。`requiredSeedPaths` 只决定**缺项时是否拒绝 seed**
 （`bundled-plugins.ts` 的 `findMissingOfficialPluginSeedPaths` 抛 `ZCODE_PLUGIN_SEED_INCOMPLETE`，
@@ -69,7 +69,7 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 `documents` 的 `requiredSeedPaths` 为 15 项：两个 markdown、8 个 Python 模块、5 个 OOXML 模板。
 Python 脚本是技能正文描述的全部能力的执行体，缺任一项都会让 `SKILL.md` 指向不存在的工具。
 
-顶层白名单 `remoteOfficialPluginTopLevelPaths` 已覆盖 `.zcode-plugin`、`agents`、
+顶层白名单 `remoteOfficialPluginTopLevelPaths` 已覆盖 `.zcodium-plugin`、`agents`、
 `commands`、`docs`、`skills`、`scripts`、`package.json`，**本次不需要扩容**。
 
 **唯一写入路径**：插件源码只存在于 `apps/zcode-cli/packages/<name>/`，安装包内的
@@ -77,7 +77,7 @@ Python 脚本是技能正文描述的全部能力的执行体，缺任一项都�
 
 ## 验收场景
 
-1. 每个包都存在 `.zcode-plugin/plugin.json`，且 `name` 与 `package.json` 的
+1. 每个包都存在 `.zcodium-plugin/plugin.json`，且 `name` 与 `package.json` 的
    `name` 后缀一致。
 2. `pnpm typecheck` 与 `pnpm lint` 保持基线（0 error；warning 不新增）。
 3. 新增包被 `pnpm-workspace.yaml` 的 `packages/*` 自动纳入，无需改 workspace 配置。

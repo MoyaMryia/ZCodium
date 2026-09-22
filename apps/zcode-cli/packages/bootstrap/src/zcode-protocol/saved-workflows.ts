@@ -5,7 +5,7 @@
 // 解析器与序列化器只从 @zcode/core 取：这里不解析 frontmatter，也不拼 YAML。
 //
 // 全局作用域：五个方法的 params 收可选 `scope`（缺省
-// `project`）。`global` 时改按本机全局根（`~/.zcode/workflows/`）操作，`workspace` 只是**载体**——
+// `project`）。`global` 时改按本机全局根（`~/.zcodium/workflows/`）操作，`workspace` 只是**载体**——
 // 处理器对全局档不读它的路径。`workflows/move` 把全局档搬回 `workspace` 项目（只此一向）。
 import { unlink, writeFile } from "node:fs/promises";
 import { SavedWorkflowMetaSchema, isValidSavedWorkflowName } from "@zcode/contracts";

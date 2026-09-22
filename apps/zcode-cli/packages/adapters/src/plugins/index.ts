@@ -97,7 +97,7 @@ export {
   type PluginUpdateStatus,
 } from "./version-compare.js";
 
-const ZCODE_MANIFEST_PATH = join(".zcode-plugin", "plugin.json");
+const ZCODE_MANIFEST_PATH = join(".zcodium-plugin", "plugin.json");
 const CLAUDE_MANIFEST_PATH = join(".claude-plugin", "plugin.json");
 const CODEX_MANIFEST_PATH = join(".codex-plugin", "plugin.json");
 const DEFAULT_VERSION = "0.0.0";

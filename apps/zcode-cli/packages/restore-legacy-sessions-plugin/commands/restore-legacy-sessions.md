@@ -39,5 +39,5 @@ node scripts/restore-conversation.mjs --snapshot <path> --dry-run
 
 Then apply the same command without `--dry-run`, and report the message and part counts
 it prints. Do not write during selection, do not restore more than the conversation the
-user chose, and keep the default source `~/.zcode/v2/sessions` unless another source
+user chose, and keep the default source `~/.zcodium/v2/sessions` unless another source
 directory was given explicitly.

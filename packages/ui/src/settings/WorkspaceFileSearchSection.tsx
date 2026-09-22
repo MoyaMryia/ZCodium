@@ -20,7 +20,7 @@ type IgnoreFileState = {
 };
 
 /**
- * 工作区文件搜索忽略规则（.zcodeignore）编辑页。
+ * 工作区文件搜索忽略规则（.zcodiumignore）编辑页。
  * 规则文件是目录排除的单一真相源：编辑保存即生效（下次扫描读取新内容）；
  * 「从 .gitignore 同步」与「恢复默认规则」是分区操作：只重写各自标记区
  * （gitignore 同步区 / 默认排除段），用户自定义规则区不受影响；结果填入编辑框，
@@ -91,7 +91,7 @@ function ActiveWorkspaceFileSearchEditor({
       if (loadVersionRef.current !== version) {
         return;
       }
-      logger.warn("[WorkspaceFileSearchSection] 读取 .zcodeignore 失败", {
+      logger.warn("[WorkspaceFileSearchSection] 读取 .zcodiumignore 失败", {
         error: error instanceof Error ? error.message : String(error),
       });
       toast(intl.formatMessage({ id: "settings.workspaceFileSearch.loadFailed" }));
@@ -125,7 +125,7 @@ function ActiveWorkspaceFileSearchEditor({
         if (loadVersionRef.current !== version) {
           return;
         }
-        logger.warn("[WorkspaceFileSearchSection] 应用 .zcodeignore 分区操作失败", {
+        logger.warn("[WorkspaceFileSearchSection] 应用 .zcodiumignore 分区操作失败", {
           transform,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -160,7 +160,7 @@ function ActiveWorkspaceFileSearchEditor({
       setLoaded({ content: draft, source: "file" });
       toast(intl.formatMessage({ id: "settings.workspaceFileSearch.saved" }));
     } catch (error) {
-      logger.warn("[WorkspaceFileSearchSection] 保存 .zcodeignore 失败", {
+      logger.warn("[WorkspaceFileSearchSection] 保存 .zcodiumignore 失败", {
         error: error instanceof Error ? error.message : String(error),
       });
       toast(intl.formatMessage({ id: "settings.workspaceFileSearch.saveFailed" }));
@@ -169,13 +169,13 @@ function ActiveWorkspaceFileSearchEditor({
     }
   }, [draft, intl, services, workspacePath]);
 
-  // 保存语义是"把编辑框内容落盘"：template 态（.zcodeignore 尚未创建）即使未编辑也允许保存，
+  // 保存语义是"把编辑框内容落盘"：template 态（.zcodiumignore 尚未创建）即使未编辑也允许保存，
   // 否则用户第一次进页面什么都不改就永远无法创建文件；已落盘态才按"有修改才可保存"门控。
   const canSave = loaded === null || loaded.source === "template" || draft !== loaded.content;
   // "有未保存的修改"提示只表达真实差异（template 态未编辑时不显示）。
   const dirty = loaded !== null && loaded.source === "file" && draft !== loaded.content;
 
-  // 「打开文件位置」：.zcodeignore 位于 workspace 根，打开根目录即所在位置
+  // 「打开文件位置」：.zcodiumignore 位于 workspace 根，打开根目录即所在位置
   // （与 WindowsCaptionMenuButton/ModelTrajectoryPane 先例一致传目录）。
   // 远程 workspace 的规则文件在远端机器，本地文件管理器无法打开，按钮不展示。
   const isLocalWorkspace = !workspaceIdentity?.trim();

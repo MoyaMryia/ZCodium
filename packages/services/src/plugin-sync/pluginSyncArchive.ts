@@ -9,7 +9,7 @@ const gunzipAsync = promisify(gunzip);
 const TAR_BLOCK_SIZE = 512;
 const TAR_END_BLOCK_BYTES = TAR_BLOCK_SIZE * 2;
 
-export const PLUGIN_SYNC_METADATA_ARCHIVE_PATH = ".zcode-plugin-sync.json";
+export const PLUGIN_SYNC_METADATA_ARCHIVE_PATH = ".zcodium-plugin-sync.json";
 
 type PluginSyncArchiveEntry =
   | {

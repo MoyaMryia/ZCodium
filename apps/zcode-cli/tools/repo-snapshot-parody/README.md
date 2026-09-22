@@ -47,7 +47,7 @@ node bin/parody.mjs serve --port 8787 --parody-snapshot
 node bin/parody.mjs capture --workspace /path/to/repo --port 8787 --parody-snapshot
 
 # 4. 解密还原（原版做不到的一步）
-node bin/parody.mjs decrypt --dir ~/.zcode/repo-snapshot-parody/received/<groupId> --parody-snapshot
+node bin/parody.mjs decrypt --dir ~/.zcodium/repo-snapshot-parody/received/<groupId> --parody-snapshot
 ```
 
 `bin/parody.mjs` 先注册 resolve hook 再引入 `src/cli.ts`，所以不必记得 `--import` 参数。
@@ -75,7 +75,7 @@ node bin/parody.mjs decrypt --dir ~/.zcode/repo-snapshot-parody/received/<groupI
 ## 产物
 
 ```
-~/.zcode/repo-snapshot-parody/
+~/.zcodium/repo-snapshot-parody/
 ├── keys/
 │   ├── rsa-private.pem      # 0600。解密只靠它。
 │   └── rsa-public.pem

@@ -107,7 +107,7 @@ pnpm dev:desktop:test
 Set `ZCODE_DATA_BASE_DIR` to use a separate development data directory. For example, on macOS / Linux:
 
 ```bash
-ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
+ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
 ```
 
 ### Web Development
@@ -171,7 +171,7 @@ The root [.env.example](.env.example) provides sample service URLs and build con
 
 | Setting                              | Purpose                                                                                 |
 | ------------------------------------ | --------------------------------------------------------------------------------------- |
-| `ZCODE_DATA_BASE_DIR`                | Base directory for application data, stored under its `.zcode/` subdirectory            |
+| `ZCODE_DATA_BASE_DIR`                | Base directory for application data, stored under its `.zcodium/` subdirectory          |
 | `ZCODE_SERVER_WORKSPACE`             | Workspace path for the Web backend                                                      |
 | `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | Path to a local provider configuration file; uses the built-in configuration when unset |
 | `ZCODE_DIST_BASE_URL`                | Download base URL used by the CLI distribution installer                                |
@@ -228,7 +228,7 @@ The version defaults to the root `package.json` version. Output is written to `d
 - `releases/<version>/sha256.txt`: checksum file.
 - `latest.json` and `install.sh`: version index and installer.
 
-Upload the entire directory to the configured download base URL. The installer downloads the runtime package from that URL, installs it to `~/.zcode/runtime` by default, and creates the `zcode` command in `~/.local/bin`. Override these directories with `ZCODE_DIST_HOME` and `ZCODE_DIST_BIN_DIR`, respectively.
+Upload the entire directory to the configured download base URL. The installer downloads the runtime package from that URL, installs it to `~/.zcodium/runtime` by default, and creates the `zcode` command in `~/.local/bin`. Override these directories with `ZCODE_DIST_HOME` and `ZCODE_DIST_BIN_DIR`, respectively.
 
 Existing Lite users should switch to the new build command, environment variables, and installer. Installation does not remove old Lite directories or migrate/delete session data.
 

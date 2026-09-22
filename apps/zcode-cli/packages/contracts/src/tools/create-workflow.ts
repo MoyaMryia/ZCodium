@@ -82,7 +82,7 @@ const CreateWorkflowModelInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Short display label for this run, in the user's language (\"PR review\", \"代码评审\"). Always pass it for an inline script: it labels the run everywhere and names its draft file under .zcode/workflow-drafts/. Defaults to the saved workflow's name when running a saved workflow.",
+        "Short display label for this run, in the user's language (\"PR review\", \"代码评审\"). Always pass it for an inline script: it labels the run everywhere and names its draft file under .zcodium/workflow-drafts/. Defaults to the saved workflow's name when running a saved workflow.",
       ),
     script: z
       .string()

@@ -49,7 +49,7 @@ interface OfficialRuntimeManifestInput {
 }
 
 export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifestInput): void {
-  const manifestPath = join(input.rootPath, ".zcode-plugin", "plugin.json");
+  const manifestPath = join(input.rootPath, ".zcodium-plugin", "plugin.json");
   const currentContents = readFileSync(manifestPath, "utf8");
   const manifest = JSON.parse(currentContents) as Record<string, unknown>;
   // skill-only / command-only 类型的 official plugin 不带 mcpServers，直接跳过 rewrite。

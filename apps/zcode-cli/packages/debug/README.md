@@ -10,8 +10,8 @@ pnpm --filter debug dev
 
 The Hono API reads existing local diagnostics only:
 
-- `~/.zcode/cli/log/*.jsonl`
-- `~/.zcode/cli/db/db.sqlite`
+- `~/.zcodium/cli/log/*.jsonl`
+- `~/.zcodium/cli/db/db.sqlite`
 - an optional session event JSONL file or directory selected in the UI
 
 It does not modify agent runtime behavior or write back to the agent database.

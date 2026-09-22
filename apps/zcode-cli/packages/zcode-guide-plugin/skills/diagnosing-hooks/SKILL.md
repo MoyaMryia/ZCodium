@@ -11,7 +11,7 @@ The goal is one concrete fix per problem.
 
 ## 1. Where hooks come from, and how they merge
 
-- **Configuration-file hooks** live under the top-level `hooks` key of `~/.zcode/cli/config.json`, or of the workspace `<repo>/.zcode/config.json` / `zcode.json`. The shape is `{ enabled?, timeoutMs?, maxOutputBytes?, events: { <Event>: [ { matcher?, hooks: [...] } ] } }`. **They are off by default — configuration-file hooks need `hooks.enabled: true` to run at all.**
+- **Configuration-file hooks** live under the top-level `hooks` key of `~/.zcodium/cli/config.json`, or of the workspace `<repo>/.zcodium/config.json` / `zcode.json`. The shape is `{ enabled?, timeoutMs?, maxOutputBytes?, events: { <Event>: [ { matcher?, hooks: [...] } ] } }`. **They are off by default — configuration-file hooks need `hooks.enabled: true` to run at all.**
 - **Plugin hooks** come from each plugin's `hooks/hooks.json`, or its manifest `hooks` field. Plugin matchers are appended after configuration matchers. **The moment any plugin contributes a hook, the runner enables itself automatically.**
 - Non-plugin configuration hooks carry no trust gate; with `enabled: true` they run unconditionally.
 
@@ -38,7 +38,7 @@ A plugin file uses that outer `hooks` wrapper; a configuration file uses `hooks.
 ## 3. Inspecting hooks
 
 - **Client**: **Settings → Plugin Management**, then a plugin's detail view, shows the hooks it registers and whether each is runnable.
-- **Agent**: read a plugin's `hooks/hooks.json` or its manifest `hooks` field, and the `hooks` block of `~/.zcode/cli/config.json` or the workspace config for configuration hooks.
+- **Agent**: read a plugin's `hooks/hooks.json` or its manifest `hooks` field, and the `hooks` block of `~/.zcodium/cli/config.json` or the workspace config for configuration hooks.
 - **Execution** — fired, timed out, blocked — is recorded in the ZCode log with the hook's source, matcher, outcome, duration and a preview of its error stream, which is enough to tell a timeout from a failure from a block.
 
 ## 4. Pitfalls, by symptom

@@ -19,7 +19,7 @@ import type {
 const logger = createServiceLogger("onboardingRecordService");
 
 function getRecordFile(): string {
-  // 记录是设备级数据，必须跟随 dataBaseDir（用户自定义数据目录时落在其 .zcode/v2 下，
+  // 记录是设备级数据，必须跟随 dataBaseDir（用户自定义数据目录时落在其 .zcodium/v2 下，
   // 统一位于该目录），不能学 setting.json 固定写 home——setting.json 留在 home
   // 只是启动引导需要固定位置读取 dataBaseDir，不代表其他设备数据的落点。
   return join(getAppConfigDir(), "onboarding-record.json");

@@ -4,8 +4,8 @@ Every field below is read by code in this repository: the plugin loader (`packag
 
 ## Where the manifest lives
 
-- Canonical location: `<plugin root>/.zcode-plugin/plugin.json`. This is what the scaffold writes and what the preflight reads.
-- The loader also falls back to `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` when `.zcode-plugin/plugin.json` is absent. New plugins should use `.zcode-plugin`.
+- Canonical location: `<plugin root>/.zcodium-plugin/plugin.json`. This is what the scaffold writes and what the preflight reads.
+- The loader also falls back to `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` when `.zcodium-plugin/plugin.json` is absent. New plugins should use `.zcodium-plugin`.
 - The file must be a JSON object. Invalid JSON, or a missing/invalid `name`, is a hard error (`plugin_manifest_invalid`), not a warning.
 
 ## Manifest fields

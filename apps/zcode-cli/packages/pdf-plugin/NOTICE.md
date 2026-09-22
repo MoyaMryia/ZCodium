@@ -80,7 +80,7 @@ cover merge and the contents checks around it; both are original work.
 
 ## Everything else in this plugin
 
-`package.json`, `.zcode-plugin/plugin.json`, this `NOTICE.md`,
+`package.json`, `.zcodium-plugin/plugin.json`, this `NOTICE.md`,
 `agents/visual-judge.md`, `skills/pdf/SKILL.md`, the three typesetting briefs
 under `skills/pdf/briefs/`, the `pdf_qa` family
 (`pdf_qa.py`, `pdf_qa_document.py`, `pdf_qa_text.py`, `pdf_qa_checks.py`,

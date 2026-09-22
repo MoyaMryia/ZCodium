@@ -53,7 +53,7 @@ export interface IFileService {
    * JSON 转义大字符串（实测 6-9s 主线程长任务）。单块不超过 ~4MB：大消息在
    * renderer 接收端的分帧重组是秒级长任务（实测 4.6-6.3s），分块 + 块间让出后
    * 主线程每次只处理一小块（~50ms），输入永不冻结。
-   * Host 侧有 60s TTL + .zcodeignore 指纹签名的整包缓存，分块只是切片。
+   * Host 侧有 60s TTL + .zcodiumignore 指纹签名的整包缓存，分块只是切片。
    */
   listWorkspaceFilesRange(params: {
     rootPath: string;
@@ -61,7 +61,7 @@ export interface IFileService {
     length: number;
   }): Promise<string>;
   /**
-   * workspace 搜索忽略规则（.zcodeignore）的读写，供设置页编辑使用。
+   * workspace 搜索忽略规则（.zcodiumignore）的读写，供设置页编辑使用。
    * source: "file" 已存在文件内容；"template" 尚未创建时的初始内容预览（保存时才落盘）。
    */
   readWorkspaceFileSearchIgnore(params: {

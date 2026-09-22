@@ -128,7 +128,7 @@ export function scaffoldFiles(name, components) {
     if (components.includes(directory)) files.set(`${directory}/.gitkeep`, "");
   }
 
-  files.set(".zcode-plugin/plugin.json", jsonFile(manifest));
+  files.set(".zcodium-plugin/plugin.json", jsonFile(manifest));
   return files;
 }
 

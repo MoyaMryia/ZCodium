@@ -727,7 +727,7 @@ export class ConversationShareService implements IConversationShareService {
       process.env.ZCODE_CONVERSATION_SHARE_WEB_URL ??
       `${resolveRuntimeZCodeEndpointOrigin(process.env)}/cn/share`
     ).replace(/\/+$/u, "");
-    this.importIndexPath = join(this.conversationWorkspaceRoot, ".zcode-share-imports.json");
+    this.importIndexPath = join(this.conversationWorkspaceRoot, ".zcodium-share-imports.json");
     this.logger = options.logger ?? createServiceLogger("conversation-share");
     this.completedImportsLoaded = this.loadCompletedImportIndex();
     if (this.zcodeSessionService) {
@@ -1387,9 +1387,9 @@ export class ConversationShareService implements IConversationShareService {
         : this.conversationWorkspaceRoot;
     const workspaceIdentity =
       input.targetWorkspaceIdentity && !remoteTarget ? input.targetWorkspaceIdentity : undefined;
-    const shareRoot = join(workspacePath, ".zcode-share");
+    const shareRoot = join(workspacePath, ".zcodium-share");
     const importRoot = join(shareRoot, sanitizeFileSegment(continuation.share.share_id));
-    const markerPath = join(importRoot, ".zcode-share-import.json");
+    const markerPath = join(importRoot, ".zcodium-share-import.json");
     const stagingPath = join(importRoot, ".share-import-staging");
     const finalArtifactsPath = join(importRoot, "shared-artifacts");
     const conversationPath = join(importRoot, "shared-conversation.json");
@@ -1546,7 +1546,7 @@ export class ConversationShareService implements IConversationShareService {
         await writeFile(join(stagingPath, fileName), bytes);
         installedArtifacts.push({
           artifactId: artifact.artifact_id,
-          workspaceRelativePath: `.zcode-share/${sanitizeFileSegment(continuation.share.share_id)}/shared-artifacts/${fileName}`,
+          workspaceRelativePath: `.zcodium-share/${sanitizeFileSegment(continuation.share.share_id)}/shared-artifacts/${fileName}`,
           displayName: artifact.display_name,
           mimeType: artifact.mime_type,
           sha256: artifact.sha256,
@@ -1706,7 +1706,7 @@ export class ConversationShareService implements IConversationShareService {
   /**
    * 按 contextId 找回导入时落盘的公开 rows。
    *
-   * 目录名用的是 share_id 而不是 contextId（二者不等价），所以扫 .zcode-share/ 下各
+   * 目录名用的是 share_id 而不是 contextId（二者不等价），所以扫 .zcodium-share/ 下各
    * importRoot 并比对文件内的 contextId —— 不额外维护索引，历史导入也能被读到。
    * 内容来自磁盘，属跨存储边界，必须过 schema 再交给渲染层。
    */
@@ -1714,7 +1714,7 @@ export class ConversationShareService implements IConversationShareService {
     workspacePath: string;
     contextId: string;
   }): Promise<ImportedConversationShare | null> {
-    const shareRoot = join(input.workspacePath, ".zcode-share");
+    const shareRoot = join(input.workspacePath, ".zcodium-share");
     let entries: Dirent[];
     try {
       entries = await readdir(shareRoot, { withFileTypes: true });
@@ -2168,12 +2168,12 @@ export class ConversationShareService implements IConversationShareService {
     await this.completedImportsLoaded;
     // 只扫描默认 conversation workspace 的 import-owned 子目录；其它 workspace 的 marker
     // 在下一次带 target 的导入请求中处理，避免启动期枚举并触碰用户项目目录。
-    const shareRoot = join(this.conversationWorkspaceRoot, ".zcode-share");
+    const shareRoot = join(this.conversationWorkspaceRoot, ".zcodium-share");
     const imports = await readdir(shareRoot, { withFileTypes: true }).catch(() => []);
     for (const entry of imports) {
       if (!entry.isDirectory()) continue;
       const importRoot = join(shareRoot, entry.name);
-      const markerPath = join(importRoot, ".zcode-share-import.json");
+      const markerPath = join(importRoot, ".zcodium-share-import.json");
       let marker: {
         sessionId?: unknown;
         shareCode?: unknown;

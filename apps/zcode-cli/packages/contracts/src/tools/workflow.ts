@@ -28,7 +28,7 @@ export const WorkflowInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "Name of a predefined workflow (built-in or from .zcode/workflows/). Resolves to a self-contained script.",
+        "Name of a predefined workflow (built-in or from .zcodium/workflows/). Resolves to a self-contained script.",
       ),
     resumeFromRunId: z
       .string()

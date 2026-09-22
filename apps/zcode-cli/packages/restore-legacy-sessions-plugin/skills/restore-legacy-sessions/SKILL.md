@@ -1,6 +1,6 @@
 ---
 name: restore-legacy-sessions
-description: Use when an old ZCode conversation has to come back — ACP-era session snapshots written under ~/.zcode/v2/sessions that the current build no longer lists or opens. Covers read-only inspection of what still exists (providers, workspaces, individual conversations, and whether each is already present in the new stores), dry-run previews of a restore, and the write itself into ~/.zcode/v2/tasks-index.sqlite and ~/.zcode/cli/db/db.sqlite. Trigger on requests such as recovering a lost chat, bringing back a previous session, migrating v2 sessions, finding out why a task is missing from the list, or comparing tasks-index.sqlite against db.sqlite — including when the user never says the word "legacy".
+description: Use when an old ZCode conversation has to come back — ACP-era session snapshots written under ~/.zcodium/v2/sessions that the current build no longer lists or opens. Covers read-only inspection of what still exists (providers, workspaces, individual conversations, and whether each is already present in the new stores), dry-run previews of a restore, and the write itself into ~/.zcodium/v2/tasks-index.sqlite and ~/.zcodium/cli/db/db.sqlite. Trigger on requests such as recovering a lost chat, bringing back a previous session, migrating v2 sessions, finding out why a task is missing from the list, or comparing tasks-index.sqlite against db.sqlite — including when the user never says the word "legacy".
 ---
 
 # Restore Legacy Sessions
@@ -8,7 +8,7 @@ description: Use when an old ZCode conversation has to come back — ACP-era ses
 ## 1. Scope
 
 ZCode once stored agent conversations as ACP-era JSON snapshots under
-`~/.zcode/v2/sessions`. The current build reads a different pair of stores, so those
+`~/.zcodium/v2/sessions`. The current build reads a different pair of stores, so those
 snapshots are invisible in the task list even though the files are still on disk. This
 plugin moves a chosen snapshot into the current stores.
 
@@ -34,9 +34,9 @@ Out of scope, deliberately:
 
 | thing              | default                          | flag           |
 | ------------------ | -------------------------------- | -------------- |
-| legacy snapshots   | `~/.zcode/v2/sessions`           | `--legacy-dir` |
-| task index         | `~/.zcode/v2/tasks-index.sqlite` | `--task-index` |
-| current session DB | `~/.zcode/cli/db/db.sqlite`      | `--cli-db`     |
+| legacy snapshots   | `~/.zcodium/v2/sessions`           | `--legacy-dir` |
+| task index         | `~/.zcodium/v2/tasks-index.sqlite` | `--task-index` |
+| current session DB | `~/.zcodium/cli/db/db.sqlite`      | `--cli-db`     |
 
 Snapshots live one directory per workspace: `<legacy-dir>/<workspaceHash>/<legacyTaskId>.json`.
 The directory name is the workspace hash, and it must actually be a directory: a JSON file
@@ -257,9 +257,9 @@ scan-legacy-sessions.mjs [summary|agents|workspaces|conversations] [options]
 
 | option           | meaning                                                                            |
 | ---------------- | ---------------------------------------------------------------------------------- |
-| `--legacy-dir`   | legacy snapshot root (default `~/.zcode/v2/sessions`)                              |
-| `--task-index`   | task index sqlite (default `~/.zcode/v2/tasks-index.sqlite`)                       |
-| `--cli-db`       | current session sqlite (default `~/.zcode/cli/db/db.sqlite`)                       |
+| `--legacy-dir`   | legacy snapshot root (default `~/.zcodium/v2/sessions`)                              |
+| `--task-index`   | task index sqlite (default `~/.zcodium/v2/tasks-index.sqlite`)                       |
+| `--cli-db`       | current session sqlite (default `~/.zcodium/cli/db/db.sqlite`)                       |
 | `--agent`        | filter by provider, e.g. `glm`, `claude`, `codex`, `opencode`; `all` = none        |
 | `--workspace`    | filter by exact workspace path                                                     |
 | `--query`        | filter by title, ids, provider, workspace path, or message body (case-insensitive) |
@@ -288,8 +288,8 @@ restore-conversation.mjs --snapshot <path> [--task-index <path>] [--cli-db <path
 | option         | meaning                                                      |
 | -------------- | ------------------------------------------------------------ |
 | `--snapshot`   | legacy snapshot JSON path — **required**                     |
-| `--task-index` | task index sqlite (default `~/.zcode/v2/tasks-index.sqlite`) |
-| `--cli-db`     | current session sqlite (default `~/.zcode/cli/db/db.sqlite`) |
+| `--task-index` | task index sqlite (default `~/.zcodium/v2/tasks-index.sqlite`) |
+| `--cli-db`     | current session sqlite (default `~/.zcodium/cli/db/db.sqlite`) |
 | `--dry-run`    | print the plan and stop; no writes, no backups               |
 
 There is no `--help`: every flag is expected to take a value, so `--help` fails with
@@ -330,7 +330,7 @@ Once one conversation is chosen, preview it before touching anything:
 
 ```bash
 node scripts/restore-conversation.mjs \
-  --snapshot ~/.zcode/v2/sessions/<workspaceHash>/<legacyTaskId>.json \
+  --snapshot ~/.zcodium/v2/sessions/<workspaceHash>/<legacyTaskId>.json \
   --dry-run
 ```
 
@@ -338,7 +338,7 @@ Then apply, with no `--dry-run`:
 
 ```bash
 node scripts/restore-conversation.mjs \
-  --snapshot ~/.zcode/v2/sessions/<workspaceHash>/<legacyTaskId>.json
+  --snapshot ~/.zcodium/v2/sessions/<workspaceHash>/<legacyTaskId>.json
 ```
 
 ## 6. Restore states
@@ -373,7 +373,7 @@ that the projection did what it claimed.
 | situation                             | outcome                                                                 |
 | ------------------------------------- | ----------------------------------------------------------------------- |
 | snapshot JSON does not parse          | counted as `invalid`, excluded from grouping, scan continues, exit `0`  |
-| `~/.zcode/v2/sessions` does not exist | zero conversations, exit `0`                                            |
+| `~/.zcodium/v2/sessions` does not exist | zero conversations, exit `0`                                            |
 | destination file missing              | `<label> not found: <path>`, exit `1`, before any backup                |
 | destination file empty or not sqlite  | `<label> is not a populated sqlite file: <path>`, exit `1`              |
 | `node:sqlite` unavailable             | `node:sqlite is unavailable: <reason>` from the writable open, exit `1` |

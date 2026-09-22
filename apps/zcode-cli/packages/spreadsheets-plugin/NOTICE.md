@@ -41,7 +41,7 @@ notes) are the substance carried across.
 
 ## Everything else in this plugin
 
-`package.json`, `.zcode-plugin/plugin.json`, this `NOTICE.md` and
+`package.json`, `.zcodium-plugin/plugin.json`, this `NOTICE.md` and
 `agents/visual-judge.md` are original work written for this repository. They
 are covered by the repository's root Apache-2.0 license, which is why the
 `license` field of both manifests reads `Apache-2.0`, with no

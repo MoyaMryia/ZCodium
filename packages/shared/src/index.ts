@@ -27,6 +27,15 @@ export type {
   PersistedWorkspaceSessionEntry,
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
+export {
+  ZCODE_APP_CONFIG_SUBDIR_NAME,
+  ZCODE_PLUGIN_MANIFEST_DIR_NAME,
+  ZCODE_PLUGIN_MANIFEST_FILE_NAME,
+  ZCODE_USER_DATA_DIR_NAME,
+  ZCODE_WORKSPACE_CONFIG_DIR_NAME,
+  ZCODE_WORKSPACE_CONFIG_FILE_NAME,
+  ZCODE_WORKSPACE_IGNORE_FILE_NAME,
+} from "./appDirNames.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";

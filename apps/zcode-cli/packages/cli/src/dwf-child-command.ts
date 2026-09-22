@@ -9,7 +9,7 @@ import { safeLogArgs } from "@zcode/shared";
  * `run.ts` 在 parseArgs **之前**分派到这里。
  *
  * payload 不再走 argv（Windows 命令行上限
- * 32,767 字符），harness 写一份自包含的入口文件 `<cwd>/.zcode/workflow-runs/<runId>.mjs`，argv
+ * 32,767 字符），harness 写一份自包含的入口文件 `<cwd>/.zcodium/workflow-runs/<runId>.mjs`，argv
  * 末位只是它的路径。入口文件自带 childMain 与 payload，这里只 `import()` 它并把 CLI 进程的
  * vm/readline/stdio 注入它导出的 `start`——本模块因此**不再依赖 `@zcode/dynamic-workflow-runtime`**。
  * 堆上限的 best-effort `v8.setFlagsFromString` 也随 payload 挪进了入口文件。

@@ -33,12 +33,12 @@ import {
 const OFFICIAL_PLUGIN_MARKETPLACE = ZCODE_OFFICIAL_PLUGIN_MARKETPLACE;
 const SEA_PLUGIN_ASSET_PREFIX = "zcode-official-plugins/";
 const SEA_PLUGIN_MANIFEST_ASSET_KEY = `${SEA_PLUGIN_ASSET_PREFIX}manifest.json`;
-const SEED_MARKER_FILE = ".zcode-plugin-seed.json";
+const SEED_MARKER_FILE = ".zcodium-plugin-seed.json";
 const SEED_LOCK_TOTAL_BUDGET_MS = 15_000;
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
-  ".zcode-plugin",
+  ".zcodium-plugin",
   "README.md",
   // 官方内容插件新增 agents 后，filesystem seed 的顶层白名单未同步，目录被静默裁掉。
   "agents",
@@ -346,7 +346,7 @@ function resolveFilesystemPluginRoot(definition: OfficialPluginDefinition): stri
   for (const baseDir of candidateBaseDirs()) {
     for (const relativePath of definition.rootCandidates) {
       const rootPath = resolve(baseDir, relativePath);
-      if (existsSync(join(rootPath, ".zcode-plugin", "plugin.json"))) return rootPath;
+      if (existsSync(join(rootPath, ".zcodium-plugin", "plugin.json"))) return rootPath;
     }
   }
   return undefined;
@@ -435,7 +435,7 @@ function readSeedPluginDescription(
   source: OfficialPluginSeedSource,
   plugin: OfficialPluginSeedPluginSource,
 ): string | undefined {
-  const manifestFile = plugin.files.find((file) => file.path === ".zcode-plugin/plugin.json");
+  const manifestFile = plugin.files.find((file) => file.path === ".zcodium-plugin/plugin.json");
   if (!manifestFile) return undefined;
   try {
     const parsed = JSON.parse(readSeedFileBytes(source, plugin, manifestFile).toString("utf8")) as {
@@ -467,7 +467,7 @@ function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSourc
 function isSeedUsable(targetRoot: string, definition: OfficialPluginDefinition): boolean {
   try {
     const manifest = JSON.parse(
-      readFileSync(join(targetRoot, ".zcode-plugin", "plugin.json"), "utf8"),
+      readFileSync(join(targetRoot, ".zcodium-plugin", "plugin.json"), "utf8"),
     ) as { name?: unknown };
     if (manifest.name !== definition.name) return false;
   } catch {

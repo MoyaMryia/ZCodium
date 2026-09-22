@@ -1833,7 +1833,7 @@ const zhCN: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.30": "30 天后归档",
   "settings.dataBaseDir": "数据存储路径",
   "settings.dataBaseDirDescription":
-    "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .zcode/v2 不可更改。",
+    "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .zcodium/v2 不可更改。",
   "settings.dataBaseDirPlaceholder": "默认：用户主目录",
   "settings.dataBaseDirBrowse": "选择文件夹",
   "settings.dataBaseDirSave": "保存",
@@ -3749,9 +3749,9 @@ const zhCN: Record<string, string> = {
   "settings.hooks.title": "钩子",
   "settings.workspaceFileSearch.title": "工作区搜索范围",
   "settings.workspaceFileSearch.description":
-    "编辑 .zcodeignore 忽略规则（语法与 .gitignore 一致），控制工作区文件搜索的范围。保存后下次搜索生效。",
+    "编辑 .zcodiumignore 忽略规则（语法与 .gitignore 一致），控制工作区文件搜索的范围。保存后下次搜索生效。",
   "settings.workspaceFileSearch.templateHint":
-    ".zcodeignore 尚未创建：下方为初始内容预览（.gitignore 拷贝 + 默认排除规则），保存后才会写入工作区。",
+    ".zcodiumignore 尚未创建：下方为初始内容预览（.gitignore 拷贝 + 默认排除规则），保存后才会写入工作区。",
   "settings.workspaceFileSearch.editorLabel": "工作区搜索忽略规则编辑框",
   "settings.workspaceFileSearch.save": "保存",
   "settings.workspaceFileSearch.saved": "已保存，下次搜索生效",
@@ -3761,7 +3761,7 @@ const zhCN: Record<string, string> = {
   "settings.workspaceFileSearch.restoreDefaults": "恢复默认规则",
   "settings.workspaceFileSearch.transformFailed": "应用分区操作失败，请查看日志",
   "settings.workspaceFileSearch.reveal": "打开文件位置",
-  "settings.workspaceFileSearch.revealHint": "保存后即可在工作区根目录找到 .zcodeignore",
+  "settings.workspaceFileSearch.revealHint": "保存后即可在工作区根目录找到 .zcodiumignore",
   "settings.workspaceFileSearch.unsaved": "有未保存的修改",
   "settings.workspaceFileSearch.noWorkspace": "当前没有打开的工作区，无法配置搜索忽略规则。",
   "settings.hooks.description": "管理任务生命周期钩子，在特定事件发生时自动执行命令。",

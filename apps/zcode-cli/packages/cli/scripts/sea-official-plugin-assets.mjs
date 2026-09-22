@@ -131,7 +131,7 @@ export const collectSeaOfficialPluginAssets = async ({
 };
 
 function assertPluginRoot(pluginRoot, plugin) {
-  if (!existsSync(join(pluginRoot, ".zcode-plugin", "plugin.json"))) {
+  if (!existsSync(join(pluginRoot, ".zcodium-plugin", "plugin.json"))) {
     throw new Error(`Missing ${plugin.name} plugin manifest at ${pluginRoot}`);
   }
 }
@@ -185,7 +185,7 @@ const shouldSkipDirectory = (name) =>
 
 const includedTopLevelPaths = new Set([
   ".mcp.json",
-  ".zcode-plugin",
+  ".zcodium-plugin",
   "README.md",
   // SEA 资源采集曾只允许 skills/commands，导致 document-skills 的 judge 子代理未进入可执行文件。
   "agents",

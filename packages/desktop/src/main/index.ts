@@ -1,5 +1,5 @@
 import { recordDesktopDiagnostic, shutdownDesktopDiagnostics } from "./localDiagnosticSink.js";
-import { DiagnosticRecordSchema } from "@zcode/shared";
+import { DiagnosticRecordSchema, ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 import {
   registerDesktopResourceTelemetry,
   stopDesktopResourceTelemetry,
@@ -482,7 +482,7 @@ async function runBrowserCommandOnView(params: {
 let currentDesktopZoomLevel = 0;
 let currentDesktopWindowSize: DesktopWindowSize | undefined;
 const preloadPath = join(import.meta.dirname, "../preload/index.cjs");
-const settingsFile = join(homedir(), ".zcode", "v2", "setting.json");
+const settingsFile = join(homedir(), ZCODE_USER_DATA_DIR_NAME, "v2", "setting.json");
 let activeAppShutdownPolicy = resolveAppShutdownPolicy("normal", process.platform);
 let activeAppShutdownKind: AppShutdownKind | null = null;
 const WINDOWS_AGENT_FORCE_KILL_TIMEOUT_MS = 2_000;

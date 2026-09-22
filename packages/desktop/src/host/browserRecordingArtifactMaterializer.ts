@@ -54,7 +54,7 @@ export async function materializeBrowserRecordingArtifact(input: {
 
   const targetPath = resolveWorkspaceRecordingPath(input.workspacePath, input.outputPath);
   await mkdir(dirname(targetPath), { recursive: true });
-  const stagingPath = `${targetPath}.zcode-recording-${randomUUID()}.tmp`;
+  const stagingPath = `${targetPath}.zcodium-recording-${randomUUID()}.tmp`;
   try {
     await copyFile(input.localPath, stagingPath);
     // Windows 不能用 rename 原子覆盖已有文件；先移除明确的目标 WebM，再提交 staging 文件。

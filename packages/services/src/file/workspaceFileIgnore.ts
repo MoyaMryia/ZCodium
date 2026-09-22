@@ -2,12 +2,13 @@ import { open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import ignoreFactory from "ignore";
 import type { Ignore } from "ignore";
+import { ZCODE_WORKSPACE_IGNORE_FILE_NAME } from "@zcode/shared";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 
 /**
  * workspace 文件搜索忽略的单一真相源。
  *
- * `.zcodeignore`（workspace root，gitignore 语法）是搜索索引的唯一规则文件：
+ * `.zcodiumignore`（workspace root，gitignore 语法）是搜索索引的唯一规则文件：
  * 首次需要规则而文件不存在时自动创建，内容为 root `.gitignore` 的拷贝（无则默认模板）；
  * 之后 `.gitignore` 的变化不再影响搜索，用户通过设置页编辑或「从 .gitignore 重新同步」。
  *
@@ -16,7 +17,7 @@ import type { ServiceLogger } from "../logger/serviceLogger.js";
  * `**` 跨层、目录后缀 `/`、字符类与转义。禁止在本仓库手写 gitignore 解析。
  */
 
-export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ".zcodeignore";
+export const WORKSPACE_FILE_SEARCH_IGNORE_FILE_NAME = ZCODE_WORKSPACE_IGNORE_FILE_NAME;
 const GITIGNORE_FILE_NAME = ".gitignore";
 
 type WorkspaceFileIgnoreLogger = Pick<ServiceLogger, "info" | "warn">;
@@ -35,7 +36,7 @@ interface WorkspaceFileSearchIgnoreRules {
 
 interface WorkspaceFileSearchIgnoreContent {
   content: string;
-  /** file：.zcodeignore 已存在；template：尚未创建，content 是保存后将落盘的初始内容预览。 */
+  /** file：.zcodiumignore 已存在；template：尚未创建，content 是保存后将落盘的初始内容预览。 */
   source: "file" | "template";
 }
 
@@ -76,7 +77,7 @@ const BUILTIN_IGNORE_LINES = [
 ];
 
 const TEMPLATE_HEADER = [
-  "# ZCode 工作区文件搜索忽略规则（.zcodeignore）",
+  "# ZCode 工作区文件搜索忽略规则（.zcodiumignore）",
   "# 语法与 .gitignore 一致，只影响 ZCode 的 @ 文件候选 / Command Center / 文件树搜索，",
   "# 不影响文件树浏览、上传或 Agent 文件访问。",
   "# 修改 .gitignore 不会自动同步到本文件；可在设置页「从 .gitignore 同步」。",
@@ -122,7 +123,7 @@ function buildBuiltinDefaultsSection(gitignoreContent: string | null): string {
 }
 
 /**
- * 构建 `.zcodeignore` 初始内容：.gitignore 规则拷贝 + 双标记分区（默认排除段 / 自定义区）。
+ * 构建 `.zcodiumignore` 初始内容：.gitignore 规则拷贝 + 双标记分区（默认排除段 / 自定义区）。
  * 附加默认段是行为兼容要求：.gitignore 未声明 node_modules 等目录的仓库若仅严格拷贝，
  * 依赖目录会被整棵放开扫描（再次出现全仓扫描的性能问题）；默认段随文件
  * 交给用户编辑，删除即放开，维持"单一真相源、无代码级并集"的承诺。
@@ -282,7 +283,7 @@ async function atomicWriteIgnoreFile(path: string, content: string): Promise<voi
 }
 
 /**
- * 扫描前加载 `.zcodeignore` 规则；含自动创建与 fail-open 降级链：
+ * 扫描前加载 `.zcodiumignore` 规则；含自动创建与 fail-open 降级链：
  * 文件不存在 → 原子创建（.gitignore 拷贝 / 默认模板）；
  * 创建或读取失败（只读 fs、权限）→ 内存使用 .gitignore 内容 → 再失败用内置默认规则。
  * 任何降级只 warn 一次，绝不让 @ 面板因规则文件不可用而扫描失败。

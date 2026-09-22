@@ -1292,10 +1292,10 @@ function resolvePluginConfigPath(
     return configResult.sources.user.path;
   }
 
-  // Workspace Plugin 配置固定落在当前 `<workspace>/.zcode/config.json`。嵌套 workspace
+  // Workspace Plugin 配置固定落在当前 `<workspace>/.zcodium/config.json`。嵌套 workspace
   // 可能同时发现仓库根与自身的配置，读取端 innermost 优先；写入端也必须锁定当前
   // workspace，不能用 project discovery 的第一个 outermost 文件。
-  const workspaceConfigPath = join(workingDirectory, ".zcode", "config.json");
+  const workspaceConfigPath = join(workingDirectory, ".zcodium", "config.json");
   const projectConfigPaths = [
     ...(options.projectConfigPath ? [options.projectConfigPath] : []),
     ...configResult.sources.project.paths,

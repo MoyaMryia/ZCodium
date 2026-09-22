@@ -115,7 +115,7 @@ pnpm dev:desktop:test
 需要独立开发数据目录时，可设置 `ZCODE_DATA_BASE_DIR`。例如在 macOS / Linux 中：
 
 ```bash
-ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
+ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
 ```
 
 ### 远程功能（SSH/WSL）
@@ -183,7 +183,7 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 | 配置                                 | 用途                                             |
 | ------------------------------------ | ------------------------------------------------ |
-| `ZCODE_DATA_BASE_DIR`                | 应用数据基目录，数据写入其下的 `.zcode/`         |
+| `ZCODE_DATA_BASE_DIR`                | 应用数据基目录，数据写入其下的 `.zcodium/`       |
 | `ZCODE_SERVER_WORKSPACE`             | Web 后端的工作区路径                             |
 | `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | 本地 Provider 配置文件路径；未设置时使用内置配置 |
 | `ZCODE_DIST_BASE_URL`                | 命令行安装脚本使用的下载根地址                   |
@@ -246,7 +246,7 @@ pnpm build:zcode --help
 - `releases/<version>/sha256.txt`：校验摘要。
 - `latest.json`、`install.sh`：版本索引和安装脚本。
 
-完整目录可上传到配置的下载根地址。安装脚本从该地址下载运行包，默认安装到 `~/.zcode/runtime`，并在 `~/.local/bin` 创建 `zcode` 命令。安装目录可通过 `ZCODE_DIST_HOME` 修改，命令目录可通过 `ZCODE_DIST_BIN_DIR` 修改。
+完整目录可上传到配置的下载根地址。安装脚本从该地址下载运行包，默认安装到 `~/.zcodium/runtime`，并在 `~/.local/bin` 创建 `zcode` 命令。安装目录可通过 `ZCODE_DIST_HOME` 修改，命令目录可通过 `ZCODE_DIST_BIN_DIR` 修改。
 
 旧 Lite 用户需要改用上述构建命令、环境变量和新的安装脚本。新安装不会删除旧 Lite 目录，也不会迁移或删除已有会话数据。
 

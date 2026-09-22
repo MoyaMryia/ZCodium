@@ -41,7 +41,7 @@ documents 那种「引用链完全不经过原作」的强度——因为排版�
 | 产物                                                    | 派生来源                                    |
 | ------------------------------------------------------- | ------------------------------------------- |
 | `package.json`                                          | 契约字段，`license: Apache-2.0`             |
-| `.zcode-plugin/plugin.json`                             | 契约字段，`name: pdf`                       |
+| `.zcodium-plugin/plugin.json`                           | 契约字段，`name: pdf`                       |
 | `NOTICE.md`                                             | 来源声明                                    |
 | `agents/visual-judge.md`                                | PDF 页面的视觉评审；协议与 documents 版对齐 |
 | `skills/pdf/SKILL.md`                                   | 路由：文档类型 → brief；渲染与校验流程      |

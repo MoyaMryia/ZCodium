@@ -143,7 +143,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.shortcuts.title",
     groupId: "basics",
   },
-  // 工作区搜索范围（.zcodeignore）：面向所有用户的基础工作区行为配置，收在基础设置末尾。
+  // 工作区搜索范围（.zcodiumignore）：面向所有用户的基础工作区行为配置，收在基础设置末尾。
   {
     id: "workspaceFileSearch",
     icon: FileSearch,

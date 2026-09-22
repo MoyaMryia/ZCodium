@@ -1,4 +1,4 @@
-import { safeLogArgs } from "@zcode/shared";
+import { ZCODE_WORKSPACE_CONFIG_DIR_NAME, safeLogArgs } from "@zcode/shared";
 /**
  * MCP 用户目录模块 - 主入口
  */
@@ -38,8 +38,8 @@ interface DirectoryMcpDescriptor {
 const ZCODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "zcodeagentmcp",
   directorySource: "zcode",
-  userConfigDirSegments: [".zcode", "cli"],
-  workspaceConfigDirSegments: [".zcode"],
+  userConfigDirSegments: [ZCODE_USER_DATA_DIR_NAME, "cli"],
+  workspaceConfigDirSegments: [ZCODE_WORKSPACE_CONFIG_DIR_NAME],
   fileName: "config.json",
   format: "json",
   configKeyName: "mcp.servers",
@@ -343,7 +343,7 @@ async function readDirectoryServersFromPreferredSources(
     scope,
     workspacePath,
   );
-  // `.zcode` 是强优先级来源；只要读到 MCP server，同 scope 的 `.agents` 就不再参与。
+  // `.zcodium` 是强优先级来源；只要读到 MCP server，同 scope 的 `.agents` 就不再参与。
   if (zcodeServers.length > 0) {
     return zcodeServers;
   }

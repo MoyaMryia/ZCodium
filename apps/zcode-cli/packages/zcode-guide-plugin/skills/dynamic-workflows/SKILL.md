@@ -32,7 +32,7 @@ Plain TypeScript, compiled inside an async function body under `strict` with `no
 - No Node or web APIs. The script sees ES2022 plus the facade and nothing else, so `process`, `fetch` and `fs` fail typechecking.
 - Top-level `await` and a final `return <value>` are allowed; the returned value is exactly what arrives in the completion notification.
 
-Three ways to give the tool a workflow, exactly one per call: `script` inline (saved to `.zcode/workflow-drafts/` before it is even compiled, and the result names the file either way), `path` to a file on disk, or `saved` for a workflow already saved in this project under `.zcode/workflows/` (check `ListSavedWorkflows` first — a saved workflow the user already reviewed beats rebuilding one). An inline script exists to be edited and resubmitted by `path`; never paste a whole script a second time.
+Three ways to give the tool a workflow, exactly one per call: `script` inline (saved to `.zcodium/workflow-drafts/` before it is even compiled, and the result names the file either way), `path` to a file on disk, or `saved` for a workflow already saved in this project under `.zcodium/workflows/` (check `ListSavedWorkflows` first — a saved workflow the user already reviewed beats rebuilding one). An inline script exists to be edited and resubmitted by `path`; never paste a whole script a second time.
 
 ## 3. Subagent topology
 

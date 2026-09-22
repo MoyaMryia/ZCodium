@@ -15,7 +15,7 @@ The server URL is built from the plugin's `imageSearchBaseUrl` user setting:
 ${user_config.imageSearchBaseUrl}/api/v1/mcp/server/image_search
 ```
 
-- The setting defaults to `http://127.0.0.1:8787`, a loopback address for local development, and is declared in `.zcode-plugin/plugin.json`.
+- The setting defaults to `http://127.0.0.1:8787`, a loopback address for local development, and is declared in `.zcodium-plugin/plugin.json`.
 - Point it at the official ZCode API origin to use the hosted service again.
 
 Authentication is injected by the client, not configured here: the declaration carries `auth.type: zcode_official` with provider `jwt_token`, so the signed-in user's official ZCode credentials are attached to each request and no manual token or API key is needed. Official credentials are only sent to an HTTPS origin that matches the runtime ZCode API origin (or a loopback origin explicitly trusted for development), which is why a hosted backend must be the ZCode API origin itself. Requests time out after 90 seconds (`timeoutMs: 90000`).

@@ -327,7 +327,7 @@ export function handleDeepLink(
     const payload = { shareCode };
     // share 分支也必须走 resolveApplicationWindow——聚焦兜底
     // getAllWindows()[0] 会命中 CUA indicator 等辅助窗口；且 pending 队列必须绑定目标窗口，
-    // 否则多窗口时导入会投递给先 ready 的 renderer，写入错误 workspace 的 .zcode-share。
+    // 否则多窗口时导入会投递给先 ready 的 renderer，写入错误 workspace 的 .zcodium-share。
     const targetWindow = options.resolveApplicationWindow
       ? options.resolveApplicationWindow()
       : (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null);

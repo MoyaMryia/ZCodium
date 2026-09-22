@@ -30,7 +30,7 @@ export async function preflightPlugin(path) {
   const errors = [];
   const resources = [];
 
-  const manifestPath = await realpath(join(root, ".zcode-plugin", "plugin.json"));
+  const manifestPath = await realpath(join(root, ".zcodium-plugin", "plugin.json"));
   if (escapesRoot(root, manifestPath)) return ["Manifest symlink escapes outside plugin"];
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 

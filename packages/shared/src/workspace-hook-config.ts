@@ -2,6 +2,10 @@ import { existsSync, statSync } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
+import {
+  ZCODE_WORKSPACE_CONFIG_DIR_NAME,
+  ZCODE_WORKSPACE_CONFIG_FILE_NAME,
+} from "./appDirNames.js";
 
 export const WORKSPACE_HOOK_DIGEST_SCHEMA_VERSION = 1 as const;
 export const DEFAULT_WORKSPACE_HOOK_TIMEOUT_MS = 60_000;
@@ -17,7 +21,10 @@ export const WORKSPACE_HOOK_EVENT_NAMES = [
 ] as const;
 
 export type WorkspaceHookEventName = (typeof WORKSPACE_HOOK_EVENT_NAMES)[number];
-export type WorkspaceHookConfigFileKind = "zcode.json" | ".zcode/config.json" | "explicit";
+export type WorkspaceHookConfigFileKind =
+  | typeof ZCODE_WORKSPACE_CONFIG_FILE_NAME
+  | `${typeof ZCODE_WORKSPACE_CONFIG_DIR_NAME}/config.json`
+  | "explicit";
 
 const positiveNumberSchema = z.number().finite().positive();
 
@@ -173,8 +180,8 @@ export function resolveWorkspaceHookConfiguredGates(input: {
  */
 function buildWorkspaceHookCandidatePaths(directories: readonly string[]): string[] {
   return directories.flatMap((directory) => [
-    join(directory, "zcode.json"),
-    join(directory, ".zcode", "config.json"),
+    join(directory, ZCODE_WORKSPACE_CONFIG_FILE_NAME),
+    join(directory, ZCODE_WORKSPACE_CONFIG_DIR_NAME, "config.json"),
   ]);
 }
 
@@ -232,17 +239,21 @@ export function createWorkspaceHookSourceInput(input: {
   const configDirectory = dirname(canonicalPath);
   return {
     canonicalPath,
-    baseDir: basename(configDirectory) === ".zcode" ? dirname(configDirectory) : configDirectory,
+    baseDir:
+      basename(configDirectory) === ZCODE_WORKSPACE_CONFIG_DIR_NAME
+        ? dirname(configDirectory)
+        : configDirectory,
     discoveryOrder: input.discoveryOrder,
     configFileKind: explicitProjectConfig
       ? "explicit"
-      : basename(canonicalPath) === "zcode.json"
-        ? "zcode.json"
-        : ".zcode/config.json",
+      : basename(canonicalPath) === "zcodium.json"
+        ? "zcodium.json"
+        : `${ZCODE_WORKSPACE_CONFIG_DIR_NAME}/config.json`,
     explicitProjectConfig,
     editable:
       !explicitProjectConfig &&
-      canonicalPath === resolve(input.workingDirectory, ".zcode", "config.json"),
+      canonicalPath ===
+        resolve(input.workingDirectory, ZCODE_WORKSPACE_CONFIG_DIR_NAME, "config.json"),
     hooks: input.hooks,
   };
 }

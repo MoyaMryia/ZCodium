@@ -1,3 +1,4 @@
+import { ZCODE_PLUGIN_MANIFEST_DIR_NAME, ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 /* eslint-disable max-lines -- plugin 同步需要集中维护候选扫描、归档安全、远端判重和配置写入，拆分会增加远端同步回归面。 */
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -75,7 +76,7 @@ const USER_CONFIG_FILE_MODE = 0o600;
 const MARKETPLACE_SOURCE_ROOT_DIRECTORY = "marketplace-sources";
 const MIRRORED_MARKETPLACE_PLUGIN_ROOT = "plugins";
 const PLUGIN_MANIFEST_RELATIVE_PATHS = [
-  [".zcode-plugin", "plugin.json"],
+  [ZCODE_PLUGIN_MANIFEST_DIR_NAME, "plugin.json"],
   [".claude-plugin", "plugin.json"],
   [".codex-plugin", "plugin.json"],
 ] as const;
@@ -217,11 +218,11 @@ function resolveUserHomeDir(): string {
 }
 
 function getUserZcodeConfigPath(): string {
-  return join(resolveUserHomeDir(), ".zcode", "cli", "config.json");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "cli", "config.json");
 }
 
 function getUserZcodePluginRoot(): string {
-  return join(resolveUserHomeDir(), ".zcode", "plugins");
+  return join(resolveUserHomeDir(), ZCODE_USER_DATA_DIR_NAME, "plugins");
 }
 
 async function collectLocalUserPluginCandidates(): Promise<PluginSyncCandidate[]> {

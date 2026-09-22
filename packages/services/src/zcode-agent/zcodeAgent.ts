@@ -614,7 +614,7 @@ export interface IZCodeAgentService {
   getSkillReferenceCatalog(
     params: ZCodeAgentSkillReferenceCatalogParams,
   ): Promise<ZCodeSkillsReferenceCatalogResult>;
-  // 已保存工作流的 GUI 中枢：workspace 级、无会话，每次调用现扫 `<cwd>/.zcode/workflows/`。
+  // 已保存工作流的 GUI 中枢：workspace 级、无会话，每次调用现扫 `<cwd>/.zcodium/workflows/`。
   // 全局档传 `scope: "global"`：带 workspace 就用它当载体，不带则由 services 层自选本机载体运行时。
   listSavedWorkflows(params: ZCodeAgentListSavedWorkflowsParams): Promise<ZCodeWorkflowsListResult>;
   getSavedWorkflow(params: ZCodeAgentGetSavedWorkflowParams): Promise<ZCodeWorkflowsGetResult>;

@@ -9,7 +9,7 @@ ZCode used to keep each agent conversation as a JSON snapshot on disk, one file 
 conversation under a per-workspace directory:
 
 ```text
-~/.zcode/v2/sessions/<workspaceHash>/<legacyTaskId>.json
+~/.zcodium/v2/sessions/<workspaceHash>/<legacyTaskId>.json
 ```
 
 Current builds read a different pair of stores — a task index and a CLI session
@@ -49,9 +49,9 @@ To turn it off again, `zcode plugins disable restore-legacy-sessions` or
 
 | role               | path                             |
 | ------------------ | -------------------------------- |
-| source (read-only) | `~/.zcode/v2/sessions`           |
-| destination        | `~/.zcode/v2/tasks-index.sqlite` |
-| destination        | `~/.zcode/cli/db/db.sqlite`      |
+| source (read-only) | `~/.zcodium/v2/sessions`           |
+| destination        | `~/.zcodium/v2/tasks-index.sqlite` |
+| destination        | `~/.zcodium/cli/db/db.sqlite`      |
 
 Every restore validates both destination files, copies each one to a timestamped
 `.bak-*` sibling before the first write, and commits the two databases together — either
@@ -68,7 +68,7 @@ path.
 
 ```text
 restore-legacy-sessions-plugin/
-├── .zcode-plugin/plugin.json
+├── .zcodium-plugin/plugin.json
 ├── commands/restore-legacy-sessions.md     /restore-legacy-sessions
 ├── package.json
 └── skills/restore-legacy-sessions/

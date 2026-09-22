@@ -7,8 +7,8 @@
  *
  * 选项：
  *   --snapshot <path>   旧快照 JSON 路径（必填）
- *   --task-index <path> 任务索引 sqlite。默认 ~/.zcode/v2/tasks-index.sqlite
- *   --cli-db <path>     新 ZCode 会话 sqlite。默认 ~/.zcode/cli/db/db.sqlite
+ *   --task-index <path> 任务索引 sqlite。默认 ~/.zcodium/v2/tasks-index.sqlite
+ *   --cli-db <path>     新 ZCode 会话 sqlite。默认 ~/.zcodium/cli/db/db.sqlite
  *   --dry-run           只打印将要做什么，不写库
  */
 
@@ -27,8 +27,8 @@ import {
 import { backupDb, ensurePopulatedDb, writeRestore } from "./legacy-store.mjs";
 import { openWritable } from "./legacy-sqlite.mjs";
 
-const DEFAULT_TASK_INDEX_PATH = join(homedir(), ".zcode", "v2", "tasks-index.sqlite");
-const DEFAULT_CLI_DB_PATH = join(homedir(), ".zcode", "cli", "db", "db.sqlite");
+const DEFAULT_TASK_INDEX_PATH = join(homedir(), ".zcodium", "v2", "tasks-index.sqlite");
+const DEFAULT_CLI_DB_PATH = join(homedir(), ".zcodium", "cli", "db", "db.sqlite");
 
 function parseArgs(argv) {
   const args = {

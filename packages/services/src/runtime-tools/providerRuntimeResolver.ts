@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve as resolvePath } from "node:path";
-import { ZCODE_AGENT_RUNTIME } from "@zcode/shared";
+import { ZCODE_AGENT_RUNTIME, ZCODE_USER_DATA_DIR_NAME } from "@zcode/shared";
 
 const packagedResourcesPath =
   typeof (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath === "string"
@@ -59,7 +59,7 @@ export function findZCodeAgentRuntimeBinary(): string | null {
 
   const candidates = [
     packagedResourcesPath ? resolvePath(packagedResourcesPath, ...resourceSegments) : null,
-    resolvePath(homedir(), ".zcode", "server", "agents", ...resourceSegments),
+    resolvePath(homedir(), ZCODE_USER_DATA_DIR_NAME, "server", "agents", ...resourceSegments),
     ...platformScopedRoots.map((root) =>
       root ? resolvePath(root, runtime.bundledResourceDir, ...entrySegments) : null,
     ),
@@ -87,7 +87,7 @@ export function findZCodeAgentRuntimeNodeBundle(): string | null {
 
   const candidates = [
     packagedResourcesPath ? resolvePath(packagedResourcesPath, ...resourceSegments) : null,
-    resolvePath(homedir(), ".zcode", "server", "agents", ...resourceSegments),
+    resolvePath(homedir(), ZCODE_USER_DATA_DIR_NAME, "server", "agents", ...resourceSegments),
     ...platformScopedRoots.map((root) =>
       root ? resolvePath(root, runtime.bundledResourceDir, ...entrySegments) : null,
     ),

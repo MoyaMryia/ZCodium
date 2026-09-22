@@ -3,8 +3,8 @@ import { quotePosixPathArg } from "@zcode/server/remote/posixShell.js";
 import type { TraceId, ZCodePromptAttachment } from "@zcode/shared";
 import { randomUUID } from "node:crypto";
 
-const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.zcode/tmp/prompt-attachments";
-const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".zcode/tmp/prompt-attachments";
+const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.zcodium/tmp/prompt-attachments";
+const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".zcodium/tmp/prompt-attachments";
 
 interface RemotePromptAttachmentMaterializeInput {
   taskId?: string;

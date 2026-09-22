@@ -14,7 +14,7 @@ const SENSITIVE_MEMORY_PATH_SEGMENTS = new Set([
   "config",
   "objects",
   "refs",
-  ".zcode",
+  ".zcodium",
   "skills",
   "commands",
   "agents",

@@ -27,7 +27,7 @@ export function createWorkspaceHookReviewMutationPort(
   options: WorkspaceHookReviewMutationPortOptions,
 ): WorkspaceHookReviewMutationPort {
   const workingDirectory = resolve(options.workingDirectory);
-  const editableConfigPath = resolve(workingDirectory, ".zcode", "config.json");
+  const editableConfigPath = resolve(workingDirectory, ".zcodium", "config.json");
   const lockKey = editableConfigPath;
 
   return {

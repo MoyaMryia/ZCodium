@@ -61,7 +61,7 @@ class ClaudeNativeSessionImportRepo {
     }
 
     // 关键业务逻辑：扫描 Claude Code 原生历史目录 ~/.claude/projects，不是 zcode 自己的数据目录。
-    // 当 ZCODE_DATA_BASE_DIR 把 .zcode 放到别处时，原生 .claude 往往仍在真实用户 HOME 下。
+    // 当 ZCODE_DATA_BASE_DIR 把 .zcodium 放到别处时，原生 .claude 往往仍在真实用户 HOME 下。
     return [...homes].map((homePath) => join(homePath, ".claude", "projects"));
   }
 
@@ -267,7 +267,7 @@ class ClaudeNativeSessionImportRepo {
     workspaceIdentity?: string;
     sourcePath: string;
   }): Promise<{ outputPath: string; createdOutputPaths: string[] }> {
-    // 导入副本沿用历史目录布局 ~/.zcode/v2/agent-config/claude/{workspaceHash}/projects；
+    // 导入副本沿用历史目录布局 ~/.zcodium/v2/agent-config/claude/{workspaceHash}/projects；
     // 这是 Claude 历史导入的存储位置，与 agent runtime provider（glm）无关。
     const relativeProjectsPath = this.getRelativeProjectsPath(params.sourcePath);
     const outputPath = join(

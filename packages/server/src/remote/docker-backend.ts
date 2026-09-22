@@ -87,7 +87,7 @@ export class DockerBackend implements IRemoteBackend {
     const parentDir = this.dirname(resolvedRemotePath);
 
     // 上传流不会帮我们创建父目录。
-    // 如果直接写入 `~/.zcode/server/...` 这类首次连接路径，上传会因为目录不存在而失败。
+    // 如果直接写入 `~/.zcodium/server/...` 这类首次连接路径，上传会因为目录不存在而失败。
     // 先显式 `mkdir -p`，再由容器当前用户写入目标文件，和 SSH/WSL 保持一致。
     await this.execSimple(`mkdir -p ${quotePosixShellArg(parentDir)}`);
 

@@ -37,12 +37,12 @@ HTTP 形态的 MCP server（`type: "http"`），不是本地进程。
 
 改动：
 
-| 文件                                            | 改动                                                                                   |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `image-search-plugin/.zcode-plugin/plugin.json` | 新增 `userConfig.imageSearchBaseUrl`，默认 `http://127.0.0.1:8787`；版本 0.1.1 → 0.1.2 |
-| `image-search-plugin/.mcp.json`                 | URL 由 `${ZCODE_BASE_URL}/...` 改为 `${user_config.imageSearchBaseUrl}/...`            |
-| `.env.development`                              | 新增 `ZCODE_OFFICIAL_MCP_DEV_TRUSTED_ORIGINS=http://127.0.0.1:8787`                    |
-| `.env.example`                                  | 说明该变量的用途、覆盖路径与安全权衡                                                   |
+| 文件                                              | 改动                                                                                   |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `image-search-plugin/.zcodium-plugin/plugin.json` | 新增 `userConfig.imageSearchBaseUrl`，默认 `http://127.0.0.1:8787`；版本 0.1.1 → 0.1.2 |
+| `image-search-plugin/.mcp.json`                   | URL 由 `${ZCODE_BASE_URL}/...` 改为 `${user_config.imageSearchBaseUrl}/...`            |
+| `.env.development`                                | 新增 `ZCODE_OFFICIAL_MCP_DEV_TRUSTED_ORIGINS=http://127.0.0.1:8787`                    |
+| `.env.example`                                    | 说明该变量的用途、覆盖路径与安全权衡                                                   |
 
 `plugin.json` 里的 `mcpServers` 块与 `.mcp.json` 保持同源；manifest 的 `mcpServers`
 可以指向 `.mcp.json` 或内联，此处两者都写了相同内容（沿用官方包的既有形态）。

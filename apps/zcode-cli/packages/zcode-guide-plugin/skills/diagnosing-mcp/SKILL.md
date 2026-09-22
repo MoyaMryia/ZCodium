@@ -7,19 +7,19 @@ description: Use to diagnose and fix ZCode MCP (Model Context Protocol) server c
 
 The goal is a single file-and-field edit. A person reads status in the client; an agent edits the configuration files directly.
 
-> Three things are routinely misremembered: the user configuration file is `~/.zcode/cli/config.json`; `.agents/mcp.json` is a **compatibility fallback**, read only when the same scope's `.zcode` declares no MCP servers; and in the desktop client MCP status and repair live under **Settings → MCP**.
+> Three things are routinely misremembered: the user configuration file is `~/.zcodium/cli/config.json`; `.agents/mcp.json` is a **compatibility fallback**, read only when the same scope's `.zcodium` declares no MCP servers; and in the desktop client MCP status and repair live under **Settings → MCP**.
 
 ## 1. Where servers are declared, and who wins
 
 | Scope | File | Field |
 |---|---|---|
-| User | `~/.zcode/cli/config.json` | `mcp.servers` |
-| User fallback | `~/.agents/mcp.json` | `mcpServers` — consulted only when the user `.zcode` file declares no servers |
-| Workspace | `<repo>/.zcode/config.json` or `<repo>/zcode.json`, read for every directory from the repository root down to the working directory | `mcp.servers` |
-| Workspace fallback | `<repo>/.agents/mcp.json` | `mcpServers` — consulted only when the workspace `.zcode` file declares no servers |
+| User | `~/.zcodium/cli/config.json` | `mcp.servers` |
+| User fallback | `~/.agents/mcp.json` | `mcpServers` — consulted only when the user `.zcodium` file declares no servers |
+| Workspace | `<repo>/.zcodium/config.json` or `<repo>/zcode.json`, read for every directory from the repository root down to the working directory | `mcp.servers` |
+| Workspace fallback | `<repo>/.agents/mcp.json` | `mcpServers` — consulted only when the workspace `.zcodium` file declares no servers |
 | Plugin | `<pluginRoot>/.mcp.json`, or the manifest's `mcpServers` field | Keys are namespaced `plugin:<plugin>:<server>` |
 
-Inside a scope `.zcode` wins and `.agents/mcp.json` is the same-scope fallback: the moment that scope's `.zcode` declares any server, its `.agents/mcp.json` is ignored completely. The two also use different shapes — `.zcode` nests under `mcp.servers`, `.agents/mcp.json` uses a top-level `mcpServers`.
+Inside a scope `.zcodium` wins and `.agents/mcp.json` is the same-scope fallback: the moment that scope's `.zcodium` declares any server, its `.agents/mcp.json` is ignored completely. The two also use different shapes — `.zcodium` nests under `mcp.servers`, `.agents/mcp.json` uses a top-level `mcpServers`.
 
 Across scopes the override chain for a same-named server is **CLI → environment → user → workspace → system**, which reduces to: user beats workspace. Plugin servers sit at the bottom and lose to any explicit configuration.
 
@@ -74,17 +74,17 @@ Across scopes the override chain for a same-named server is **CLI → environmen
 9. **JSON syntax error.** Servers — possibly the whole file — disappear. → Validate and fix the JSON.
 10. **Server shows disabled.** `enabled: false`, or legacy `enable: false`. → Set `"enabled": true` or remove the field.
 11. **File edits do nothing.** The client is supplying the MCP list itself. → Manage MCP through **Settings → MCP** in that context.
-12. **`.agents/mcp.json` edits do nothing, or use the wrong key.** Either the same scope's `.zcode` already declares servers, so the fallback is ignored for that scope; or the entries were put under `mcp.servers` instead of the top-level `mcpServers` that file expects. → Move the definition into that scope's `.zcode` file, or make sure that scope's `.zcode` declares none and use the top-level `mcpServers` key.
-13. **The name is in the logs but no `mcp__...` tools reach the model.** The desktop app read the entry and passed the name on, then the server died during startup, leaving `toolCount` and `registeredToolCount` at zero. A frequent cause is a legacy `environment` field in `~/.zcode/cli/config.json`: CLI direct parsing migrates it, but the desktop app-managed path expects `env` when converting to protocol `mcpServers`. → Rename `environment` to `env`, keep the values, restart ZCode, reopen **Settings → MCP**.
-14. **Settings → MCP crashes after JSON editing with `command.trim is not a function`.** The saved server has a non-string `command`, usually OpenCode-style `command: ["npx", "-y", "server"]`. → Edit `~/.zcode/cli/config.json` by hand: `"command": "npx"` with the rest moved into `"args": ["-y", "server"]`, then restart the app.
+12. **`.agents/mcp.json` edits do nothing, or use the wrong key.** Either the same scope's `.zcodium` already declares servers, so the fallback is ignored for that scope; or the entries were put under `mcp.servers` instead of the top-level `mcpServers` that file expects. → Move the definition into that scope's `.zcodium` file, or make sure that scope's `.zcodium` declares none and use the top-level `mcpServers` key.
+13. **The name is in the logs but no `mcp__...` tools reach the model.** The desktop app read the entry and passed the name on, then the server died during startup, leaving `toolCount` and `registeredToolCount` at zero. A frequent cause is a legacy `environment` field in `~/.zcodium/cli/config.json`: CLI direct parsing migrates it, but the desktop app-managed path expects `env` when converting to protocol `mcpServers`. → Rename `environment` to `env`, keep the values, restart ZCode, reopen **Settings → MCP**.
+14. **Settings → MCP crashes after JSON editing with `command.trim is not a function`.** The saved server has a non-string `command`, usually OpenCode-style `command: ["npx", "-y", "server"]`. → Edit `~/.zcodium/cli/config.json` by hand: `"command": "npx"` with the rest moved into `"args": ["-y", "server"]`, then restart the app.
 
 ## 5. Narrowing it down
 
 1. Confirm MCP is enabled — it is, by default.
 2. Open **Settings → MCP** and read the status. `disabled` → pitfall 10. `failed (<error>)` → read the inline error and jump to step 4. **Not listed at all** → step 3. (`untrusted` should no longer appear for a normally configured server.)
-3. Confirm the configuration is loaded and valid: check the JSON of `~/.zcode/cli/config.json`, `<repo>/.zcode/config.json` and `zcode.json` — pitfall 9. In the file but not listed means schema validation rejected it (pitfall 5 — look for unknown keys, a wrong `type`, or a missing `command`/`url`). Defined only in `.agents/mcp.json` and missing points at fallback shadowing or the wrong key (pitfall 12).
+3. Confirm the configuration is loaded and valid: check the JSON of `~/.zcodium/cli/config.json`, `<repo>/.zcodium/config.json` and `zcode.json` — pitfall 9. In the file but not listed means schema validation rejected it (pitfall 5 — look for unknown keys, a wrong `type`, or a missing `command`/`url`). Defined only in `.agents/mcp.json` and missing points at fallback shadowing or the wrong key (pitfall 12).
 4. Diagnose a `failed` server: `ENOENT` → pitfall 2; `timed out` → pitfall 7; `Connection closed` → pitfall 8; an http/sse network error → check proxy, CA, URL reachability and `headers`.
 5. If **Settings → MCP** or the service logs show `mcpServerCount` or server names while the model request carries no `mcp__...` tools, look for `mcp.startup.completed` and `mcp.tools.registered` in the startup logs. With `toolCount=0` alongside failed statuses, check the config field names first — `env` versus `environment`, string `command` versus array `command` — before treating it as a model-selection problem.
 6. Edits with no effect → pitfall 6 (user beats workspace) or pitfall 11 (desktop-managed list).
 7. A literal `${...}` → pitfall 3 (files do not expand templates) or pitfall 4 (an unset plugin variable).
-8. Apply the fix — most often editing `mcp.servers.<name>` in `~/.zcode/cli/config.json` (`command` / `args` / `cwd` / `env` / `headers` / `timeoutMs` / `enabled`) — then restart the session, since every scope auto-connects, and reopen **Settings → MCP** to confirm.
+8. Apply the fix — most often editing `mcp.servers.<name>` in `~/.zcodium/cli/config.json` (`command` / `args` / `cwd` / `env` / `headers` / `timeoutMs` / `enabled`) — then restart the session, since every scope auto-connects, and reopen **Settings → MCP** to confirm.

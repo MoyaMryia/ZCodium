@@ -40,7 +40,7 @@ const STATE_DIR_ENV_KEY = "ZCODE_PARODY_STATE_DIR";
 const DEFAULT_PORT = 8787;
 
 function defaultStateDir(): string {
-  return process.env[STATE_DIR_ENV_KEY]?.trim() || join(homedir(), ".zcode", "repo-snapshot-parody");
+  return process.env[STATE_DIR_ENV_KEY]?.trim() || join(homedir(), ".zcodium", "repo-snapshot-parody");
 }
 
 function fail(message: string): never {

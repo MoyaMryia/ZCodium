@@ -10,7 +10,7 @@ A local test market is one JSON file:
 <workspace>/plugins/
   marketplace.json          name: dev-<label>-<hash>
   my-plugin/
-    .zcode-plugin/plugin.json
+    .zcodium-plugin/plugin.json
     skills/my-plugin/SKILL.md
 ```
 

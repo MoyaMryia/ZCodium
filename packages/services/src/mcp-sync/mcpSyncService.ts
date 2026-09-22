@@ -1,3 +1,4 @@
+import { ZCODE_USER_DATA_DIR_NAME, ZCODE_WORKSPACE_CONFIG_DIR_NAME } from "@zcode/shared";
 /* eslint-disable max-lines -- MCP 同步服务集中维护用户目录读写、远端导入和 filesystem 路径改写，拆分会增加远端配置同步回归面。 */
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -43,8 +44,8 @@ interface UserMcpRecord {
 const ZCODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "zcode",
   directorySource: "zcode",
-  userConfigDirSegments: [".zcode", "cli"],
-  workspaceConfigDirSegments: [".zcode"],
+  userConfigDirSegments: [ZCODE_USER_DATA_DIR_NAME, "cli"],
+  workspaceConfigDirSegments: [ZCODE_WORKSPACE_CONFIG_DIR_NAME],
   fileName: "config.json",
   configKeyName: "mcp.servers",
 };
