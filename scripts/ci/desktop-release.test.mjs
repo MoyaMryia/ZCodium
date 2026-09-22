@@ -113,6 +113,13 @@ test("rerun updates only a draft and refuses an already public release", async (
   assert.equal(published.calls.length, 1);
 });
 
+test("prerelease tags create prerelease drafts", async () => {
+  const { run, calls } = githubMock();
+  await publishDraft({ tag: "v3.14.0-ci.1", repo: "owner/repo", files: ["a"], run });
+  assert.ok(calls[1].includes("--draft"));
+  assert.ok(calls[1].includes("--prerelease"));
+});
+
 test("lookup failures stop before creating or modifying a release", async () => {
   let calls = 0;
   await assert.rejects(

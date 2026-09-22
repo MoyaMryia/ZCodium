@@ -6,6 +6,7 @@
 - PR、main 推送、手动运行和 `v*` 标签推送均执行检查与双平台打包。
 - Linux 沿用现有 AppImage、deb、rpm、pkg.tar.zst，Windows 沿用 NSIS exe。
 - 只有版本标签推送允许创建 GitHub **草稿** Release，公开发布由维护者审核后操作。
+- 带预发布标识的版本同时标记为 prerelease，审核发布时不会被误当作稳定版本。
 - 标签必须为 `v<package.json.version>`，版本需满足 SemVer（可带预发布标识，不接受 build metadata）。无效标签在构建前失败。
 - 依赖安装使用 frozen lockfile。Node 从 mise.toml、pnpm 从 package.json 读取；同步已有依赖遗漏的锁文件项，不升级业务依赖。
 - 工具链读取器显式解析 mise.toml 的 tools 表，只接受固定版本，并验证 pnpm 与 packageManager 一致；缺失或不一致时在安装前失败。

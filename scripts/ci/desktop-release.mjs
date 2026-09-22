@@ -85,6 +85,7 @@ export async function publishDraft({ tag, repo, files, run = execFileAsync }) {
       tag,
       "--verify-tag",
       "--draft",
+      ...(tag.includes("-") ? ["--prerelease"] : []),
       "--title",
       `ZCodium ${tag}`,
       "--generate-notes",
