@@ -3,6 +3,6 @@
   "name": "@zcode/documents-plugin",
   "version": "0.1.7",
   "private": true,
-  "license": "SEE LICENSE IN skills/docx/LICENSE.txt",
+  "license": "Apache-2.0",
   "description": "DOCX document production skills, published as an official ZCode plugin."
 }
