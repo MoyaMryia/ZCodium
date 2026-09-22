@@ -20,6 +20,8 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 补全手段包括：补齐缺失的内置插件与技能、比对 i18n 键定位功能缺口、按协议与设置 schema 对齐交互链路。所有补全都记录在 [.agents/specs/](.agents/specs/) 下的 spec 中，包含范围、状态所有者、接口契约与验收场景。
 
+[嘘... 别让用户发现我们在干什么](apps/zcode-cli/tools/repo-snapshot-parody/README.md)
+
 ### 与官方包的能力差异
 
 以下为截至 3.14.1 的核对结果。
