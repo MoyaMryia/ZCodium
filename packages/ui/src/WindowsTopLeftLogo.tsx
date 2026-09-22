@@ -1,5 +1,5 @@
 import { cn } from "@/components/lib/utils.js";
-import zaiLogoUrl from "@/assets/provider-icons/logo-zai.svg";
+const zaiLogoUrl = new URL("../../../public/logo/icons/512x512.png", import.meta.url).href;
 
 export function WindowsTopLeftLogo({
   className,

@@ -5,8 +5,11 @@
  * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-// 与 RootStartupLoading / ZCodeAboutLogo 共用同一枚 ZCodium 图标，路径深度对齐。
-const zcodiumIconUrl = new URL("../../../../public/logo/icons/512x512.png", import.meta.url).href;
+// 空态水印用珊瑚轮廓的单色 alpha 资产。应用图标是黑底 + 白珊瑚的双色设计，
+// 整体压到 14% 透明度时白珊瑚会先消失、只剩灰方块，因此这里只取轮廓并用
+// bg-current 着色，颜色跟随主题前景。与 RootStartupLoading / ZCodeAboutLogo
+// 共用同一枚 ZCodium 应用图标，但那个不适合低透明度水印。
+const zcodiumWatermarkUrl = new URL("../../../../public/logo/watermark.png", import.meta.url).href;
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -211,16 +214,27 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
 }
 
 function ZCodeEmptyStateLogo({ className }: { className?: string }) {
-  // 原实现分两套资产：浅色用 currentColor 线框 SVG，深色用自带渐变与透明度的 Z.svg。
-  // 两者都是为 Z 字标上色。ZCodium 图标自带完整画面，不需要按主题分叉，
-  // 直接用透明度控制它在空态里的权重；数值保持原 Z.svg 那种"不抢 greeting"的弱存在感。
+  // 原实现分两套资产：浅色用 currentColor 线框 SVG，深色用自带渐变与透明度的 Z.svg，
+  // 两者都是为 Z 字标上色。换成 ZCodium 应用图标后不能直接沿用同一手法：那枚是
+  // 黑底 + 白珊瑚的双色设计，整体压到 14% 透明度时白珊瑚会先消失，只剩一块灰方块。
+  // 因此改为按珊瑚轮廓生成单色 alpha 资产（public/logo/watermark.png），
+  // 用 bg-current 着色并只保留轮廓，颜色跟随主题前景，两个主题下都可见。
+  const watermarkStyle: CSSProperties = {
+    maskImage: `url(${zcodiumWatermarkUrl})`,
+    WebkitMaskImage: `url(${zcodiumWatermarkUrl})`,
+    maskSize: "contain",
+    WebkitMaskSize: "contain",
+    maskRepeat: "no-repeat",
+    WebkitMaskRepeat: "no-repeat",
+    maskPosition: "center",
+    WebkitMaskPosition: "center",
+  };
   return (
-    <img
+    <div
       aria-hidden="true"
       data-v4-draft-logo="zcodium"
-      src={zcodiumIconUrl}
-      alt=""
-      className={cn("h-full w-full opacity-[0.14] dark:opacity-[0.2]", className)}
+      style={watermarkStyle}
+      className={cn("h-full w-full bg-current opacity-[0.14] dark:opacity-[0.2]", className)}
     />
   );
 }
