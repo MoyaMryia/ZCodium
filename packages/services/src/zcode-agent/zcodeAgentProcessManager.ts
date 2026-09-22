@@ -10,9 +10,6 @@ import { Emitter } from "@zcode/rpc";
 import {
   parseZCodeProcessDiagnostic,
   ZCODE_AGENT_LIFECYCLE_LOG_MARKER,
-  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
 } from "@zcode/shared/process-diagnostic";
 import {
   ZCODE_AGENT_RUNTIME,
@@ -21,6 +18,8 @@ import {
   resolveWorkspaceKey,
   resolveZCodeRuntimeEnv,
   sanitizeZCodeRuntimeEnv,
+  safeDiagnosticFrames,
+  DiagnosticRecordSchema,
 } from "@zcode/shared";
 import {
   findZCodeAgentRuntimeBinary,
@@ -243,55 +242,12 @@ const log = (...args: unknown[]) => serviceLog.info(undefined, ...args);
 const warnLog = (...args: unknown[]) => serviceLog.warn(undefined, ...args);
 const errorLog = (...args: unknown[]) => serviceLog.error(undefined, ...args);
 
-const AGENT_STDERR_TAIL_MAX_LINES = 20;
-const AGENT_STDERR_LINE_MAX_CHARS = 1_000;
-const AGENT_STDERR_SENSITIVE_ASSIGNMENT_PATTERN =
-  /(["']?(?:api[-_]?key|authorization|cookie|credential|password|secret|token)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi;
-const AGENT_STDERR_AUTH_SCHEME_PATTERN = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi;
-const AGENT_STDERR_API_KEY_PATTERN = /\b(sk-)[A-Za-z0-9_-]{16,}\b/gi;
-
-function redactAgentDiagnostic(value: string): string {
-  return (
-    value
-      .replace(AGENT_STDERR_SENSITIVE_ASSIGNMENT_PATTERN, "$1<redacted>")
-      .replace(AGENT_STDERR_AUTH_SCHEME_PATTERN, "$1 <redacted>")
-      // 裸 key 也必须在跨进程诊断和生产日志之前遮盖。
-      .replace(AGENT_STDERR_API_KEY_PATTERN, "$1<redacted>")
-  );
-}
-
 const debugLog = (...args: unknown[]) => {
   if (!isEffectiveDevelopmentNodeEnv()) {
     return;
   }
   serviceLog.debug(undefined, ...args);
 };
-
-function createAgentStderrTail(): {
-  append(line: string): void;
-  snapshot(): { lineCount: number; tail: string[] };
-} {
-  const tail: string[] = [];
-  let lineCount = 0;
-
-  return {
-    append(line) {
-      lineCount += 1;
-      const redacted = redactAgentDiagnostic(line);
-      const bounded =
-        redacted.length > AGENT_STDERR_LINE_MAX_CHARS
-          ? `${redacted.slice(0, AGENT_STDERR_LINE_MAX_CHARS)}…[truncated]`
-          : redacted;
-      tail.push(bounded);
-      if (tail.length > AGENT_STDERR_TAIL_MAX_LINES) {
-        tail.shift();
-      }
-    },
-    snapshot() {
-      return { lineCount, tail: [...tail] };
-    },
-  };
-}
 
 function parseArgsJson(raw: string | undefined): string[] | undefined {
   const trimmed = raw?.trim();
@@ -722,7 +678,6 @@ export class ZCodeAgentProcessManager {
         pid: managed.child.pid!,
         provider: ZCODE_AGENT_PROVIDER,
         ...(this.lane ? { lane: this.lane } : {}),
-        workspacePath: managed.workspace.workspacePath,
         readyAt: managed.readyAt!,
         startupDurationMs: Math.max(0, managed.readyAt! - managed.startedAt),
         runtimeGeneration: managed.runtimeIdentity.generation,
@@ -1033,7 +988,8 @@ export class ZCodeAgentProcessManager {
       stdio: ["pipe", "pipe", "pipe"],
     });
     const startedAt = Date.now();
-    const stderrTail = createAgentStderrTail();
+    // stderr只计行数；历史tail会复制模型或工具原文，不能作为诊断缓存。
+    let stderrLineCount = 0;
     const transport = new ZCodeStdioTransport(child, {
       onStderrLine: (line) => {
         const diagnostic = parseZCodeProcessDiagnostic(line);
@@ -1045,34 +1001,14 @@ export class ZCodeAgentProcessManager {
               pid: child.pid!,
               provider: ZCODE_AGENT_PROVIDER,
               ...(this.lane ? { lane: this.lane } : {}),
-              workspacePath: params.workspacePath,
               runtimeGeneration,
               runtimeInstanceId,
-              diagnostic: {
-                ...diagnostic,
-                // 脱敏占位符可能比原文长，必须再次限长，避免 IPC schema 拒绝合法异常。
-                name: redactAgentDiagnostic(diagnostic.name).slice(
-                  0,
-                  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-                ),
-                message: redactAgentDiagnostic(diagnostic.message).slice(
-                  0,
-                  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-                ),
-                ...(diagnostic.stack !== undefined
-                  ? {
-                      stack: redactAgentDiagnostic(diagnostic.stack).slice(
-                        0,
-                        ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
-                      ),
-                    }
-                  : {}),
-              },
+              diagnostic,
             }),
           );
           return;
         }
-        stderrTail.append(line);
+        stderrLineCount++;
         debugLog(line);
       },
       ownedProcessStartedAtMs: spawnRequestedAt,
@@ -1160,8 +1096,6 @@ export class ZCodeAgentProcessManager {
             provider: ZCODE_AGENT_PROVIDER,
             ...(this.lane ? { lane: this.lane } : {}),
             workspacePath: params.workspacePath,
-            command: effectiveCommand.command,
-            args: effectiveCommand.args ?? [],
             startedAt,
             runtimeGeneration,
             runtimeInstanceId,
@@ -1178,31 +1112,19 @@ export class ZCodeAgentProcessManager {
       });
     });
     child.once("error", (error) => {
-      errorLog(
-        `ZCode agent process error${this.processLifecycleReporter?.onError ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
-        {
-          workspaceKey,
-          pid: child.pid,
-          runtimeIdentity: runtimeIdentity.identity,
-          errorName: error.name,
-          errorMessage: error.message,
-          errorStack: error.stack,
-          spawnPreflight,
-        },
-      );
       const errno = error as NodeJS.ErrnoException;
+      const parsedCode = DiagnosticRecordSchema.shape.errorCode.safeParse(errno.code);
+      const errorCode = parsedCode.success ? parsedCode.data : undefined;
+      const frames = safeDiagnosticFrames(error.stack);
+      // 错误原文与spawn参数可能含用户路径/凭据；生命周期只保留标准码与应用代码位置。
+      errorLog("ZCode agent process error", { errorCode, frames });
       this.reportProcessLifecycle((reporter) =>
         reporter.onError?.({
           pid: typeof child.pid === "number" ? child.pid : null,
           provider: ZCODE_AGENT_PROVIDER,
           ...(this.lane ? { lane: this.lane } : {}),
-          workspacePath: params.workspacePath,
-          command: effectiveCommand.command,
-          args: effectiveCommand.args ?? [],
-          errorName: error.name || "Error",
-          ...(typeof errno.code === "string" ? { errorCode: errno.code } : {}),
-          errorMessage: error.message,
-          ...(error.stack ? { errorStack: error.stack } : {}),
+          errorCode,
+          frames,
           runtimeGeneration,
           runtimeInstanceId,
           occurredAt: Date.now(),
@@ -1223,7 +1145,6 @@ export class ZCodeAgentProcessManager {
       const terminationReason = managed.terminationIntent?.reason ?? managed.firstCleanupReason;
       // 协议已立即失效，但 exit 先于 stderr EOF；保留旧 runtime 闭包身份收齐最后诊断。
       await transport.waitForStderrDrain();
-      const stderr = stderrTail.snapshot();
       const exitContext = {
         workspaceKey,
         pid: child.pid,
@@ -1245,7 +1166,7 @@ export class ZCodeAgentProcessManager {
           `ZCode agent process exited unexpectedly${this.processLifecycleReporter ? ` ${ZCODE_AGENT_LIFECYCLE_LOG_MARKER}` : ""}`,
           {
             ...exitContext,
-            stderr,
+            stderrLineCount,
           },
         );
       }
@@ -1255,7 +1176,6 @@ export class ZCodeAgentProcessManager {
             pid: child.pid!,
             provider: ZCODE_AGENT_PROVIDER,
             ...(this.lane ? { lane: this.lane } : {}),
-            workspacePath: params.workspacePath,
             exitCode: code,
             signal,
             endedAt,
@@ -1265,10 +1185,7 @@ export class ZCodeAgentProcessManager {
             runtimeGeneration,
             runtimeInstanceId,
             uptimeMs: Math.max(0, endedAt - startedAt),
-            stderrLineCount: stderr.lineCount,
-            ...(terminationKind === "unexpected" && stderr.tail.length > 0
-              ? { stderrTail: stderr.tail }
-              : {}),
+            stderrLineCount,
           }),
         );
       }

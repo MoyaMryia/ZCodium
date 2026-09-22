@@ -3,6 +3,7 @@ import {
   ZCODE_VERSION,
   SERVICE_AUTHORITY_MODE_ENV,
   formatLogPrefix,
+  safeLogArgs,
   formatZodError,
   helloAckMessageSchema,
 } from "@zcode/shared";
@@ -19,7 +20,9 @@ import {
 // In stdio mode, all logging goes to stderr
 const log = (...args: unknown[]) =>
   console.error(formatLogPrefix("zcode-server:stdio", process.pid), ...args);
-const stderrConsoleLog = (...args: unknown[]) => console.error(...args);
+const stderrOutput = console.error.bind(console);
+const stderrConsoleLog = (...args: unknown[]) =>
+  stderrOutput(JSON.stringify({ kind: "zcodium.diagnostic", args: safeLogArgs(args) }));
 
 // stdio 模式下 stdout 只能承载 RPC 帧。
 // 之前 services 里的 info/debug 日志仍会走 console.log / console.info，
@@ -29,6 +32,7 @@ console.log = stderrConsoleLog;
 console.info = stderrConsoleLog;
 console.warn = stderrConsoleLog;
 console.debug = stderrConsoleLog;
+console.error = stderrConsoleLog;
 
 // --version flag: print version and exit (used by deploy version check)
 if (process.argv.includes("--version")) {

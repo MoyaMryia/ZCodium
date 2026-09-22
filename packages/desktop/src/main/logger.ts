@@ -1,111 +1,115 @@
-import { mkdirSync, appendFileSync } from "node:fs";
+import { appendFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { formatTimestamp } from "@zcode/shared";
-import { cleanupExpiredLogFiles, LOG_RETENTION_DAYS } from "./logRetention.js";
+import { safeLogArgs, createDiagnosticTraceId } from "@zcode/shared";
+import { LOG_RETENTION_DAYS } from "./logRetention.js";
 import { getAppConfigDir, maybeThrowInjectedFsFault } from "@zcode/services/node";
 
-function getLogDir() {
-  const e2eLogDir =
-    process.env.ZCODE_ENV === "test" ? process.env.ZCODE_E2E_RUNTIME_LOG_DIR?.trim() : undefined;
-  if (e2eLogDir) {
-    return e2eLogDir;
-  }
-  return join(getAppConfigDir(), "logs");
-}
-
-// 启动时确保日志目录存在
-const LOG_DIR = getLogDir();
-mkdirSync(LOG_DIR, { recursive: true });
-
-const logRetentionResult = cleanupExpiredLogFiles(LOG_DIR);
-if (logRetentionResult.failedFiles.length > 0) {
-  safeConsoleWrite(
-    "warn",
-    `[log-retention] failed to delete expired logs from ${LOG_DIR}:`,
-    logRetentionResult.failedFiles,
-    `retentionDays=${LOG_RETENTION_DAYS}`,
-  );
-}
-
 type LogLevel = "debug" | "info" | "warn" | "error";
-
-function isBrokenPipeError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "EPIPE"
-  );
+const rawConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+};
+// 开发终端/runner先退出时EPIPE是异步stream事件，不能只靠console调用的try/catch。
+process.stdout.on("error", () => {});
+process.stderr.on("error", () => {});
+const traceId = createDiagnosticTraceId();
+let sequence = 0;
+let pending = 0;
+let dropped = 0;
+let writes = Promise.resolve();
+let prepared = false;
+const MAX_PENDING = 512;
+const MAX_FILE_BYTES = 16 * 1024 * 1024;
+const sizes = new Map<string, number>();
+function getLogDir(): string {
+  const e2e =
+    process.env.ZCODE_ENV === "test" ? process.env.ZCODE_E2E_RUNTIME_LOG_DIR?.trim() : undefined;
+  return join(e2e ?? join(getAppConfigDir(), "logs"), "diagnostics-v1");
 }
-
-function ignoreBrokenPipeStreamError(error: Error): void {
-  // WDIO / dev runner 结束后可能先关闭 stdout/stderr 管道，随后主进程日志还在刷新。
-  // stream error 是异步事件，try/catch 包 console.log 不一定兜得住；这里统一吞掉 EPIPE。
-  if (!isBrokenPipeError(error)) {
-    throw error;
+async function prepare(directory: string): Promise<void> {
+  await mkdir(directory, { recursive: true });
+  if (prepared) return;
+  prepared = true;
+  const cutoff = Date.now() - LOG_RETENTION_DAYS * 86400000;
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.isFile() || !/^\d{4}-\d{2}-\d{2}(?:\.[1-4])?\.log$/.test(entry.name)) continue;
+    const path = join(directory, entry.name);
+    const info = await stat(path).catch(() => null);
+    if (info && info.mtimeMs < cutoff) await rm(path, { force: true }).catch(() => {});
   }
 }
-
-process.stdout.on("error", ignoreBrokenPipeStreamError);
-process.stderr.on("error", ignoreBrokenPipeStreamError);
-
-function safeConsoleWrite(level: LogLevel, ...args: unknown[]): void {
-  const consoleFn =
-    level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-  try {
-    consoleFn(...args);
-  } catch (error) {
-    // dev 脚本或父终端退出后，Electron main 的 stdout/stderr 管道可能已关闭。
-    // 这时 console.* 会抛 EPIPE，不能让日志输出反过来杀掉主进程；文件日志仍会继续写入。
-    if (!isBrokenPipeError(error)) {
-      throw error;
-    }
-  }
+async function append(timestamp: string, line: string): Promise<void> {
+  const directory = getLogDir();
+  await prepare(directory);
+  const day = timestamp.slice(0, 10);
+  const path = join(directory, `${day}.log`);
+  const bytes = Buffer.byteLength(line);
+  const size = sizes.get(path) ?? (await stat(path).catch(() => null))?.size ?? 0;
+  if (size + bytes > MAX_FILE_BYTES) {
+    await rm(join(directory, `${day}.4.log`), { force: true });
+    for (let index = 3; index >= 1; index--)
+      await rename(
+        join(directory, `${day}.${index}.log`),
+        join(directory, `${day}.${index + 1}.log`),
+      ).catch(() => {});
+    await rename(path, join(directory, `${day}.1.log`)).catch(() => {});
+    sizes.set(path, 0);
+  } else sizes.set(path, size);
+  maybeThrowInjectedFsFault({ operation: "appendFile", path });
+  await appendFile(path, line, "utf8");
+  sizes.set(path, (sizes.get(path) ?? 0) + bytes);
 }
-
-function formatDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function write(level: LogLevel, source: string, ...args: unknown[]) {
-  const now = new Date();
-  const ts = formatTimestamp(now);
-  const pid = process.pid;
-  const message = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-  const line = `[${ts}] [${level}] [pid:${pid}] [${source}] ${message}\n`;
-  const logDir = getLogDir();
-  mkdirSync(logDir, { recursive: true });
-  const filePath = join(logDir, `${formatDate(now)}.log`);
-
-  // 同时保留 console 输出，方便开发调试；console 也加时间戳和 PID，与文件格式对齐
-  safeConsoleWrite(level, `[${ts}] [pid:${pid}] [${source}]`, ...args);
-
+function write(level: LogLevel, component: "main" | "renderer", args: unknown[]): void {
+  const safe = safeLogArgs(args);
+  const timestamp = new Date().toISOString();
+  const entry = {
+    version: 1,
+    timestamp,
+    level,
+    component,
+    traceId,
+    sequence: sequence++,
+    args: safe,
+  };
   try {
-    maybeThrowInjectedFsFault({ operation: "appendFile", path: filePath });
-    appendFileSync(filePath, line);
+    rawConsole[level === "error" ? "error" : level === "warn" ? "warn" : "log"](
+      `[${timestamp}] [${level}] [${component}]`,
+      ...safe,
+    );
   } catch {
-    // 日志写入失败不应影响应用运行
+    /* closed console cannot break business work */
   }
+  if (pending >= MAX_PENDING) {
+    dropped++;
+    return;
+  }
+  pending++;
+  if (dropped) {
+    safe.push({ version: 1, name: "log", component, metrics: { droppedCount: dropped } });
+    dropped = 0;
+  }
+  const line = JSON.stringify(entry) + "\n";
+  writes = writes
+    .catch(() => {})
+    .then(() => append(timestamp, line))
+    .catch(() => {})
+    .finally(() => {
+      pending--;
+    });
 }
-
-/**
- * main 进程日志，默认写入 ~/.zcode/v2/logs/YYYY-MM-DD.log；E2E 测试使用 worker 专属目录。
- * 同时保留 console 输出方便开发调试
- */
+/** 有界异步队列，应用退出等待已接纳本地写入，不阻塞每次业务调用。 */
+export function flushDesktopLogs(): Promise<void> {
+  return writes;
+}
 export const logger = {
-  // 高频 browser/CDP 等协议细节只在本地开发记录，避免生产日志量与命令流同数量级。
   debug: (...args: unknown[]) => {
-    if (process.env.NODE_ENV !== "production") {
-      write("debug", "main", ...args);
-    }
+    if (process.env.NODE_ENV !== "production") write("debug", "main", args);
   },
-  info: (...args: unknown[]) => write("info", "main", ...args),
-  warn: (...args: unknown[]) => write("warn", "main", ...args),
-  error: (...args: unknown[]) => write("error", "main", ...args),
-
-  /** renderer 日志通过 IPC 传入后调用此方法写入同一文件 */
-  fromRenderer: (level: LogLevel, args: unknown[]) => write(level, "renderer", ...args),
+  info: (...args: unknown[]) => write("info", "main", args),
+  warn: (...args: unknown[]) => write("warn", "main", args),
+  error: (...args: unknown[]) => write("error", "main", args),
+  fromRenderer: (level: LogLevel, args: unknown[]) => {
+    if (level !== "debug" || process.env.NODE_ENV !== "production") write(level, "renderer", args);
+  },
 };

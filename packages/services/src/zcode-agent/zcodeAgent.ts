@@ -1,3 +1,4 @@
+import type { SessionActivity } from "@zcode/shared/zcode-protocol-v4";
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
@@ -547,7 +548,6 @@ export type ZCodeAgentServiceEvent =
 
 export interface ZCodeAgentAppRuntimePreferences {
   askUserQuestionAutoResolutionEnabled: boolean;
-  modelIoFullRetentionEnabled?: boolean;
 }
 
 export interface ZCodeAgentLocalRuntimeChildProcesses {
@@ -807,6 +807,9 @@ export interface IZCodeAgentService {
     params: ZCodeAgentWorkspaceTarget,
   ): Event<ConversationTopicWireCandidate>;
   /** workspace 级 live telemetry 事实；connection facade 仅向可信 desktop-continuous 下游暴露。 */
+  /** workspace 级运行活动；不携带对话内容。 */
+  onDynamicDiagnostic(): Event<import("@zcode/shared").DiagnosticRecord>;
+  onDynamicSessionActivity(params: ZCodeAgentWorkspaceTarget): Event<SessionActivity>;
   onDynamicLocalTtftFacts(
     params: ZCodeAgentWorkspaceTarget,
   ): Event<import("@zcode/shared").LocalTtftFacts>;

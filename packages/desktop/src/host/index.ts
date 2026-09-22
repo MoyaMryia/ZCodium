@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
 /* eslint-disable max-lines -- host process 入口集中维护 local/remote 初始化和资源回收，realtime bridge 接入后先保持同文件收口。 */
 /**
@@ -26,7 +27,6 @@ import {
 import { registerHostNetworkTelemetry, stopHostNetworkTelemetry } from "./hostNetworkTelemetry.js";
 import { registerHostServiceResourceTelemetry } from "./hostServiceResourceTelemetry.js";
 import { resolveResourceTelemetryEnvironmentKey } from "./hostResourceTelemetryEnvironment.js";
-import { reportHostSessionCreate } from "./hostSessionCreateTelemetry.js";
 import { createBrowserControlMainBridge } from "./browserControlMainBridge.js";
 import { materializeBrowserRecordingArtifact } from "./browserRecordingArtifactMaterializer.js";
 import {
@@ -259,6 +259,7 @@ const browserControlMainBridge = createBrowserControlMainBridge({
 });
 
 function reportHostLog(level: HostLogLevel, args: unknown[]): void {
+  args = safeLogArgs(args);
   if (!parentPort) {
     return;
   }
@@ -268,7 +269,7 @@ function reportHostLog(level: HostLogLevel, args: unknown[]): void {
       type: HostResponseTypes.Log,
       level,
       source: "host",
-      message: args.map((arg) => stringifyHostLogArg(arg)).join(" "),
+      args: safeLogArgs(args),
     });
   } catch {
     // 日志上报失败不应影响 host 主流程。
@@ -291,7 +292,9 @@ const remoteConnectionProgressContext = createRemoteConnectionProgressContext({
         type: HostResponseTypes.RemoteWorkspaceConnectionLog,
         requestId,
         level,
-        message: args.map((arg) => stringifyHostLogArg(arg)).join(" "),
+        message: safeLogArgs(args)
+          .map((arg) => stringifyHostLogArg(arg))
+          .join(" "),
       });
     } catch {
       // 连接进度上报失败不应中断 SSH/WSL/Docker 的真实连接流程。
@@ -300,6 +303,7 @@ const remoteConnectionProgressContext = createRemoteConnectionProgressContext({
 });
 
 function writeHostLog(level: HostLogLevel, ...args: unknown[]): void {
+  args = safeLogArgs(args);
   const prefix = formatLogPrefix("zcode-host", process.pid);
   const consoleFn =
     level === "error" ? rawConsole.error : level === "warn" ? rawConsole.warn : rawConsole.log;
@@ -665,15 +669,6 @@ async function dispatchOffPeakRun(request: OffPeakRunDispatchRequest): Promise<{
       offPeakTaskId: request.offPeakTaskId,
       offPeakRunType,
     });
-    // 只有 init 实际新建；绑定首跑和跨票续跑只是原 Session 的后续输入。
-    if (dispatchKind === "init") {
-      reportHostSessionCreate(parentPort, {
-        sessionId: taskId,
-        messageId: traceId,
-        source: "automation_idle",
-        workspaceIdentity: request.workspaceIdentity,
-      });
-    }
     return { conversationId: taskId, sessionId: taskId };
   } catch (error) {
     if (trackedKey) disposeOffPeakRunSubscription(trackedKey);
@@ -936,15 +931,6 @@ async function dispatchCronRun(request: CronRunDispatchRequest): Promise<{
       clientMode: "desktop-continuous",
       automationId: request.automationId,
     });
-    // prompt 创建的定时任务带 targetTaskId，追加原会话不能计成 session_create。
-    if (!request.targetTaskId) {
-      reportHostSessionCreate(parentPort, {
-        sessionId: task.taskId,
-        messageId: promptTraceId,
-        source: "automation_scheduled",
-        workspaceIdentity: request.workspaceIdentity,
-      });
-    }
     return { taskId: task.taskId, sessionId: task.taskId };
   } catch (error) {
     if (trackedKey) disposeCronRunSubscription(trackedKey);
@@ -1538,18 +1524,21 @@ function formatRemoteTargetForLog(target: RemoteTarget): string {
 }
 
 console.log = (...args: unknown[]) => {
+  args = safeLogArgs(args);
   rawConsole.log(...args);
   reportHostLog("info", args);
   remoteConnectionProgressContext.report("info", args);
 };
 
 console.warn = (...args: unknown[]) => {
+  args = safeLogArgs(args);
   rawConsole.warn(...args);
   reportHostLog("warn", args);
   remoteConnectionProgressContext.report("warn", args);
 };
 
 console.error = (...args: unknown[]) => {
+  args = safeLogArgs(args);
   rawConsole.error(...args);
   // Electron 会把 Node warning 先走 console.error，而 process warning listener 随后还会
   // 结构化记录 warn；若这里继续上报，就会为同一个 warning 留下一条 error 和一条 warn。

@@ -834,6 +834,17 @@ export function createZCodeAgentConnectionScope(
         base.onDynamicConversationFrame(params),
       );
     },
+    onDynamicDiagnostic() {
+      assertOpen();
+      return role === "trusted-host-relay" ? base.onDynamicDiagnostic() : RpcEvent.None;
+    },
+    onDynamicSessionActivity(params) {
+      assertOpen();
+      if (context.clientMode !== "desktop-continuous") return RpcEvent.None;
+      return base.onDynamicSessionActivity(
+        withTrustedConnection(workspaceTarget(params), forwardedConnection(params)),
+      );
+    },
     onDynamicLocalTtftFacts(params) {
       assertOpen();
       if (

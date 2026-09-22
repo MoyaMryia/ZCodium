@@ -17,9 +17,12 @@ export function resolveDesktopProductionCleanPaths(cwd) {
     resolve(cwd, "out/host"),
     resolve(cwd, "out/preload"),
     resolve(cwd, "out/renderer"),
+    // scheduler 也使用非清空输出；遗漏它会把已删除模块重新打进安装包。
+    resolve(cwd, "out/scheduler"),
     resolve(cwd, "out/.main-build-ready"),
     resolve(cwd, "out/.host-build-ready"),
     resolve(cwd, "out/.preload-build-ready"),
+    resolve(cwd, "out/.scheduler-build-ready"),
   ];
 }
 

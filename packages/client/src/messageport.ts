@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { MessagePortProtocol, ChannelClient } from "@zcode/rpc";
 import type { IServiceAccessor } from "@zcode/services";
 import { RemoteServiceAccess } from "./remoteServiceAccess.js";
@@ -8,7 +9,7 @@ function logMessagePortDebug(message: string): void {
   if (isRendererProductionBuild()) {
     return;
   }
-  console.log(message);
+  console.log(...safeLogArgs([message]));
 }
 
 export interface MessagePortServiceConnection {

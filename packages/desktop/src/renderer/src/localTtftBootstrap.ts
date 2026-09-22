@@ -3,7 +3,7 @@ import { LocalTtftObserver, setLocalTtftObserver } from "@zcode/ui";
 
 /** 单窗口批量出口；关闭采集只影响新输入，已启用的发送保留原决定。 */
 export function initializeDesktopLocalTtft(platform: IPlatformService): () => void {
-  if (!platform.reportLocalTtftBatch || !platform.getRendererActionTraceConfig) return () => {};
+  if (!platform.reportLocalTtftBatch) return () => {};
   const rendererInstanceId = crypto.randomUUID();
   let records: LocalTtftRecord[] = [];
   let sequence = 0;
@@ -40,14 +40,7 @@ export function initializeDesktopLocalTtft(platform: IPlatformService): () => vo
       }
     }
   };
-  const apply = (config: { localTtftEnabled?: boolean }) => {
-    observer.enabled = config.localTtftEnabled === true;
-  };
-  void platform
-    .getRendererActionTraceConfig()
-    .then(apply)
-    .catch(() => {});
-  const off = platform.onRendererActionTraceConfigChanged?.(apply);
+  observer.enabled = true;
   const background = () => observer.background();
   const foreground = () => {
     if (document.visibilityState === "visible") observer.foreground();
@@ -66,7 +59,6 @@ export function initializeDesktopLocalTtft(platform: IPlatformService): () => vo
     flush();
     records = [];
     clearInterval(timer);
-    off?.();
     setLocalTtftObserver(undefined);
     window.removeEventListener("blur", background);
     window.removeEventListener("focus", foreground);

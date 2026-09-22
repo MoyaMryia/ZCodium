@@ -1,3 +1,5 @@
+import { DiagnosticRecordSchema, type DiagnosticRecord } from "@zcode/shared";
+import { sessionActivitySchema, type SessionActivity } from "@zcode/shared/zcode-protocol-v4";
 import { requestPluginReferenceCatalog } from "#src/zcode-agent/pluginReferenceCatalogRequest.js";
 import {
   localTtftFactsSchema,
@@ -97,7 +99,6 @@ import {
   zcodeWorkspaceGenerateTextResultSchema,
   zcodeWorkspaceHookTrustGrantResultSchema,
   zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
-  zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
   zcodeProviderUpdateAccountConfigResultSchema,
   type ZCodeSessionStateSnapshot,
   type ZCodeAutomation,
@@ -1092,6 +1093,8 @@ export function createZCodeAgentService(
     lane: "mcp-status",
     idleTimeoutMs: options?.mcpStatusIdleTimeoutMs ?? MCP_STATUS_LANE_IDLE_TIMEOUT_MS,
   });
+  const diagnosticEmitter = new Emitter<DiagnosticRecord>();
+  const sessionActivityEmitters = new Map<string, Emitter<SessionActivity>>();
   const sessionEmitters = new Map<string, Emitter<ZCodeAgentServiceEvent>>();
   /**
    * 已经记过"首次发放官方身份头"审计日志的 (pluginId, mcpKey, workspaceKey)。
@@ -1469,21 +1472,6 @@ export function createZCodeAgentService(
           },
           zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
         );
-        try {
-          await params.client.request(
-            zcodeProtocolMethods.workspaceUpdateModelIoPreferences,
-            {
-              workspace: buildWorkspaceRef(params.workspace),
-              preferences: {
-                fullRetentionEnabled: params.preferences.modelIoFullRetentionEnabled === true,
-              },
-            },
-            zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
-          );
-        } catch (error) {
-          // 新 Host 兼容尚未升级的 CLI：只有 method-not-found 可降级，其他同步失败仍需上抛。
-          if (!isProtocolMethodNotFoundError(error)) throw error;
-        }
       });
     interactionPreferenceSyncByWorkspaceKey.set(workspaceKey, current);
     void current.then(
@@ -1577,6 +1565,15 @@ export function createZCodeAgentService(
     const created = new Emitter<ConversationTelemetryFact>();
     conversationTelemetryFactEmitters.set(key, created);
     return created;
+  }
+
+  function getSessionActivityEmitter(workspace: ZCodeAgentWorkspaceTarget) {
+    const key = resolveWorkspaceKey(workspace);
+    const existing = sessionActivityEmitters.get(key);
+    if (existing) return existing;
+    const emitter = new Emitter<SessionActivity>();
+    sessionActivityEmitters.set(key, emitter);
+    return emitter;
   }
 
   function getSessionsIndexFrameEmitter(workspace: ZCodeAgentWorkspaceTarget) {
@@ -1880,6 +1877,11 @@ export function createZCodeAgentService(
           if (pending?.client === client) cancelProviderRuntimeHeaders(key, pending);
           return;
         }
+        if (message.method === zcodeProtocolNotifications.diagnostic) {
+          const parsed = DiagnosticRecordSchema.safeParse(message.params);
+          if (parsed.success) diagnosticEmitter.fire(parsed.data);
+          return;
+        }
         if (message.method === zcodeProtocolNotifications.processResourceSample) {
           const parsed = zcodeProcessResourceSampleSchema.safeParse(message.params);
           if (parsed.success) {
@@ -1992,6 +1994,14 @@ export function createZCodeAgentService(
           return;
         }
 
+        if (message.method === V4_NOTIFICATIONS.sessionActivity) {
+          // 修复依据：同 workspace 的旧 client 迟到通知不能进入新代订阅者的活动集合。
+          // 只接受 process manager 当前登记的 chat runtime，控制面进程不拥有会话活性。
+          if (lane !== "chat" || processManager.getExistingClient(workspace) !== client) return;
+          const parsed = sessionActivitySchema.safeParse(message.params);
+          if (parsed.success) getSessionActivityEmitter(workspace).fire(parsed.data);
+          return;
+        }
         if (message.method === V4_NOTIFICATIONS.localTtftFacts) {
           const parsed = localTtftFactsSchema.safeParse(message.params);
           if (parsed.success && !workspace.remoteSessionId && !workspace.workspaceIdentity?.trim())
@@ -3187,6 +3197,7 @@ export function createZCodeAgentService(
     }
     sessionEmitters.clear();
     sessionRuntimePreferencesRequestEmitter.dispose();
+    diagnosticEmitter.dispose();
     processResourceSampleEmitter.dispose();
     mcpTelemetryEmitter.dispose();
     toolExecResourceEmitter.dispose();
@@ -3203,6 +3214,8 @@ export function createZCodeAgentService(
       emitter.dispose();
     }
     conversationTelemetryFactEmitters.clear();
+    for (const emitter of sessionActivityEmitters.values()) emitter.dispose();
+    sessionActivityEmitters.clear();
     localTtftFactsEmitter.dispose();
     cuaPermissionObservationEmitter.dispose();
     for (const emitter of workspaceConfigFrameEmitters.values()) {
@@ -3388,7 +3401,6 @@ export function createZCodeAgentService(
     async syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void> {
       const normalizedPreferences: ZCodeAgentAppRuntimePreferences = {
         ...preferences,
-        modelIoFullRetentionEnabled: preferences.modelIoFullRetentionEnabled === true,
       };
       latestAppRuntimePreferences = normalizedPreferences;
       const activeClients = [...activeClientsByWorkspaceKey.values()];
@@ -5456,6 +5468,12 @@ export function createZCodeAgentService(
       return getConversationFrameEmitter(params).event;
     },
 
+    onDynamicDiagnostic() {
+      return diagnosticEmitter.event;
+    },
+    onDynamicSessionActivity(params: ZCodeAgentWorkspaceTarget) {
+      return getSessionActivityEmitter(params).event;
+    },
     onDynamicLocalTtftFacts(params: ZCodeAgentWorkspaceTarget) {
       return (listener: (facts: LocalTtftFacts) => void) =>
         localTtftFactsEmitter.event((event) => {

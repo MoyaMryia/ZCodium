@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 // 常驻 cron scheduler 进程：由 desktop main 通过 electronUtilityProcess.fork 拉起。
 // 职责（tasks-index 属主方案）：
 //   - 轮询 tasks-index 的 automations，事务认领到期任务（AutomationRepo.claimDue：BEGIN IMMEDIATE + running 0→1）
@@ -66,6 +67,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let resourceTelemetry: SchedulerResourceTelemetry | null = null;
 
 function log(level: "info" | "warn" | "error", message: string): void {
+  message = safeLogArgs([message]).map(String).join(" ");
   const msg: SchedulerToMainMessage = { type: "scheduler-log", level, message };
   parentPort?.postMessage(msg);
   // 兜底：parentPort 不可用（非 utilityProcess 调试运行）时仍留痕。

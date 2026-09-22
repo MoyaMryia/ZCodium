@@ -1,3 +1,4 @@
+import { recordDesktopDiagnostic } from "./localDiagnosticSink.js";
 import { ingestToolExecResource } from "./desktopResourceTelemetry.js";
 import { ingestMcpResourceSamples } from "./processResourceMcpTelemetrySource.js";
 /* eslint-disable max-lines -- host process 统一处理 main↔host 生命周期、日志、ZCode Agent，拆分前先保持跨进程消息收口。 */
@@ -19,7 +20,6 @@ import {
   type HostAgentProcessSpawnedResponse,
   type HostCuaOperationStateResponse,
   type HostMcpTelemetryResponse,
-  type HostSessionCreateTelemetryResponse,
   type TaskRealtimeHostDeliveryKind,
   formatZCodeHostProcessName,
   HostMessageTypes,
@@ -178,7 +178,6 @@ export function spawnHostProcess(
     onAgentProcessReady?: (event: HostAgentProcessReadyResponse) => void;
     onAgentProcessSpawned?: (event: HostAgentProcessSpawnedResponse) => void;
     onMcpTelemetry?: (event: HostMcpTelemetryResponse) => void;
-    onSessionCreateTelemetry?: (event: HostSessionCreateTelemetryResponse) => void;
     onCuaOperationStateChanged?: (
       source: ElectronUtilityProcess,
       event: HostCuaOperationStateResponse,
@@ -297,6 +296,10 @@ export function spawnHostProcess(
       return;
     }
 
+    if (result.data.type === HostResponseTypes.SafeDiagnostic) {
+      recordDesktopDiagnostic(result.data.record);
+      return;
+    }
     if (result.data.type === HostResponseTypes.NetworkTelemetryBatch) {
       ingestHostNetworkObservations(result.data.observations);
       return;
@@ -339,11 +342,6 @@ export function spawnHostProcess(
 
     if (result.data.type === HostResponseTypes.McpTelemetry) {
       dependencies.onMcpTelemetry?.(result.data);
-      return;
-    }
-
-    if (result.data.type === HostResponseTypes.SessionCreateTelemetry) {
-      dependencies.onSessionCreateTelemetry?.(result.data);
       return;
     }
 
@@ -461,8 +459,6 @@ export function spawnHostProcess(
         pid: result.data.pid,
         provider: result.data.provider,
         workspacePath: result.data.workspacePath,
-        command: result.data.command,
-        args: result.data.args,
         startedAt: result.data.startedAt,
       });
       dependencies.onAgentProcessSpawned?.(result.data);

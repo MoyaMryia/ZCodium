@@ -1,4 +1,4 @@
-import { formatLogPrefix, type TraceId } from "@zcode/shared";
+import { safeLogArgs, formatLogPrefix, type TraceId } from "@zcode/shared";
 import { isEffectiveDevelopmentNodeEnv } from "#src/runtime-tools/nodeEnv.js";
 
 interface ServiceLogSink {
@@ -36,7 +36,7 @@ export function createServiceLogger(
 
   function write(
     level: "debug" | "info" | "warn" | "error",
-    traceId: TraceId | undefined,
+    _traceId: TraceId | undefined,
     ...args: unknown[]
   ): void {
     // 服务层日志过去常被复用到 ZCode Agent 命名 logger，导致新 ZCode 路径继续依赖 ZCode Agent 目录。
@@ -44,7 +44,7 @@ export function createServiceLogger(
     if (level === "debug" && !resolveDebugEnabled()) {
       return;
     }
-    const source = traceId ? `${scope}][trace:${traceId}` : scope;
+    const source = scope;
     const consoleFn =
       level === "error"
         ? sink.error
@@ -53,7 +53,7 @@ export function createServiceLogger(
           : level === "debug"
             ? (sink.debug ?? sink.log)
             : sink.log;
-    consoleFn(formatLogPrefix(source, pid), ...args);
+    consoleFn(formatLogPrefix(source, pid), ...safeLogArgs(args));
   }
 
   return {

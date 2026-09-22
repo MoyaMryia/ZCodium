@@ -6,7 +6,9 @@ import {
   databaseStartupControlSchema,
   type DatabaseStartupState,
 } from "@zcode/shared";
-import { reportDatabaseStartupState } from "./databaseStartupTelemetry.js";
+import { createDatabaseStartupDiagnostics } from "./databaseStartupTelemetry.js";
+import { recordDesktopDiagnostic } from "./localDiagnosticSink.js";
+const reportDatabaseStartupState = createDatabaseStartupDiagnostics(recordDesktopDiagnostic);
 
 let localStorageReady = false;
 let quit: (() => void) | undefined;

@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /**
  * MCP 用户目录模块 - 主入口
  */
@@ -303,7 +304,9 @@ async function readDirectoryServersFromFile(
         const next = writeServerMapToJson(parsed, descriptor.configKeyName, serverMap);
         await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
       } catch (error) {
-        console.warn("[mcp-user-directory] legacy enable migration failed:", filePath, error);
+        console.warn(
+          ...safeLogArgs(["[mcp-user-directory] legacy enable migration failed:", error]),
+        );
       }
     }
 

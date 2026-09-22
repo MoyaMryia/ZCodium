@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 import { spawn, execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -63,7 +64,9 @@ export class DockerBackend implements IRemoteBackend {
       // 测试容器里可能通过 wrapper 伪造了 uname 输出，
       // 这里只在发生回退时打一条低频日志，便于排查“为何最终按 Linux 选包”。
       console.warn(
-        `[docker] detect: uname reported ${reportedPlatform}, but kernel ostype is ${kernelOstype}; fallback to ${platform}`,
+        ...safeLogArgs([
+          `[docker] detect: uname reported ${reportedPlatform}, but kernel ostype is ${kernelOstype}; fallback to ${platform}`,
+        ]),
       );
     }
 

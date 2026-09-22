@@ -20,7 +20,7 @@ const logger = createServiceLogger("onboardingRecordService");
 
 function getRecordFile(): string {
   // 记录是设备级数据，必须跟随 dataBaseDir（用户自定义数据目录时落在其 .zcode/v2 下，
-  // 与 telemetry-state.json 一致），不能学 setting.json 固定写 home——setting.json 留在 home
+  // 统一位于该目录），不能学 setting.json 固定写 home——setting.json 留在 home
   // 只是启动引导需要固定位置读取 dataBaseDir，不代表其他设备数据的落点。
   return join(getAppConfigDir(), "onboarding-record.json");
 }
@@ -58,35 +58,18 @@ export function createOnboardingRecordService(
   };
 
   return {
-    async appendRecord(deviceMid: string, entry: OnboardingRecordEntryInput): Promise<void> {
+    async appendRecord(entry: OnboardingRecordEntryInput): Promise<void> {
       const userId = await options.loadUserId();
       await enqueueWrite(async () => {
         const filePath = getRecordFile();
         const existing = await readRecordFile(filePath);
-        // deviceMid 以文件内已有值为权威：本地文件不变是设备关联的前提，
-        // 调用方传入不同值只说明异常（如 getDeviceId 行为变化），记录并沿用旧值。
-        let file: OnboardingRecordFile;
-        if (existing) {
-          if (existing.deviceMid !== deviceMid) {
-            logger.warn(
-              undefined,
-              "deviceMid mismatch, keep existing:",
-              existing.deviceMid,
-              "incoming:",
-              deviceMid,
-            );
-          }
-          file = existing;
-        } else {
-          file = { version: 1, deviceMid, entries: [] };
-        }
+        const file: OnboardingRecordFile = existing ?? { version: 1, entries: [] };
         const record: OnboardingRecordEntry = {
           userId,
           ...entry,
-          uploadState: "pending",
         };
         // 每 userId（含 null）至多一条：同一用户重复完成引导（debug 重置后再答等）覆盖旧条目，
-        // 而不是追加——覆盖后的新答案重新置 pending，等待上传。
+        // 而不是追加——覆盖后的新答案用于本地设置恢复。
         const previousIndex = file.entries.findIndex((item) => item.userId === userId);
         const validated = onboardingRecordFileSchema.shape.entries.element.parse(record);
         if (previousIndex >= 0) file.entries[previousIndex] = validated;

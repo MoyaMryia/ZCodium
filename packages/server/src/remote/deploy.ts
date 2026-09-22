@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- 远端部署入口集中编排 server/node/agent/tool 资源，拆分需单独整理边界。 */
 import { join } from "node:path";
 import {
@@ -52,9 +53,10 @@ import { assertSupportedRemoteEnvironment } from "@zcode/server/remote/remotePla
 import { acquireRemoteDeployLock } from "@zcode/server/remote/remoteDeployLock.js";
 import type { RemoteAssetNetworkPort } from "@zcode/server/remote/remoteAssetNetwork.js";
 
-const log = (...args: unknown[]) => console.log(formatLogPrefix("deploy", process.pid), ...args);
+const log = (...args: unknown[]) =>
+  console.log(...safeLogArgs([formatLogPrefix("deploy", process.pid), ...args]));
 const logWarn = (...args: unknown[]) =>
-  console.warn(formatLogPrefix("deploy", process.pid), ...args);
+  console.warn(...safeLogArgs([formatLogPrefix("deploy", process.pid), ...args]));
 const SERVER_BUNDLE_COMPONENT_ID = "server-bundle";
 
 export type DeployLockMode = "remote" | "caller-serialized";

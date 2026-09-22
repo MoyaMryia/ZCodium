@@ -1,3 +1,4 @@
+import { HostResponseTypes } from "@zcode/shared";
 import { registerHostToolExecResourceTelemetry } from "./hostToolExecResourceTelemetry.js";
 import { registerHostMcpResourceTelemetry } from "./hostMcpResourceTelemetry.js";
 import type { IDisposable } from "@zcode/rpc";
@@ -56,6 +57,11 @@ export function registerHostServiceResourceTelemetry(
   }
   const registrations: IDisposable[] = [];
   try {
+    registrations.push(
+      agentService.onDynamicDiagnostic()((record) =>
+        options.postMessage({ type: HostResponseTypes.SafeDiagnostic, record }),
+      ),
+    );
     registrations.push(
       registerHostAgentResourceTelemetry({
         agentService,

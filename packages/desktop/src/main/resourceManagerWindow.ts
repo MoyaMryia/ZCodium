@@ -114,8 +114,6 @@ interface RegisteredAgentProcess {
   pid: number;
   provider: ZCodeProvider;
   workspacePath: string;
-  command: string;
-  args: string[];
   startedAt: number;
 }
 

@@ -21,7 +21,6 @@ import {
   resolveZaiOAuthClientId,
   resolveZaiOAuthOrigin,
   normalizeDynamicWorkflowMode,
-  readZCodeAgentTelemetryEnv,
   sanitizeZCodeRuntimeEnv,
   type ZCodeRuntimeEnv,
 } from "@zcode/shared";
@@ -153,9 +152,7 @@ function resolveWorkspaceRootForEnvFiles(): string | null {
 
 export function loadHostProcessEnvFromLocalFiles(): Record<string, string> {
   if (isElectronAppPackaged()) {
-    // 安装包不内嵌 OTLP 端点或鉴权，避免 CI 凭据随产物公开；连接配置由运行时环境提供。
-    // 只保留打包身份元数据，缺少端点时不会启用上报。
-    return { ZCODE_TELEMETRY_RUNTIME_DISTRIBUTION: "packaged" };
+    return {};
   }
 
   const desktopRoot = resolve(import.meta.dirname, "../..");
@@ -502,19 +499,6 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             )
           : undefined;
   const windowsAppInstallDir = resolveWindowsAppInstallDirForDataBaseDirGuard();
-  const agentTelemetryEnv = readZCodeAgentTelemetryEnv(rawInheritedEnv);
-  // Desktop 身份由 host 从凭据仓库和本机状态读取后可信注入；外部环境只能配置 OTLP 连接，
-  // 不能伪造 uid/device/runtime surface 或绕过本地 identity state 的隔离边界。
-  for (const key of [
-    "ZCODE_TELEMETRY_USER_ID",
-    "ZCODE_TELEMETRY_USER_ID_HASH",
-    "ZCODE_TELEMETRY_USER_SUBJECT_ID",
-    "ZCODE_TELEMETRY_IDENTITY_STATE",
-    "ZCODE_TELEMETRY_DEVICE_MID",
-    "ZCODE_TELEMETRY_RUNTIME_SURFACE",
-  ]) {
-    delete agentTelemetryEnv[key];
-  }
   const inheritedEnv = applySelectedZCodeEnvLinks({
     ...sanitizeZCodeRuntimeEnv(rawInheritedEnv),
     ...buildZCodeToolEnvPassthroughEnv(rawInheritedEnv),
@@ -536,9 +520,6 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
 
   return {
     ...inheritedEnv,
-    // OTLP 凭据只定向传到 host；host 初始化 services 时会立即捕获并从 process.env 清除，
-    // 后续只在启动 Agent 时短暂注入，不会进入 Bash/MCP/tool env。
-    ...agentTelemetryEnv,
     // ZCode 运行时不再使用 NODE_ENV；它会被用户 shell、包管理器和测试框架复用。
     // 这里显式下发 ZCODE_RUNTIME_ENV，并在继承环境里清掉 NODE_ENV，避免 host/agent/Bash 被污染。
     [ZCODE_RUNTIME_ENV_KEY]: resolveHostProcessNodeEnv(),

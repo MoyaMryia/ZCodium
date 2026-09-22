@@ -5401,43 +5401,13 @@ function agentModelNetworkObservationFromEvent(
   const ok = type === "model_request_completed";
   return {
     transport: "http",
-    interface: buildAgentModelNetworkInterface(payload),
+    interface: "model.request",
     durationMs,
     ok,
     ...(statusCode !== undefined ? { statusCode } : {}),
     ...(ok ? {} : { errorKind: classifyAgentModelNetworkError(payload, statusCode) }),
     attempt: positiveIntegerValue(payload.attempt) ?? 1,
   };
-}
-
-function buildAgentModelNetworkInterface(payload: Record<string, unknown>): string {
-  const providerKind = safeNetworkDimension(stringValue(payload.providerKind)) ?? "unknown";
-  const transport = safeNetworkDimension(stringValue(payload.transport)) ?? "unknown";
-  const base = normalizeAgentModelBaseUrl(stringValue(payload.baseURL));
-  return `zcode_agent.model.${providerKind}.${transport}.${base}`;
-}
-
-function normalizeAgentModelBaseUrl(value: string | undefined): string {
-  if (!value) {
-    return "unknown";
-  }
-  try {
-    const parsed = new URL(value);
-    const pathname = parsed.pathname.replace(/\/+$/u, "") || "/";
-    const safePath = pathname.length > 80 ? `${pathname.slice(0, 80)}...` : pathname;
-    return `${parsed.host}${safePath}`;
-  } catch {
-    return safeNetworkDimension(value, 120) ?? "unknown";
-  }
-}
-
-function safeNetworkDimension(value: string | undefined, maxLength = 48): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const safe = trimmed.replace(/[?#[\]{}|\\^`"'<>\s]+/gu, "_");
-  return safe.length > maxLength ? `${safe.slice(0, maxLength)}...` : safe;
 }
 
 function classifyAgentModelNetworkError(

@@ -1,3 +1,4 @@
+import type { DiagnosticRecord } from "@zcode/shared";
 import type { ZCodeProcessDiagnostic } from "@zcode/shared/process-diagnostic";
 
 export interface RuntimeProcessSpawnEvent {
@@ -6,8 +7,6 @@ export interface RuntimeProcessSpawnEvent {
   pid: number;
   provider: string;
   workspacePath: string;
-  command: string;
-  args: string[];
   startedAt: number;
   runtimeGeneration: number;
   runtimeInstanceId: string;
@@ -18,7 +17,6 @@ export interface RuntimeProcessReadyEvent {
   lane?: string;
   pid: number;
   provider: string;
-  workspacePath: string;
   readyAt: number;
   startupDurationMs: number;
   runtimeGeneration: number;
@@ -30,7 +28,6 @@ export interface RuntimeProcessExitEvent {
   lane?: string;
   pid: number;
   provider: string;
-  workspacePath: string;
   exitCode: number | null;
   signal: NodeJS.Signals | null;
   endedAt: number;
@@ -41,7 +38,6 @@ export interface RuntimeProcessExitEvent {
   runtimeInstanceId: string;
   uptimeMs: number;
   stderrLineCount: number;
-  stderrTail?: string[];
 }
 
 export interface RuntimeProcessErrorEvent {
@@ -49,13 +45,8 @@ export interface RuntimeProcessErrorEvent {
   lane?: string;
   pid: number | null;
   provider: string;
-  workspacePath: string;
-  command: string;
-  args: string[];
-  errorName: string;
-  errorCode?: string;
-  errorMessage: string;
-  errorStack?: string;
+  errorCode?: DiagnosticRecord["errorCode"];
+  frames: string[];
   runtimeGeneration: number;
   runtimeInstanceId: string;
   occurredAt: number;
@@ -73,7 +64,6 @@ export interface RuntimeProcessExceptionEvent {
   lane?: string;
   pid: number;
   provider: string;
-  workspacePath: string;
   runtimeGeneration: number;
   runtimeInstanceId: string;
   diagnostic: ZCodeProcessDiagnostic;
