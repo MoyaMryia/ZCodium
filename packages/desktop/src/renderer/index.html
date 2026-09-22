@@ -13,115 +13,16 @@
         height: 100%;
       }
 
-      #root {
-        opacity: 0;
-        transition: opacity 0.16s ease;
-      }
-
-      body.zcode-startup-ready #root {
-        opacity: 1;
-      }
-
-      #loading {
-        position: fixed;
-        inset: 0;
-        z-index: 2147483647;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: opacity 0.16s ease;
-      }
-
-      body.zcode-startup-ready #loading {
-        pointer-events: none;
-        opacity: 0;
-      }
-
-      .startup-logo-shell {
-        position: relative;
-        display: flex;
-        width: 96px;
-        height: 96px;
-        align-items: center;
-        justify-content: center;
-        border-radius: 24px;
-        background: linear-gradient(180deg, #000000 0%, #151718 100%);
-        box-shadow:
-          0 20px 25px -5px rgb(0 0 0 / 0.2),
-          0 8px 10px -6px rgb(0 0 0 / 0.2);
-      }
-
-      .startup-logo-shell::before {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        content: "";
-        /* 启动 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则首屏边框过重。*/
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: inherit;
-      }
-
-      /* 主窗口在 macOS/Windows/Linux 都是透明或 vibrancy（desktopWindowChrome），启动壳必须自绘
-         固定深色底；珊瑚轮廓烘成白色资产内联，与 Web 启动壳共用同一份 base64。
-         尺寸沿用原 Z 字标的渲染高度，两个平台的占位标记大小一致。 */
-      .startup-logo {
-        height: 48px;
-        width: auto;
+      /* 启动壳（透明窗口上的浮动 logo、遮罩与动画）已整套删除：启动画面只保留 React 的
+         静态标记。这里只留一层纯色底，避免 React bundle 执行前主窗口（透明/vibrancy）
+         露出桌面；bundle 载入后由共享 UI 样式的根背景接管。 */
+      html {
+        background: #161616;
       }
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <div
-      id="loading"
-      class="[app-region:drag]"
-      role="status"
-      aria-busy="true"
-      aria-label="Loading..."
-    >
-      <div class="startup-logo-shell">
-        <img
-          src="data:image/png;base64,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"
-          alt=""
-          class="startup-logo"
-          aria-hidden="true"
-        />
-      </div>
-    </div>
-    <script type="module">
-      const startupLoading = document.getElementById("loading");
-      const isUpdateStatusWindow =
-        new URLSearchParams(window.location.search).get("windowKind") === "update-status";
-      let finished = false;
-      let reactReady = false;
-
-      // 主入口不能依赖动画结束后的动态 import；一旦导入路径在 Electron/Vite 下失败，
-      // 页面会永久停在 HTML loading。这里让主入口静态加载，只把启动壳作为遮罩延迟移除。
-      // 启动壳不放任何动画（历史上有过 logo 弹出与呼吸，重复动效在启动阶段只会显得在反复开窗），
-      // 因此标记直接落终态，壳只等 React ready 后移除。
-      const markReactReady = () => {
-        reactReady = true;
-        tryFinishStartupAnimation();
-      };
-
-      const tryFinishStartupAnimation = () => {
-        if (finished || !reactReady) return;
-        finished = true;
-        document.body.classList.add("zcode-startup-ready");
-        window.setTimeout(() => startupLoading?.remove(), 500);
-      };
-
-      if (isUpdateStatusWindow) {
-        // 更新状态窗口本身就是一个轻量弹窗，复用主入口 HTML 时不应再显示启动壳。
-        // 否则透明独立窗口里的启动 logo 会短暂或持续盖在更新按钮上，看起来像弹窗 UI 异常。
-        finished = true;
-        document.body.classList.add("zcode-startup-ready");
-        startupLoading?.remove();
-      } else {
-        window.addEventListener("zcode-react-startup-ready", markReactReady, { once: true });
-        window.setTimeout(markReactReady, 3000);
-      }
-    </script>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

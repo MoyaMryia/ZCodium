@@ -29,7 +29,7 @@ interface LaunchToInputTimings {
   marks: LaunchMarks;
   /** renderer/src/main.tsx 模块顶部 Date.now()（T4） */
   rendererStart: number;
-  /** zcode-react-startup-ready 触发时 Date.now()（T5） */
+  /** React 首次 commit 时 Date.now()（T5） */
   reactCommit: number;
   /** 启动门禁清除、输入框可用时 Date.now()（T6） */
   inputReady: number;

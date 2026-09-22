@@ -78,6 +78,7 @@ import {
   markCodeCommentRemoved,
 } from "@/lib/codeCommentContext.js";
 import { useCodeCommentPreviewStore } from "@/store/codeCommentPreviewStore.js";
+import { RootStartupLoading } from "@/root/RootStartupLoading.js";
 import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailability.js";
 import { useProviderAvailabilityLoginEntryGuard } from "@/root/useProviderAvailabilityLoginEntryGuard.js";
 import { ensureProviderFamilyDomainMigration } from "@/lib/providerFamilyDomainMigration.js";
@@ -935,14 +936,14 @@ function RootInner({
   };
 
   if (isStartupRenderBlocked) {
-    // 启动门禁期间不再渲染独立的 loading 页：HTML 启动壳已经展示同一枚 ZCodium 图标，
-    // React 接管后再弹一个全屏 logo 页只会让启动看起来在反复开窗。
-    // 这里只保留 RootShell 与对话框宿主，门禁通过后直接进入主界面。
+    const loadingLabel = intl.formatMessage({ id: "common.loading" });
+    // HTML 启动壳已删除，门禁阻塞期由这一处静态 ZCodium 标记承接主题背景与品牌画面。
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
+        <RootStartupLoading label={loadingLabel} />
       </RootShell>
     );
   }
