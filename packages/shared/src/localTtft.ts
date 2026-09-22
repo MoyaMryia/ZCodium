@@ -123,15 +123,6 @@ export const localTtftRecordSchema = z
   .object({
     version: z.literal(1),
     observationId: z.string().uuid(),
-    commandId: identifier.optional(),
-    sessionId: identifier.optional(),
-    turnId: identifier.optional(),
-    productTurnId: identifier.optional(),
-    queryId: identifier.optional(),
-    requestId: identifier.optional(),
-    logicalCallId: identifier.optional(),
-    cliVersion: identifier.optional(),
-    cliInstanceId: identifier.optional(),
     kind: z.enum(["start", "first_output", "first_text", "no_text", "excluded", "checkpoint"]),
     outcome: z.enum([
       "success",
@@ -159,7 +150,23 @@ export const localTtftRecordSchema = z
     clockErrorMs: time.optional(),
     intervals: z.array(localTtftIntervalSchema).max(6),
     checkpointId: identifier.optional(),
-    details: z.array(localTtftDetailSchema).max(LOCAL_TTFT_MAX_DETAILS).optional(),
+    details: z
+      .array(
+        z
+          .object({
+            id: localTtftDetailSchema.shape.id,
+            stage: localTtftDetailSchema.shape.stage,
+            start: localTtftDetailSchema.shape.start,
+            end: localTtftDetailSchema.shape.end,
+            outcome: localTtftDetailSchema.shape.outcome,
+            role: localTtftDetailSchema.shape.role,
+            source: localTtftDetailSchema.shape.source,
+          })
+          .strict()
+          .refine((value) => value.end === undefined || value.end >= value.start),
+      )
+      .max(LOCAL_TTFT_MAX_DETAILS)
+      .optional(),
     truncated: z.boolean().optional(),
     sendMode: z.enum(["idle", "queued", "guided"]).optional(),
     visibility: z.enum(["foreground", "background", "background_returned"]).optional(),
@@ -171,8 +178,6 @@ export const localTtftRecordSchema = z
     executionMs: time.optional(),
     timingReliable: z.boolean().optional(),
     cliTimingReliable: z.boolean().optional(),
-    provider: identifier.optional(),
-    model: identifier.optional(),
   })
   .strict()
   .refine((record) => record.end >= record.start);

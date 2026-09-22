@@ -14,19 +14,6 @@ const factBaseFields = {
   turnId: z.string().min(1).optional(),
 } as const;
 
-const providerHostnameSchema = z
-  .string()
-  .min(1)
-  .refine(
-    (value) =>
-      /^\[[0-9a-f:.]+\]$/iu.test(value) ||
-      (!/[\s/:?#@]/u.test(value) &&
-        !value.includes("[") &&
-        !value.includes("]") &&
-        value.trim() === value),
-    "providerHostname must be a hostname without scheme, port, path, query, credentials or fragment",
-  );
-
 const toolPerformanceFactSchema = z
   .object({
     totalMs: z.number().int().nonnegative().optional(),
@@ -38,14 +25,9 @@ const toolPerformanceFactSchema = z
     timedOut: z.boolean().optional(),
     outputBytes: z.number().int().nonnegative().optional(),
     commandCategory: z.string().max(64).optional(),
-    commandName: z.string().max(128).optional(),
     commandCount: z.number().int().nonnegative().optional(),
     commandStatus: z
       .enum(["completed", "failed", "timed_out", "cancelled", "spawn_error", "backgrounded"])
-      .optional(),
-    commandHash: z
-      .string()
-      .regex(/^[a-f0-9]{16}$/u)
       .optional(),
     fsReadMs: z.number().int().nonnegative().optional(),
     fsWriteMs: z.number().int().nonnegative().optional(),
@@ -67,8 +49,6 @@ const turnStartedFactSchema = z
     inputSource: zcodeSyntheticUserMessageSourceSchema.optional(),
     // `workflow`：dynamic-workflow run 的完成 / 提问通知唤起的独立轮。
     backgroundSource: z.enum(["bash", "subagent", "workflow"]).optional(),
-    automationId: z.string().min(1).optional(),
-    offPeakTaskId: z.string().min(1).optional(),
     offPeakRunType: z.enum(["init", "resume"]).optional(),
     taskTrigger: z.enum(["schedule", "manual"]).optional(),
     scheduledAt: timestampSchema.optional(),
@@ -87,10 +67,6 @@ const modelRequestStatusFactSchema = z
       "model_retry_scheduled",
       "model_stream_stalled",
     ]),
-    providerId: z.string(),
-    modelId: z.string(),
-    providerKind: z.string().optional(),
-    providerHostname: providerHostnameSchema.optional(),
     transport: z.string(),
     querySource: z.string().optional(),
     queryId: z.string().min(1).optional(),
@@ -126,21 +102,28 @@ const toolLifecycleFactSchema = z
     kind: z.literal("tool.lifecycle"),
     phase: z.enum(["scheduled", "started", "progress", "completed", "failed"]),
     toolCallId: z.string().min(1),
-    toolName: z.string().optional(),
+    toolName: z
+      .enum([
+        "Bash",
+        "Read",
+        "Write",
+        "Edit",
+        "Skill",
+        "Task",
+        "AskUserQuestion",
+        "CronCreate",
+        "WebFetch",
+        "WebSearch",
+        "other",
+      ])
+      .optional(),
     durationMs: z.number().nonnegative().optional(),
-    errorCode: z.string().optional(),
-    errorMessage: z.string().optional(),
     parentToolCallId: z.string().min(1).optional(),
     childToolCallId: z.string().min(1).optional(),
     agentId: z.string().min(1).optional(),
-    agentType: z.string().optional(),
     childSessionId: z.string().min(1).optional(),
     background: z.boolean().optional(),
-    skillQualifiedName: z.string().min(1).optional(),
-    skillPluginId: z.string().min(1).optional(),
-    skillSource: z.enum(["agents", "zcode", "bundled", "plugin", "remote"]).optional(),
     performance: toolPerformanceFactSchema.optional(),
-    automationId: z.string().min(1).optional(),
   })
   .strict();
 
@@ -151,7 +134,21 @@ const permissionLifecycleFactSchema = z
     phase: z.enum(["requested", "resolved", "denied"]),
     requestId: z.string().min(1).optional(),
     toolCallId: z.string().min(1),
-    toolName: z.string().optional(),
+    toolName: z
+      .enum([
+        "Bash",
+        "Read",
+        "Write",
+        "Edit",
+        "Skill",
+        "Task",
+        "AskUserQuestion",
+        "CronCreate",
+        "WebFetch",
+        "WebSearch",
+        "other",
+      ])
+      .optional(),
     childSessionId: z.string().min(1).optional(),
     background: z.boolean().optional(),
     decision: z.enum(["allow", "deny", "escalate", "modify"]).optional(),
@@ -163,10 +160,6 @@ const usageDeltaFactSchema = z
     ...factBaseFields,
     kind: z.literal("usage.delta"),
     requestId: z.string().min(1).optional(),
-    providerId: z.string().optional(),
-    modelId: z.string().optional(),
-    providerKind: z.string().optional(),
-    providerHostname: providerHostnameSchema.optional(),
     inputTokens: z.number().nonnegative(),
     outputTokens: z.number().nonnegative(),
     totalTokens: z.number().nonnegative(),
@@ -182,12 +175,10 @@ const subagentLifecycleFactSchema = z
     kind: z.literal("subagent.lifecycle"),
     phase: z.enum(["spawned", "stopped"]),
     agentId: z.string().min(1),
-    agentType: z.string().optional(),
     childSessionId: z.string().min(1),
     parentToolCallId: z.string().min(1).optional(),
     background: z.boolean(),
     status: z.string().optional(),
-    errorMessage: z.string().optional(),
   })
   .strict();
 
@@ -210,7 +201,6 @@ const workflowLifecycleFactSchema = z
     childSessionId: z.string().min(1).optional(),
     status: z.enum(["completed", "errored", "stopped"]).optional(),
     stopReason: z.enum(["user", "model", "provider", "interrupted", "superseded"]).optional(),
-    errorMessage: z.string().optional(),
   })
   .strict();
 
@@ -223,8 +213,6 @@ const turnTerminalFactSchema = z
     durationMs: z.number().nonnegative().optional(),
     tokenCount: z.number().nonnegative().optional(),
     toolCallCount: z.number().int().nonnegative().optional(),
-    errorCode: z.string().optional(),
-    errorMessage: z.string().optional(),
     errorRetryable: z.boolean().optional(),
     turnPhase: z.string().optional(),
     backgroundSubagentResultConsumed: z.boolean().optional(),
@@ -251,8 +239,6 @@ const compactionTerminalFactSchema = z
     preCompactTokenCount: z.number().int().nonnegative().optional(),
     postCompactTokenCount: z.number().int().nonnegative().optional(),
     truePostCompactTokenCount: z.number().int().nonnegative().optional(),
-    modelName: z.string().optional(),
-    modelProvider: z.string().optional(),
   })
   .strict();
 
@@ -274,19 +260,6 @@ const conversationTelemetryFactRuntimeSchema = z
     compactionTerminalFactSchema,
   ])
   .superRefine((fact, context) => {
-    if (fact.kind === "turn.started" && fact.automationId && fact.offPeakTaskId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "automationId and offPeakTaskId are mutually exclusive",
-      });
-    }
-    if (fact.kind === "turn.started" && fact.offPeakRunType && !fact.offPeakTaskId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "offPeakRunType requires offPeakTaskId",
-        path: ["offPeakRunType"],
-      });
-    }
     // discriminatedUnion 的成员必须是裸 ZodObject，按 phase 的条件必填只能写在这里。
     if (
       fact.kind === "workflow.lifecycle" &&
@@ -307,17 +280,5 @@ const conversationTelemetryFactRuntimeSchema = z
     }
   });
 
-type ConversationTelemetryFactBase = z.infer<typeof conversationTelemetryFactRuntimeSchema>;
-type TurnStartedConversationTelemetryFact = Extract<
-  ConversationTelemetryFactBase,
-  { kind: "turn.started" }
-> &
-  import("../zcode-task-types-core.js").ZCodeBackgroundTurnAttribution;
-
-export type ConversationTelemetryFact =
-  | Exclude<ConversationTelemetryFactBase, { kind: "turn.started" }>
-  | TurnStartedConversationTelemetryFact;
-
-export const conversationTelemetryFactSchema = conversationTelemetryFactRuntimeSchema.transform(
-  (fact): ConversationTelemetryFact => fact as ConversationTelemetryFact,
-);
+export type ConversationTelemetryFact = z.infer<typeof conversationTelemetryFactRuntimeSchema>;
+export const conversationTelemetryFactSchema = conversationTelemetryFactRuntimeSchema;

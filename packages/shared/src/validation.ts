@@ -1,8 +1,5 @@
+import { DiagnosticRecordSchema } from "./diagnostics.js";
 import { databaseStartupControlSchema, databaseStartupStateSchema } from "./database-startup.js";
-import {
-  sessionCreateTelemetrySchema,
-  automationSessionCreateTelemetrySchema,
-} from "./sessionCreateTelemetry.js";
 /* eslint-disable max-lines -- 运行时 schema 当前集中在共享包入口，外部 relay payload 校验加入后先保持单一导出面。 */
 import { z } from "zod";
 import { zcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
@@ -130,33 +127,6 @@ export const taskNotificationPayloadSchema = z.object({
   requestId: nonEmptyStringSchema.optional(),
   title: z.string(),
   body: z.string(),
-});
-
-export const telemetryRendererContextSchema = z.object({
-  clientTimezone: nonEmptyStringSchema,
-  clientLanguage: nonEmptyStringSchema,
-  screenResolution: nonEmptyStringSchema,
-});
-
-export const rendererTelemetryEventPayloadSchema = z.object({
-  context: telemetryRendererContextSchema,
-  elementName: nonEmptyStringSchema,
-  eventRegion: nonEmptyStringSchema,
-  eventType: nonEmptyStringSchema,
-  eventText: z.string().optional(),
-  eventExtraDetail: z.record(z.string(), z.string()),
-  userId: z.string().optional(),
-  talkId: z.string().optional(),
-  messageId: z.string().optional(),
-});
-
-export const armsCustomEventPayloadSchema = z.object({
-  name: nonEmptyStringSchema,
-  group: nonEmptyStringSchema,
-  value: z.number().finite().optional(),
-  properties: z
-    .record(z.string(), z.union([z.string(), z.number().finite(), z.boolean(), z.undefined()]))
-    .optional(),
 });
 
 export const broadcastMessageSchema = z.object({
@@ -517,7 +487,8 @@ export const hostLogResponseSchema = z.object({
   type: z.literal("log"),
   level: z.enum(["info", "warn", "error"]),
   source: z.string(),
-  message: z.string(),
+  message: z.string().optional(),
+  args: z.array(z.unknown()).max(32).optional(),
 });
 
 export { zcodeProviderSchema };
@@ -531,8 +502,6 @@ export const hostAgentProcessSpawnedResponseSchema = z.object({
   pid: z.number().int().positive(),
   provider: zcodeProviderSchema,
   workspacePath: nonEmptyStringSchema,
-  command: z.string(),
-  args: z.array(z.string()),
   startedAt: z.number().int().nonnegative(),
   runtimeGeneration: z.number().int().positive().optional(),
   runtimeInstanceId: nonEmptyStringSchema.optional(),
@@ -545,7 +514,6 @@ export const hostAgentProcessReadyResponseSchema = z.object({
   lane: nonEmptyStringSchema.optional(),
   pid: z.number().int().positive(),
   provider: zcodeProviderSchema,
-  workspacePath: nonEmptyStringSchema,
   readyAt: z.number().int().nonnegative(),
   startupDurationMs: z.number().int().nonnegative(),
   runtimeGeneration: z.number().int().positive(),
@@ -559,7 +527,6 @@ export const hostAgentProcessExitedResponseSchema = z.object({
   lane: nonEmptyStringSchema.optional(),
   pid: z.number().int().positive(),
   provider: zcodeProviderSchema,
-  workspacePath: nonEmptyStringSchema,
   exitCode: z.number().int().nullable(),
   signal: z.string().nullable(),
   endedAt: z.number().int().nonnegative(),
@@ -571,7 +538,6 @@ export const hostAgentProcessExitedResponseSchema = z.object({
   runtimeInstanceId: nonEmptyStringSchema.optional(),
   uptimeMs: z.number().int().nonnegative(),
   stderrLineCount: z.number().int().nonnegative(),
-  stderrTail: z.array(z.string().max(1_100)).max(20).optional(),
 });
 
 export type HostAgentProcessExitedResponse = z.infer<typeof hostAgentProcessExitedResponseSchema>;
@@ -582,13 +548,8 @@ export const hostAgentProcessErrorResponseSchema = z.object({
   lane: nonEmptyStringSchema.optional(),
   pid: z.number().int().positive().nullable(),
   provider: zcodeProviderSchema,
-  workspacePath: nonEmptyStringSchema,
-  command: z.string(),
-  args: z.array(z.string()),
-  errorName: nonEmptyStringSchema,
-  errorCode: z.string().optional(),
-  errorMessage: z.string(),
-  errorStack: z.string().optional(),
+  errorCode: DiagnosticRecordSchema.shape.errorCode,
+  frames: zcodeProcessDiagnosticSchema.shape.frames,
   runtimeGeneration: z.number().int().positive(),
   runtimeInstanceId: nonEmptyStringSchema.optional(),
   occurredAt: z.number().int().nonnegative(),
@@ -602,7 +563,6 @@ export const hostAgentProcessExceptionResponseSchema = z
     lane: nonEmptyStringSchema.optional(),
     pid: z.number().int().positive(),
     provider: zcodeProviderSchema,
-    workspacePath: nonEmptyStringSchema,
     runtimeGeneration: z.number().int().positive(),
     runtimeInstanceId: nonEmptyStringSchema,
     diagnostic: zcodeProcessDiagnosticSchema,
@@ -625,8 +585,8 @@ export const agentLaneResourceSampleSchema = zcodeProcessResourceSampleSchema
   .strict();
 export type AgentLaneResourceSample = z.infer<typeof agentLaneResourceSampleSchema>;
 
-/** Host 仅传运行环境的 SHA-256 哈希，避免原始主机、用户或 URL 进入消息与日志。 */
-const resourceTelemetryEnvironmentKeySchema = z.string().regex(/^[a-f0-9]{64}$/);
+/** 业务环境路由key仅在owner内存用于隔离/去重，禁止复制进诊断记录。 */
+const resourceTelemetryEnvironmentKeySchema = z.string().min(1).max(8192);
 
 export const hostAgentResourceSampleResponseSchema = z
   .object({
@@ -705,16 +665,6 @@ export const hostMcpTelemetryResponseSchema = z
   })
   .strict();
 export type HostMcpTelemetryResponse = z.infer<typeof hostMcpTelemetryResponseSchema>;
-
-export const hostSessionCreateTelemetryResponseSchema = z
-  .object({
-    type: z.literal("session-create-telemetry"),
-    event: automationSessionCreateTelemetrySchema,
-  })
-  .strict();
-export type HostSessionCreateTelemetryResponse = z.infer<
-  typeof hostSessionCreateTelemetryResponseSchema
->;
 
 export const hostAgentRunningTaskCountChangedResponseSchema = z.object({
   type: z.literal("agent-running-task-count-changed"),
@@ -933,6 +883,7 @@ export type HostResourceUsageSnapshotResultResponse = z.infer<
 >;
 
 export const hostResponseMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("safe-diagnostic"), record: DiagnosticRecordSchema }).strict(),
   z
     .object({ type: z.literal("database-startup-state"), state: databaseStartupStateSchema })
     .strict(),
@@ -952,7 +903,6 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostMcpTelemetryResponseSchema,
   hostMcpResourceSamplesResponseSchema,
   hostToolExecResourceResponseSchema,
-  hostSessionCreateTelemetryResponseSchema,
   hostAgentRunningTaskCountChangedResponseSchema,
   hostWorkspaceRunningTaskCountChangedResponseSchema,
   hostCuaOperationStateResponseSchema,

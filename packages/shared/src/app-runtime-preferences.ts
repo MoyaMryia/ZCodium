@@ -6,7 +6,6 @@ export const ASK_USER_QUESTION_E2E_CLOCK_SCALE_ENV = "ZCODE_E2E_ASK_USER_QUESTIO
 export const appRuntimePreferencesChangedBroadcastPayloadSchema = z
   .object({
     askUserQuestionAutoResolutionEnabled: z.boolean(),
-    modelIoFullRetentionEnabled: z.boolean().default(false),
   })
   .strict();
 

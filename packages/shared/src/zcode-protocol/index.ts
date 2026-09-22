@@ -333,6 +333,7 @@ export type ZCodeProtocolMessage = z.infer<typeof zcodeProtocolMessageSchema>;
 
 export const zcodeProtocolNotifications = {
   storageStartup: "startup/storageState",
+  diagnostic: "process/safeDiagnostic",
   providerRuntimeHeadersCancelled: "interaction/providerRuntimeHeadersCancelled",
   mcpTelemetry: "process/mcpTelemetry",
   mcpResourceSamples: "process/mcpResourceSamples",
@@ -400,11 +401,7 @@ const zcodeMcpTelemetryBaseSchema = z
   })
   .strict();
 const zcodeMcpProcessTelemetryBaseShape = {
-  mcpId: z
-    .string()
-    .regex(
-      /^(?:builtin:(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+(?::(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+)*|(?:plugin|custom):[a-f0-9]{12})$/,
-    ),
+  mcpId: z.string().uuid(),
   mcpInstanceId: nonEmptyString,
   mcpIsolation: z.enum(["session", "workspace"]),
   mcpSource: z.enum(["builtin", "plugin", "custom"]),
@@ -2204,34 +2201,6 @@ export type ZCodeWorkspaceUpdateInteractionPreferencesResult = z.infer<
   typeof zcodeWorkspaceUpdateInteractionPreferencesResultSchema
 >;
 
-export const zcodeModelIoPreferencesSchema = z
-  .object({
-    fullRetentionEnabled: z.boolean(),
-  })
-  .strict();
-export type ZCodeModelIoPreferences = z.infer<typeof zcodeModelIoPreferencesSchema>;
-
-export const zcodeWorkspaceUpdateModelIoPreferencesParamsSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    preferences: zcodeModelIoPreferencesSchema,
-  })
-  .strict();
-export type ZCodeWorkspaceUpdateModelIoPreferencesParams = z.infer<
-  typeof zcodeWorkspaceUpdateModelIoPreferencesParamsSchema
->;
-
-export const zcodeWorkspaceUpdateModelIoPreferencesResultSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    fullRetentionEnabled: z.boolean(),
-    updatedSessionCount: z.number().int().nonnegative(),
-  })
-  .strict();
-export type ZCodeWorkspaceUpdateModelIoPreferencesResult = z.infer<
-  typeof zcodeWorkspaceUpdateModelIoPreferencesResultSchema
->;
-
 export const zcodeWorkspaceUpdateOffPeakToolPolicyParamsSchema = z
   .object({
     workspace: zcodeWorkspaceRefSchema,
@@ -3599,7 +3568,6 @@ export const zcodeProtocolMethods = {
   // 进程级 Account Provider Config 与 workspace 运行目录分离。
   providerUpdateAccountConfig: "provider/updateAccountConfig",
   workspaceUpdateInteractionPreferences: "workspace/updateInteractionPreferences",
-  workspaceUpdateModelIoPreferences: "workspace/updateModelIoPreferences",
   // Off-Peak 工具面门禁是 workspace 级事实（灰度 + 本地/远程），由 host 在 agent 就绪时同步；
   // CLI 对 legacy create/resume 与 v4 冷恢复统一读取。旧 CLI method-not-found → host 降级忽略。
   workspaceUpdateOffPeakToolPolicy: "workspace/updateOffPeakToolPolicy",
