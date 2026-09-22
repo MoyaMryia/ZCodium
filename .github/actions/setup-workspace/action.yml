@@ -1,17 +1,28 @@
 name: Setup workspace
 description: Install the repository-pinned Node and pnpm, then frozen dependencies
+inputs:
+  install-dependencies:
+    description: Install pnpm and workspace dependencies
+    default: "true"
 runs:
   using: composite
   steps:
+    - name: Read pinned toolchain
+      id: toolchain
+      shell: bash
+      run: node scripts/ci/toolchain.mjs
     - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      if: inputs.install-dependencies == 'true'
       with:
         run_install: false
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
       with:
-        node-version-file: mise.toml
-        cache: pnpm
+        node-version: ${{ steps.toolchain.outputs.node }}
+        cache: ${{ inputs.install-dependencies == 'true' && 'pnpm' || '' }}
         cache-dependency-path: pnpm-lock.yaml
+        package-manager-cache: false
     - name: Install dependencies
+      if: inputs.install-dependencies == 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
       env:
