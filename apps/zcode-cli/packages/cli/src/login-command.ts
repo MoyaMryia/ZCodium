@@ -1,3 +1,4 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import { formatJson } from "@zcode/core";
 import type { GlobalOptions, RunContext } from "@zcode/shared-types";
 import { loadBootstrapModule } from "./bootstrap-loader.js";
@@ -74,10 +75,10 @@ export async function runLoginCommand(
     );
     return 0;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = JSON.stringify(safeLogArgs([error]));
     ctx.stderr.write(`Error: ${message}\n`);
     if (options.verbose && error instanceof Error && error.stack) {
-      ctx.stderr.write(`${error.stack}\n`);
+      ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
     }
     return 1;
   }
@@ -121,10 +122,10 @@ export async function runLogoutCommand(
     );
     return 0;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = JSON.stringify(safeLogArgs([error]));
     ctx.stderr.write(`Error: ${message}\n`);
     if (options.verbose && error instanceof Error && error.stack) {
-      ctx.stderr.write(`${error.stack}\n`);
+      ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
     }
     return 1;
   }

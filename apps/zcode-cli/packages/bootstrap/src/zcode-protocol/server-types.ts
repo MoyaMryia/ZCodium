@@ -10,7 +10,7 @@ import {
   type SessionStorePort,
   type TraceContext,
 } from "@zcode/contracts";
-import type { McpTelemetryTracker } from "@zcode/adapters";
+import type { McpProcessTracker } from "@zcode/adapters";
 import type { WorkspaceHookPolicyProvider } from "@zcode/core";
 import type { AccountProviderConfigSnapshot } from "@zcode/provider";
 import {
@@ -49,7 +49,7 @@ export interface ZCodeProtocolAgentDependencies {
   loggerFactory?: LoggerFactory;
   mcpPort?: McpPort;
   /** 资源管理器：`process/childProcesses` 读取 MCP 子进程 pid 与插件归属 */
-  mcpTelemetry?: Pick<McpTelemetryTracker, "listProcesses">;
+  mcpProcesses?: Pick<McpProcessTracker, "listProcesses">;
   platform?: NodeJS.Platform | string;
   /** 仅用于构造单个 CLI/app-server 的混合 resident 策略；生产默认值由 pool 定义。 */
   sessionResidentPoolOptions?: SessionResidentPoolOptions;
@@ -128,7 +128,6 @@ export interface ZCodeProtocolAgentServerContext {
   logger?: Logger;
   appRuntimePreferences: {
     askUserQuestionAutoResolutionEnabled: boolean;
-    modelIoFullRetentionEnabled: boolean;
     /** host 同步的 Off-Peak 工具面门禁；缺省 false（fail-closed），供 v4 冷恢复等无 host 参数的路径读取。 */
     offPeakToolEnabled: boolean;
     /**

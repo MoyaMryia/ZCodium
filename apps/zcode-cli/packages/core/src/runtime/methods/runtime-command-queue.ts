@@ -343,7 +343,7 @@ async function runTaskNotificationBatch(
       module: "core.runtime",
     });
     await this.executeTurnCommand(persisted.text, undefined, {
-      // wake 缺 inputId，telemetry 借用了持久化 msg_*，与普通 main turn 分叉。
+      // wake 缺 inputId 时会借用持久化 msg_*，无法与普通 main turn 使用同一输入关联。
       // 每个独立 batch 使用同一 UUID v7 规则；持久化消息仍使用 recordedInputMessageId。
       inputId: uuidv7(),
       abortSignal: foregroundExecution.controller.signal,

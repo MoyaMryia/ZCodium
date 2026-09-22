@@ -1,6 +1,4 @@
 import type {
-  AgentExecutionTelemetryPort,
-  AgentTelemetryActorKind,
   BackgroundResultOriginMeta,
   CollaborationMode,
   CoordinatorResponsePort,
@@ -73,8 +71,6 @@ export type ShouldEnqueueBackgroundTaskNotification = (
 ) => boolean;
 
 export interface ToolExecutorOptions {
-  agentTelemetry?: AgentExecutionTelemetryPort;
-  agentTelemetryActorKind?: AgentTelemetryActorKind;
   registry: ToolRegistry;
   permissionService: PermissionService;
   permissionBroker?: PermissionBrokerPort;
@@ -177,8 +173,6 @@ export interface ToolBatchExecuteOptions extends ToolExecuteOptions {
 }
 
 export interface ToolExecutorDeps {
-  agentTelemetry?: AgentExecutionTelemetryPort;
-  agentTelemetryActorKind?: AgentTelemetryActorKind;
   registry: ToolRegistry;
   permissionService: PermissionService;
   permissionBroker: PermissionBrokerPort;

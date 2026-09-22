@@ -49,12 +49,6 @@ const skillHandler: ToolHandler = async (input, context) => {
     { signal: context.abortSignal },
   );
 
-  context.recordSkillTelemetryMetadata?.({
-    ...(loaded.metadata.qualifiedName ? { qualifiedName: loaded.metadata.qualifiedName } : {}),
-    ...(loaded.metadata.pluginId ? { pluginId: loaded.metadata.pluginId } : {}),
-    source: loaded.metadata.source,
-  });
-
   return [
     `<skill_content name="${loaded.metadata.name}">`,
     `# Skill: ${loaded.metadata.name}`,

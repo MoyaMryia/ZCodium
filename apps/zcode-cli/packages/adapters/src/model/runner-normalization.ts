@@ -145,7 +145,7 @@ export function toModelStreamEvent(chunk: TextStreamPart<ToolSet>): ModelStreamE
           name: chunk.toolName,
           providerExecuted: chunk.providerExecuted,
           // 执行参数只取 AI SDK final tool-call，避免从展示用 delta 猜测输入，
-          // 也避免 stream/model-io 多次解析并重复告警。
+          // 也避免 stream 多次解析并重复告警。
           input: chunk.input,
         },
       };

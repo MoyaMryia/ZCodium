@@ -2,7 +2,6 @@ import type { LanguageModelUsage } from "ai";
 import type { Logger, ModelUsage } from "@zcode/contracts";
 import { ModelFailureReason as ModelFailureReasonValue } from "@zcode/contracts";
 import type { ClassifiedModelFailure } from "./failure-classifier.js";
-import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
 import type { AiSdkGenerateTextResult } from "./runner-runtime.js";
 import { normalizeUsage } from "./runner-normalization.js";
 import { asRecord, stringProperty } from "./runner-record.js";
@@ -47,7 +46,7 @@ export function createStreamDiagnostics(): StreamDiagnostics {
 
 export function recordStreamChunkDiagnostic(diagnostics: StreamDiagnostics, chunk: unknown): void {
   const record = asRecord(chunk);
-  const chunkType = stringProperty(record, "type") ?? typeof chunk;
+  const chunkType = safeChunkType(record.type);
   diagnostics.lastChunkType = chunkType;
   diagnostics.chunkCounts[chunkType] = (diagnostics.chunkCounts[chunkType] ?? 0) + 1;
 
@@ -98,27 +97,23 @@ export function logGenerateTextDiagnostics(input: {
   toolCallCount: number;
   usage: ModelUsage;
 }): void {
-  const resultWithMetadata = getGenerateTextResultMetadata(input.result);
   const textLength = input.result.text.length;
   const context = {
     ...modelStatusContextToLogContext(input.statusContext, input.attempt),
     durationMs: input.completedAt - input.startedAt,
     event: "model.sdk.generate.completed",
-    finishReason: input.result.finishReason,
+    finishReason: safeFinishReason(input.result.finishReason),
     module: "adapters.model",
-    providerMetadataKeys: objectKeys(input.result.providerMetadata),
-    responseBody: summarizeProviderBody(resultWithMetadata?.response?.body),
-    responseId: resultWithMetadata?.response?.id,
     status: "completed" as const,
     textLength,
     toolCallCount: input.toolCallCount,
-    usage: summarizeModelUsage(input.usage),
+    ...summarizeModelUsage(input.usage),
   };
 
   input.logger?.info("AI SDK generateText resolved", context);
   if (
     isSuspiciousModelCompletion({
-      finishReason: input.result.finishReason,
+      finishReason: safeFinishReason(input.result.finishReason),
       textLength,
       toolCallCount: input.toolCallCount,
       usage: input.usage,
@@ -128,81 +123,6 @@ export function logGenerateTextDiagnostics(input: {
       ...context,
       event: "model.sdk.generate.suspicious_empty",
     });
-  }
-}
-
-function summarizeFinishChunkForDiagnostics(chunk: unknown): Record<string, unknown> | undefined {
-  const record = asRecord(chunk);
-  if (Object.keys(record).length === 0) {
-    return undefined;
-  }
-
-  const response = asRecord(record.response);
-  const providerMetadata = asRecord(record.providerMetadata);
-  return {
-    chunkKeys: objectKeys(record),
-    finishReason: summarizeScalar(record.finishReason),
-    rawFinishReason: summarizeScalar(record.rawFinishReason),
-    providerMetadataKeys: objectKeys(providerMetadata),
-    responseBody: summarizeProviderBody(response?.body ?? record.body),
-    responseStatus: summarizeScalar(response?.status),
-  };
-}
-
-function summarizeOutboundModelHeaders(
-  headers: Record<string, string> | undefined,
-): Record<string, unknown> {
-  if (!headers) {
-    return { outboundHeaderKeys: [] };
-  }
-
-  return { outboundHeaderKeys: Object.keys(headers) };
-}
-
-function summarizeFinishChunkBusinessScan(input: {
-  providerId: string;
-  providerKind?: string;
-  diagnostics: StreamDiagnostics;
-}): Record<string, unknown> {
-  const finishSource =
-    input.diagnostics.lastFinishChunk ??
-    ({
-      type: "finish",
-      finishReason: input.diagnostics.finishReason,
-      rawFinishReason: input.diagnostics.rawFinishReason,
-    } satisfies Record<string, unknown>);
-
-  const finishBusinessError = detectProviderBusinessFinishError({
-    providerId: input.providerId,
-    providerKind: input.providerKind,
-    source: finishSource,
-  });
-
-  return {
-    finishBusinessErrorCode: finishBusinessError?.providerCode ?? null,
-    finishBusinessErrorMessage: finishBusinessError?.providerMessage ?? null,
-    finishChunk: summarizeFinishChunkForDiagnostics(input.diagnostics.lastFinishChunk),
-    finishChunkPreview: summarizeRawFinishChunkPreview(input.diagnostics.lastFinishChunk),
-    lastErrorChunk: summarizeFinishChunkForDiagnostics(input.diagnostics.lastErrorChunk),
-  };
-}
-
-function summarizeRawFinishChunkPreview(chunk: unknown): Record<string, unknown> | undefined {
-  if (chunk === undefined) {
-    return undefined;
-  }
-
-  try {
-    const serialized = JSON.stringify(chunk);
-    if (serialized.length <= 2_048) {
-      return JSON.parse(serialized) as Record<string, unknown>;
-    }
-    return {
-      truncated: true,
-      preview: serialized.slice(0, 2_048),
-    };
-  } catch {
-    return summarizeFinishChunkForDiagnostics(chunk);
   }
 }
 
@@ -224,21 +144,20 @@ export function logStreamDiagnostics(input: {
     emittedEvent: input.emittedEvent,
     event: "model.sdk.stream.completed",
     errorChunkCount: input.diagnostics.errorChunkCount,
-    finishReason: input.diagnostics.finishReason,
+    finishReason: safeFinishReason(input.diagnostics.finishReason),
     lastChunkType: input.diagnostics.lastChunkType,
     module: "adapters.model",
-    rawFinishReason: summarizeScalar(input.diagnostics.rawFinishReason),
     reasoningDeltaChars: input.diagnostics.reasoningDeltaChars,
     status: "completed" as const,
     textDeltaChars: input.diagnostics.textDeltaChars,
     toolCallCount: input.diagnostics.toolCallCount,
-    usage: summarizeModelUsage(input.diagnostics.usage),
+    ...summarizeModelUsage(input.diagnostics.usage),
   };
 
   input.logger?.info("AI SDK stream completed", context);
   if (
     isSuspiciousModelCompletion({
-      finishReason: input.diagnostics.finishReason,
+      finishReason: safeFinishReason(input.diagnostics.finishReason),
       textLength: input.diagnostics.textDeltaChars,
       toolCallCount: input.diagnostics.toolCallCount,
       usage: input.diagnostics.usage,
@@ -247,12 +166,6 @@ export function logStreamDiagnostics(input: {
     input.logger?.warn("AI SDK stream returned an empty non-stop result", {
       ...context,
       event: "model.sdk.stream.suspicious_empty",
-      ...summarizeOutboundModelHeaders(input.outboundHeaders),
-      ...summarizeFinishChunkBusinessScan({
-        providerId: String(input.statusContext.providerId),
-        providerKind: input.statusContext.providerKind,
-        diagnostics: input.diagnostics,
-      }),
     });
   }
 }
@@ -270,7 +183,7 @@ export function logStreamFailureDiagnostics(input: {
   logger?: Logger;
   statusContext: ModelStatusContext;
 }): void {
-  input.logger?.error("AI SDK stream failed", toLogError(input.error), {
+  input.logger?.error("AI SDK stream failed", undefined, {
     ...modelStatusContextToLogContext(input.statusContext, input.attempt),
     chunkCounts: input.diagnostics.chunkCounts,
     durationMs: input.durationMs,
@@ -280,19 +193,17 @@ export function logStreamFailureDiagnostics(input: {
     errorAfterFinish: input.diagnostics.finishReason !== undefined,
     errorChunkCount: input.diagnostics.errorChunkCount,
     event: "model.sdk.stream.failed",
-    finishReason: input.diagnostics.finishReason,
+    finishReason: safeFinishReason(input.diagnostics.finishReason),
     lastChunkType: input.diagnostics.lastChunkType,
     module: "adapters.model",
-    rawFinishReason: summarizeScalar(input.diagnostics.rawFinishReason),
     reason: input.failure.reason,
     reasoningDeltaChars: input.diagnostics.reasoningDeltaChars,
     retryable: input.canRetry,
     status: input.failure.reason === ModelFailureReasonValue.Cancelled ? "cancelled" : "failed",
     statusCode: input.failure.statusCode,
-    statusMessage: input.failure.message,
     textDeltaChars: input.diagnostics.textDeltaChars,
     toolCallCount: input.diagnostics.toolCallCount,
-    usage: summarizeModelUsage(input.diagnostics.usage),
+    ...summarizeModelUsage(input.diagnostics.usage),
   });
 }
 
@@ -311,59 +222,11 @@ export function logIgnoredStreamChunk(input: {
   });
 }
 
-function summarizeProviderBody(body: unknown): Record<string, unknown> | undefined {
-  if (body === undefined) return undefined;
-  if (body === null) return { type: "null" };
-
-  if (typeof body === "string") {
-    return {
-      length: body.length,
-      preview: body.slice(0, 500),
-      type: "string",
-    };
-  }
-
-  if (typeof body !== "object") {
-    return {
-      type: typeof body,
-      value: summarizeScalar(body),
-    };
-  }
-
-  const record = body as Record<string, unknown>;
-  return {
-    code: summarizeScalar(record.code),
-    error: summarizeProviderError(record.error),
-    keys: objectKeys(record),
-    message: summarizeScalar(record.message),
-    msg: summarizeScalar(record.msg),
-    status: summarizeScalar(record.status),
-    success: typeof record.success === "boolean" ? record.success : undefined,
-    type: Array.isArray(body) ? "array" : "object",
-  };
-}
-
-function summarizeProviderError(error: unknown): unknown {
-  if (error === undefined || error === null || typeof error !== "object") {
-    return summarizeScalar(error);
-  }
-
-  const record = error as Record<string, unknown>;
-  return {
-    code: summarizeScalar(record.code),
-    keys: objectKeys(record),
-    message: summarizeScalar(record.message),
-    type: summarizeScalar(record.type),
-  };
-}
-
 function summarizeStreamChunk(chunk: unknown): Record<string, unknown> {
   const record = asRecord(chunk);
   return {
-    chunkKeys: objectKeys(record),
-    chunkType: stringProperty(record, "type") ?? typeof chunk,
-    finishReason: summarizeScalar(record.finishReason),
-    rawFinishReason: summarizeScalar(record.rawFinishReason),
+    chunkType: safeChunkType(record.type),
+    finishReason: safeFinishReason(record.finishReason),
   };
 }
 
@@ -378,24 +241,6 @@ function summarizeModelUsage(usage?: ModelUsage): Record<string, unknown> | unde
     serverToolUse: usage.serverToolUse,
     totalTokens: usage.totalTokens,
   };
-}
-
-function summarizeScalar(value: unknown): unknown {
-  if (
-    value === undefined ||
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return value;
-  }
-  return Array.isArray(value) ? `[array:${value.length}]` : "[object]";
-}
-
-function objectKeys(value: unknown): string[] | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  return Object.keys(value).slice(0, 20);
 }
 
 export function isSuspiciousStreamDiagnostics(diagnostics: StreamDiagnostics): boolean {
@@ -460,9 +305,46 @@ function isZeroUsage(usage?: ModelUsage): boolean {
   return total === 0;
 }
 
-function toLogError(error: unknown): Error {
-  if (error instanceof Error) {
-    return error;
+function safeChunkType(value: unknown): string {
+  switch (value) {
+    case "text-start":
+    case "text-delta":
+    case "text-end":
+    case "reasoning-start":
+    case "reasoning-delta":
+    case "reasoning-end":
+    case "tool-call":
+    case "tool-result":
+    case "tool-error":
+    case "tool-input-start":
+    case "tool-input-delta":
+    case "tool-input-end":
+    case "start":
+    case "start-step":
+    case "finish":
+    case "finish-step":
+    case "abort":
+    case "error":
+    case "raw":
+    case "source":
+    case "file":
+      return value;
+    default:
+      return "other";
   }
-  return new Error(String(error));
+}
+
+function safeFinishReason(value: unknown): string {
+  switch (value) {
+    case "stop":
+    case "length":
+    case "content-filter":
+    case "tool-calls":
+    case "error":
+    case "other":
+    case "unknown":
+      return value;
+    default:
+      return "unknown";
+  }
 }

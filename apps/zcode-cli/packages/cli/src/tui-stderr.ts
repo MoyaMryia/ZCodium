@@ -1,11 +1,8 @@
 import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
 
-const MAX_BUFFERED_CHARACTERS = 64 * 1024;
-
 interface TuiStderrInterceptor {
-  readonly bufferedOutput: string;
   readonly passthrough: NodeJS.WriteStream;
-  restore(options?: { flush?: boolean }): void;
+  restore(): void;
 }
 
 export function isTuiInvocation(argv: readonly string[]): boolean {
@@ -32,7 +29,6 @@ export function isTuiInvocation(argv: readonly string[]): boolean {
 
 export function interceptTuiStderr(stderr: NodeJS.WriteStream): TuiStderrInterceptor {
   const originalWrite = stderr.write;
-  let bufferedOutput = "";
   let restored = false;
   const passthrough = Object.create(stderr) as NodeJS.WriteStream;
   type WriteCallback = (err?: Error | null) => void;
@@ -58,11 +54,7 @@ export function interceptTuiStderr(stderr: NodeJS.WriteStream): TuiStderrInterce
   // TUI owns the full terminal. Raw stderr emitted during startup, including
   // Node runtime warnings from static imports, corrupts the screen.
   stderr.write = ((chunk, encodingOrCallback, callback) => {
-    const encoding = typeof encodingOrCallback === "string" ? encodingOrCallback : undefined;
-    bufferedOutput = (bufferedOutput + stringifyChunk(chunk, encoding)).slice(
-      -MAX_BUFFERED_CHARACTERS,
-    );
-
+    // 该旁路没有业务消费者，不能把第三方 stderr 原文作为隐私诊断缓存。
     const writeCallback = typeof encodingOrCallback === "function" ? encodingOrCallback : callback;
     if (writeCallback) queueMicrotask(() => writeCallback());
 
@@ -70,22 +62,11 @@ export function interceptTuiStderr(stderr: NodeJS.WriteStream): TuiStderrInterce
   }) as NodeJS.WriteStream["write"];
 
   return {
-    get bufferedOutput() {
-      return bufferedOutput;
-    },
     passthrough,
-    restore(options = {}) {
+    restore() {
       if (restored) return;
       restored = true;
       stderr.write = originalWrite;
-
-      if (options.flush === true && bufferedOutput.length > 0) {
-        originalWrite.call(stderr, bufferedOutput);
-      }
     },
   };
-}
-
-function stringifyChunk(chunk: string | Uint8Array, encoding?: BufferEncoding): string {
-  return typeof chunk === "string" ? chunk : Buffer.from(chunk).toString(encoding);
 }

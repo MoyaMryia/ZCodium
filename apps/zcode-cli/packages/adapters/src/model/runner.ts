@@ -59,12 +59,10 @@ export interface AiSdkModelAdapterOptions {
   network?: AiSdkNetworkConfig;
   runtime?: AiSdkModelRuntime;
   env?: EnvRecord;
-  debugDir?: string;
   logger?: Logger;
   retry?: AiSdkModelRetryOptions;
   statusSink?: ModelStatusSink;
   streamIdleTimeoutMs?: number;
-  modelIoFullRetentionEnabled?: boolean;
 }
 
 export interface CreateAiSdkModelOptions {
@@ -81,12 +79,10 @@ export class AiSdkModelAdapter {
   private readonly execution: AiSdkModelExecution;
   private readonly runtime: AiSdkModelRuntime;
   private readonly env: EnvRecord;
-  private readonly debugDir?: string;
   private readonly logger?: Logger;
   private readonly retry: ResolvedAiSdkModelRetryOptions;
-  private statusSink?: ModelStatusSink;
+  private readonly statusSink?: ModelStatusSink;
   private readonly streamIdleTimeoutMs: number;
-  private modelIoFullRetentionEnabled: boolean;
 
   constructor(options: AiSdkModelAdapterOptions) {
     this.execution = new AiSdkModelExecution(
@@ -101,38 +97,10 @@ export class AiSdkModelAdapter {
     );
     this.runtime = options.runtime ?? defaultRuntime;
     this.env = options.env ?? process.env;
-    this.debugDir = options.debugDir;
     this.logger = options.logger;
     this.retry = resolveAiSdkModelRetryOptions(options.retry, this.env);
     this.statusSink = options.statusSink;
     this.streamIdleTimeoutMs = options.streamIdleTimeoutMs ?? DEFAULT_MODEL_STREAM_IDLE_TIMEOUT_MS;
-    this.modelIoFullRetentionEnabled = options.modelIoFullRetentionEnabled ?? false;
-  }
-
-  setModelIoFullRetentionEnabled(enabled: boolean): void {
-    this.modelIoFullRetentionEnabled = enabled;
-  }
-
-  addStatusSink(sink: ModelStatusSink): void {
-    const current = this.statusSink;
-    if (!current || current === sink) {
-      this.statusSink = sink;
-      return;
-    }
-    this.statusSink = {
-      async publish(event) {
-        // 多个 sink 必须独立执行：任一 sink 失败不得连带影响其他 sink，
-        // 也不能阻塞原有调用链。
-        const results = await Promise.allSettled([
-          Promise.resolve().then(() => current.publish(event)),
-          Promise.resolve().then(() => sink.publish(event)),
-        ]);
-        const failed = results.find(
-          (result): result is PromiseRejectedResult => result.status === "rejected",
-        );
-        if (failed) throw failed.reason;
-      },
-    };
   }
 
   createModel(options: CreateAiSdkModelOptions): Model {
@@ -158,7 +126,7 @@ export class AiSdkModelAdapter {
         refreshRuntimeHeadersBeforeAttempt: contextRefreshRuntimeHeadersBeforeAttempt,
         ...invocationContext
       } = context ?? {};
-      const shouldAttachReasoningTelemetry = request.options.reasoningLevel !== undefined;
+      const shouldAttachReasoningObservation = request.options.reasoningLevel !== undefined;
       const selectedReasoningLevel = request.options.reasoningLevel;
       const requestAuthDependency = options.requestDependencies?.requestAuth;
       const requestAuthRequired =
@@ -194,13 +162,13 @@ export class AiSdkModelAdapter {
         abortSignal: request.abortSignal,
         maxOutputTokens: request.options.maxOutputTokens,
         ...invocationContext,
-        ...(shouldAttachReasoningTelemetry
+        ...(shouldAttachReasoningObservation
           ? {
               modelCall: {
                 ...invocationContext.modelCall,
                 reasoning: {
                   ...invocationContext.modelCall?.reasoning,
-                  // 过去按 none/off 等档位名称猜测 enabled/disabled，导致 Telemetry
+                  // 过去按 none/off 等档位名称猜测 enabled/disabled，导致本地模型观测
                   // 把 Provider 方言当成统一语义。这里只记录请求实际选择的公开档位。
                   ...(selectedReasoningLevel ? { requestedLevel: selectedReasoningLevel } : {}),
                 },
@@ -293,7 +261,6 @@ export class AiSdkModelAdapter {
   ): Promise<ModelTextResult> {
     const projectedRequest = projectRequestHistory(request, resolved);
     return runGenerateText({
-      debugDir: this.debugDir,
       env: this.env,
       logger: this.logger,
       request: projectedRequest,
@@ -302,7 +269,6 @@ export class AiSdkModelAdapter {
       retry: this.retry,
       runtime: this.runtime,
       statusSink: this.statusSink,
-      modelIoFullRetentionEnabled: this.modelIoFullRetentionEnabled,
     });
   }
 
@@ -313,7 +279,6 @@ export class AiSdkModelAdapter {
   ): AsyncGenerator<ModelStreamEvent> {
     const projectedRequest = projectRequestHistory(request, resolved);
     yield* runStreamText({
-      debugDir: this.debugDir,
       env: this.env,
       logger: this.logger,
       request: projectedRequest,
@@ -323,7 +288,6 @@ export class AiSdkModelAdapter {
       runtime: this.runtime,
       statusSink: this.statusSink,
       streamIdleTimeoutMs: this.streamIdleTimeoutMs,
-      modelIoFullRetentionEnabled: this.modelIoFullRetentionEnabled,
     });
   }
 }

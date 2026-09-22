@@ -1,3 +1,4 @@
+import { observeLocalOperation } from "../helpers/local-operation-diagnostics.js";
 import {
   SessionEventType,
   GOAL_COMPLETION_VERIFICATION_QUERY_SOURCE,
@@ -25,7 +26,6 @@ import { resolveModelRequestSessionTypeFromTaskType } from "./model-request-sess
 import { createRuntimeModel } from "./runtime-model.js";
 import { isStartPlanBusyStreamRecoveryFailure } from "./streaming-recovery.js";
 import { recordModelUsageFact } from "./usage-observability.js";
-import { runTargetCompletionVerificationWithTelemetry } from "./target-completion-verification-telemetry.js";
 
 export interface TargetCompletionVerificationResult {
   target: SessionGoal;
@@ -85,7 +85,12 @@ export async function verifyActiveTargetCompletionForContinuation(
       verification,
     };
   };
-  return runTargetCompletionVerificationWithTelemetry(this, input, execute);
+  return observeLocalOperation(
+    this.logger,
+    "goal_completion_verification",
+    execute,
+    input.abortSignal,
+  );
 }
 
 async function verifyTargetCompletion(

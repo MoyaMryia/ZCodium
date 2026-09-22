@@ -16,12 +16,10 @@ type ProviderRegistryRuntime = Awaited<
 // 只在终态 close 时对称 shutdown。之前是 createTuiSubmitPrompt 里的三个 let 闭包变量。
 interface TuiProcessRuntimeState {
   providerRegistryRuntimePromise: Promise<ProviderRegistryRuntime> | undefined;
-  shutdownTelemetry: (() => Promise<void>) | undefined;
 }
 
 export const createTuiProcessRuntimeState = (): TuiProcessRuntimeState => ({
   providerRegistryRuntimePromise: undefined,
-  shutdownTelemetry: undefined,
 });
 
 // 返回值类型交给推断：原地 createApp 里这几个都是推断出来的局部变量，手写接口反而会把
@@ -49,18 +47,7 @@ export async function prepareTuiAppRuntime(
   const bootstrapModule = deps.createZCodeApp ? undefined : await loadBootstrapModule();
   const createAppFactory = deps.createZCodeApp ?? bootstrapModule?.createZCodeApp;
   if (!createAppFactory) throw new Error("ZCode app factory is unavailable.");
-  const prepareTelemetry =
-    deps.prepareZCodeTelemetryEnv ?? bootstrapModule?.prepareZCodeTelemetryEnv;
-  if (prepareTelemetry) {
-    state.shutdownTelemetry =
-      deps.shutdownZCodeTelemetry ?? bootstrapModule?.shutdownZCodeTelemetry;
-  }
-  const appEnv = prepareTelemetry
-    ? await prepareTelemetry(env, {
-        cliVersion: version,
-        productVersion: env.ZCODE_APP_VERSION,
-      })
-    : env;
+  const appEnv = env;
   const startProviderRegistryRuntime =
     deps.startProcessProviderRegistryRuntime ??
     bootstrapModule?.startProcessProviderRegistryRuntime;

@@ -13,7 +13,6 @@ import {
 
 const ACTOR_CREATED_EVENT_TYPE = "actor-created";
 const RUN_SETTLED_EVENT_TYPE = "run-settled";
-const RUN_STOPPED_ERROR_MESSAGE = "Workflow run stopped";
 
 /** run 的三终态词与停止原因，与引擎 RunStatus / RunStopReason 同集。 */
 type WorkflowRunSettledStatus = "completed" | "errored" | "stopped";
@@ -56,13 +55,6 @@ export function workflowLifecycleFactFromProgress(
     if (status === undefined) return null;
     const stopReason =
       status === "stopped" ? settledStopReason(progress.payload.stopReason) : undefined;
-    // 错误原文照引擎事件：errored 恒带 error；stopped 只对 provider / interrupted 带 error，
-    // user / model 停下没有原文，用固定文案加原因，让看板仍能分辨是谁停的。
-    const engineMessage = optionalString(errorRecord(progress.payload.error)?.message);
-    const errorMessage =
-      status === "completed"
-        ? undefined
-        : (engineMessage ?? (status === "stopped" ? stoppedMessage(stopReason) : undefined));
     return conversationTelemetryFactSchema.parse({
       ...base,
       kind: "workflow.lifecycle",
@@ -72,7 +64,6 @@ export function workflowLifecycleFactFromProgress(
       ...(toolCallId === undefined ? {} : { toolCallId }),
       status,
       ...(stopReason === undefined ? {} : { stopReason }),
-      ...(errorMessage === undefined ? {} : { errorMessage }),
     });
   }
 
@@ -102,16 +93,6 @@ function settledStopReason(value: unknown): WorkflowRunStopReason | undefined {
     value === "superseded"
     ? value
     : undefined;
-}
-
-function stoppedMessage(reason: WorkflowRunStopReason | undefined): string {
-  return reason === undefined
-    ? RUN_STOPPED_ERROR_MESSAGE
-    : `${RUN_STOPPED_ERROR_MESSAGE} (${reason})`;
-}
-
-function errorRecord(value: unknown): { message?: unknown } | undefined {
-  return typeof value === "object" && value !== null ? (value as { message?: unknown }) : undefined;
 }
 
 function optionalString(value: unknown): string | undefined {

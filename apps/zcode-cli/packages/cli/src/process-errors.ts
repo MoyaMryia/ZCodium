@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { safeDiagnosticFrames, safeLogArgs } from "@zcode/shared";
 import {
   ZCODE_PROCESS_DIAGNOSTIC_PREFIX,
-  ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-  ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
   type ZCodeProcessDiagnostic,
 } from "@zcode/shared/process-diagnostic";
 
@@ -88,44 +86,41 @@ function writeProcessErrorDiagnostic(
   reason: unknown,
 ): void {
   try {
-    const detail = formatProcessError(reason).slice(0, ZCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS);
+    const frames = safeDiagnosticFrames(reason instanceof Error ? reason.stack : undefined);
+    const safeError = safeLogArgs([reason])[0] as {
+      errorType?: string;
+      errorCode?: ZCodeProcessDiagnostic["errorCode"];
+    };
+    const knownTypes = new Set([
+      "Error",
+      "TypeError",
+      "RangeError",
+      "ReferenceError",
+      "SyntaxError",
+      "URIError",
+      "EvalError",
+      "AggregateError",
+    ]);
+    const errorType =
+      safeError?.errorType && knownTypes.has(safeError.errorType)
+        ? (safeError.errorType as ZCodeProcessDiagnostic["errorType"])
+        : "Error";
     const diagnostic: ZCodeProcessDiagnostic = {
       version: 1,
       errorId: randomUUID(),
       kind,
       origin: origin === "unhandledRejection" ? origin : "uncaughtException",
-      name: (reason instanceof Error ? reason.name || "Error" : "Error").slice(
-        0,
-        ZCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-      ),
-      message: (reason instanceof Error ? reason.message : detail).slice(
-        0,
-        ZCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-      ),
-      ...(reason instanceof Error && reason.stack ? { stack: detail } : {}),
+      errorType,
+      ...(safeError?.errorCode ? { errorCode: safeError.errorCode } : {}),
+      frames,
       occurredAt: Date.now(),
     };
     // 根因：进程存活时旧 stderr 只进 debug，Electron SDK 无法捕获子进程异常。
-    // 增加单行结构化事件供 Host 立即转发，保留可读文本兼容旧 Host 和 crash tail。
+    // 增加单行结构化事件供 Host 立即转发，保留固定类型和源码栈位置，不能复制原始错误或 rejection 正文。
     stderr.write(
-      `${ZCODE_PROCESS_DIAGNOSTIC_PREFIX}${JSON.stringify(diagnostic)}\n[zcode] process error kind=${kind} origin=${origin}\n${detail}\n`,
+      `${ZCODE_PROCESS_DIAGNOSTIC_PREFIX}${JSON.stringify(diagnostic)}\n[zcode] process error kind=${kind} origin=${origin}\n${frames.join("\n")}\n`,
     );
   } catch {
     // 诊断输出不能再次击穿进程级异常边界。
-  }
-}
-
-function formatProcessError(reason: unknown): string {
-  if (reason instanceof Error) {
-    return reason.stack || `${reason.name}: ${reason.message}`;
-  }
-  if (typeof reason === "string") {
-    return reason;
-  }
-  try {
-    const serialized = JSON.stringify(reason);
-    return serialized === undefined ? String(reason) : serialized;
-  } catch {
-    return String(reason);
   }
 }

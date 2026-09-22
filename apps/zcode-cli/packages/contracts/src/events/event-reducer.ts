@@ -330,7 +330,7 @@ export class EventReducer {
           message: payload.error.message,
           ...(payload.error.detail ? { detail: payload.error.detail } : {}),
           // TurnError 的 provider/network 归因是 live 与 cold projection 的共同事实；
-          // 旧 reducer 只保留文案和 code，导致后续 task meta/telemetry 无法区分 provider 拒绝。
+          // 旧 reducer 只保留文案和 code，导致后续 task meta 无法区分 provider 拒绝。
           ...(payload.error.attribution ? { attribution: payload.error.attribution } : {}),
         },
         updatedAt: e.timestamp,

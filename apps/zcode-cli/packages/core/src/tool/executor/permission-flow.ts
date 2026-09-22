@@ -8,7 +8,6 @@ import {
   type PermissionBrokerResult,
   type PermissionRuleset,
   type TraceContext,
-  type ToolExecutionSpanWriter,
 } from "@zcode/contracts";
 import type { HookRunResult } from "../../hooks/index.js";
 import type { PermissionContext } from "../../permission/service.js";
@@ -47,7 +46,6 @@ export async function resolveToolPermission(
   mode: CollaborationMode,
   traceContext: TraceContext,
   signal?: AbortSignal,
-  telemetry?: ToolExecutionSpanWriter,
 ): Promise<ToolPermissionFlowResult> {
   const permissionContext: PermissionContext = {
     toolName: toolCall.name,
@@ -121,12 +119,10 @@ export async function resolveToolPermission(
   });
 
   if (permissionDecision.allowed) {
-    telemetry?.setPermissionDecision("not_required");
     return { allowed: true, executionInput };
   }
 
   if (permissionDecision.decision === "deny") {
-    telemetry?.setPermissionDecision("denied");
     await emitPermissionDenied(deps, toolCall, permissionDecision.reason, traceContext);
 
     deps.logger?.warn("Tool permission denied", {
@@ -153,12 +149,10 @@ export async function resolveToolPermission(
 
   const approval = resolveToolApproval(deps, toolCall, entry, executionInput, traceContext);
   if (approval.gate === "proceed") {
-    telemetry?.setPermissionDecision("not_required");
     return { allowed: true, executionInput };
   }
 
   const requestId = `perm_${crypto.randomUUID()}`;
-  telemetry?.markPermissionRequested();
   await emitPermissionRequested(
     deps,
     toolCall,
@@ -266,7 +260,6 @@ export async function resolveToolPermission(
       }
     }
   } catch (error) {
-    telemetry?.setPermissionDecision("denied");
     const coreError = isCoreError(error)
       ? error
       : createCoreError(CoreErrorType.PermissionDenied, "Permission request failed", {
@@ -312,7 +305,6 @@ export async function resolveToolPermission(
   });
 
   if (resolvedPermission.decision === "deny") {
-    telemetry?.setPermissionDecision("denied");
     return {
       allowed: false,
       result: createPermissionErrorResult(
@@ -333,7 +325,6 @@ export async function resolveToolPermission(
   }
 
   if (resolvedPermission.decision === "escalate") {
-    telemetry?.setPermissionDecision("denied");
     return {
       allowed: false,
       result: createErrorResult(
@@ -402,8 +393,6 @@ export async function resolveToolPermission(
       updateCount: resolvedPermission.sessionPermissionUpdates.length,
     });
   }
-
-  telemetry?.setPermissionDecision("granted");
   if (resolvedPermission.decision !== "modify") {
     return {
       allowed: true,

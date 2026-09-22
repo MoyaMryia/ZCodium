@@ -1,3 +1,4 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import type { RunContext, GlobalOptions } from "@zcode/shared-types";
 import { resolveZCodeRuntimeEnv } from "@zcode/shared";
 import { createNodeClipboardImageReader } from "./clipboard-image.js";
@@ -110,10 +111,10 @@ export const runTuiCommand = async (
       await promptHandler.close?.();
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = JSON.stringify(safeLogArgs([error]));
     ctx.stderr.write(`Error: ${message}\n`);
     if (options.verbose && error instanceof Error && error.stack) {
-      ctx.stderr.write(`${error.stack}\n`);
+      ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
     }
     return 1;
   }

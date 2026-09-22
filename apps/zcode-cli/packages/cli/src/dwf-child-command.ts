@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 /**
  * 隐藏子命令 `__zcode-dwf-child <entry path>`：dynamic workflow 的沙箱子进程入口。
  *
@@ -65,7 +66,7 @@ export async function runDwfChildCommand(ctx: RunContext, argv: string[]): Promi
   } catch (error) {
     // stdout 是父进程的 NDJSON 通道，诊断只能走 stderr——harness 正是以子进程 stderr 归因
     // 「退出而未完成」的失败（harness.ts 的 child.on("close")）。
-    const message = error instanceof Error ? error.message : String(error);
+    const message = JSON.stringify(safeLogArgs([error]));
     ctx.stderr.write(`Workflow child failed: ${message}\n`);
     return 1;
   }

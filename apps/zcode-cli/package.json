@@ -19,7 +19,6 @@
     "lint:count": "node scripts/count-ts-lines.mjs",
     "lint:fix": "turbo run lint:fix",
     "prompt-trajectory:model-io": "pnpm --filter @zcode/prompt-trajectory model-io --",
-    "prompt-trajectory:prompt": "pnpm --filter @zcode/prompt-trajectory record:prompt --",
     "registry:check": "node scripts/generate-bash-command-registry.mjs --check",
     "registry:generate": "node scripts/generate-bash-command-registry.mjs",
     "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",
@@ -32,8 +31,8 @@
     "proxy-agent": "^8.0.1"
   },
   "devDependencies": {
-    "@withfig/autocomplete": "2.692.3",
     "@types/node": "^24.0.0",
+    "@withfig/autocomplete": "2.692.3",
     "c8": "^11.0.0",
     "esbuild": "^0.25.0",
     "oxfmt": "^0.47.0",

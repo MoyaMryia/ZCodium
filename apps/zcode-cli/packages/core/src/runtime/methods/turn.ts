@@ -29,7 +29,6 @@ import {
   createTurnAbortScope,
   throwIfTurnAborted,
   createTurnFailureError,
-  isTurnCancellationError,
   appendTurnOutcomeEvent,
   buildDateChangeReminderBody,
   buildRuntimeUserEntriesFromTurn,
@@ -174,11 +173,6 @@ export async function executeTurnCommand(
       status: "completed",
     });
   };
-  const turnTelemetry = this.agentTelemetry.turn({
-    inputSource: options?.inputSource,
-    traceContext: turnTraceContext,
-    turnNumber: this.turnNumber,
-  });
 
   const execute = () =>
     runWithContextAsync(turnTraceContext, async () => {
@@ -796,7 +790,6 @@ export async function executeTurnCommand(
       }
     }).then(
       (result) => {
-        turnTelemetry.finishCompleted("assistant_message");
         return result;
       },
       (error: unknown) => {
@@ -811,16 +804,11 @@ export async function executeTurnCommand(
             status: "failed",
           });
         }
-        if (isTurnCancellationError(error, turnAbortSignal)) {
-          turnTelemetry.finishCancelled("abort_signal");
-        } else {
-          turnTelemetry.finishFailed("unhandled", "unknown", error);
-        }
         throw error;
       },
     );
 
-  return turnTelemetry.run(execute).finally(async () => {
+  return execute().finally(async () => {
     if (targetRunHeartbeat) {
       clearInterval(targetRunHeartbeat);
     }

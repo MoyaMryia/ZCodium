@@ -38,13 +38,11 @@ export class ToolRegistryImpl implements ToolRegistry {
       // alias 遮蔽。canonical 始终优先，并留下告警，避免兼容别名改变工具身份。
       this.aliases.delete(entry.metadata.name);
       if (options.silentDuplicateWarning !== true) {
-        console.warn(
-          `Tool ${entry.metadata.name} replaces alias previously targeting ${displacedAliasTarget}`,
-        );
+        console.warn("Tool registration replaced a conflicting alias");
       }
     }
     if (this.tools.has(entry.metadata.name) && options.silentDuplicateWarning !== true) {
-      console.warn(`Tool ${entry.metadata.name} already registered, overwriting`);
+      console.warn("Tool registration replaced an existing tool");
     }
     for (const [alias, target] of this.aliases) {
       if (target === entry.metadata.name) {
@@ -62,7 +60,7 @@ export class ToolRegistryImpl implements ToolRegistry {
         // 兼容 alias 若静默覆盖 canonical/另一个 alias，会把一次工具调用路由到
         // 错误权限和 handler。冲突时拒绝本 alias，保留已注册身份。
         if (options.silentDuplicateWarning !== true) {
-          console.warn(`Tool alias ${alias} conflicts with an existing tool or alias; skipping`);
+          console.warn("Tool alias conflicts with an existing registration; skipping");
         }
         continue;
       }

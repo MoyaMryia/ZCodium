@@ -11,7 +11,7 @@ export const ToolCommandStatusSchema = z.enum([
 
 export type ToolCommandStatus = z.infer<typeof ToolCommandStatusSchema>;
 
-export const CommandExecutionTelemetrySchema = z
+export const CommandExecutionPerformanceSchema = z
   .object({
     runMs: z.number().int().nonnegative().optional(),
     firstOutputMs: z.number().int().nonnegative().optional(),
@@ -26,19 +26,12 @@ export const CommandExecutionTelemetrySchema = z
     name: z.string().max(128).optional(),
     count: z.number().int().nonnegative().optional(),
     status: ToolCommandStatusSchema,
-    /**
-     * 本地诊断字段；远端 Trace Exporter 必须显式忽略，避免成为高基数远端维度。
-     */
-    hash: z
-      .string()
-      .regex(/^[a-f0-9]{16}$/u)
-      .optional(),
   })
   .strict();
 
-export type CommandExecutionTelemetry = z.infer<typeof CommandExecutionTelemetrySchema>;
+export type CommandExecutionPerformance = z.infer<typeof CommandExecutionPerformanceSchema>;
 
-export const FileSystemExecutionTelemetrySchema = z
+export const FileSystemExecutionPerformanceSchema = z
   .object({
     readMs: z.number().int().nonnegative().optional(),
     writeMs: z.number().int().nonnegative().optional(),
@@ -49,11 +42,9 @@ export const FileSystemExecutionTelemetrySchema = z
   })
   .strict();
 
-export type FileSystemExecutionTelemetry = z.infer<
-  typeof FileSystemExecutionTelemetrySchema
->;
+export type FileSystemExecutionPerformance = z.infer<typeof FileSystemExecutionPerformanceSchema>;
 
-export const PatchExecutionTelemetrySchema = z
+export const PatchExecutionPerformanceSchema = z
   .object({
     matchMs: z.number().int().nonnegative().optional(),
     hunkCount: z.number().int().nonnegative().optional(),
@@ -61,44 +52,42 @@ export const PatchExecutionTelemetrySchema = z
   })
   .strict();
 
-export type PatchExecutionTelemetry = z.infer<typeof PatchExecutionTelemetrySchema>;
+export type PatchExecutionPerformance = z.infer<typeof PatchExecutionPerformanceSchema>;
 
-export const ToolExecutionTelemetryDetailSchema = z.discriminatedUnion("kind", [
+export const ToolExecutionPerformanceDetailSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("command"),
-      command: CommandExecutionTelemetrySchema,
+      command: CommandExecutionPerformanceSchema,
     })
     .strict(),
   z
     .object({
       kind: z.literal("filesystem"),
-      filesystem: FileSystemExecutionTelemetrySchema,
+      filesystem: FileSystemExecutionPerformanceSchema,
     })
     .strict(),
   z
     .object({
       kind: z.literal("patch"),
-      filesystem: FileSystemExecutionTelemetrySchema,
-      patch: PatchExecutionTelemetrySchema,
+      filesystem: FileSystemExecutionPerformanceSchema,
+      patch: PatchExecutionPerformanceSchema,
     })
     .strict(),
 ]);
 
-export type ToolExecutionTelemetryDetail = z.infer<
-  typeof ToolExecutionTelemetryDetailSchema
->;
+export type ToolExecutionPerformanceDetail = z.infer<typeof ToolExecutionPerformanceDetailSchema>;
 
 /**
  * 工具执行结果摘要，随 ToolCallResult 事件落本地存储；命令专属字段只能进入判别 detail，
  * 避免非命令工具伪造 exitCode 等不适用事实。
  */
-export const ToolExecutionTelemetrySchema = z
+export const ToolExecutionPerformanceSchema = z
   .object({
     totalMs: z.number().int().nonnegative().optional(),
     permissionWaitMs: z.number().int().nonnegative().optional(),
-    detail: ToolExecutionTelemetryDetailSchema.optional(),
+    detail: ToolExecutionPerformanceDetailSchema.optional(),
   })
   .strict();
 
-export type ToolExecutionTelemetry = z.infer<typeof ToolExecutionTelemetrySchema>;
+export type ToolExecutionPerformance = z.infer<typeof ToolExecutionPerformanceSchema>;

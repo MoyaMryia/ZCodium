@@ -1,3 +1,4 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import { extname } from "node:path";
 import { formatJson, type PresentationSurface } from "@zcode/core";
 import type { RunContext, GlobalOptions } from "@zcode/shared-types";
@@ -112,7 +113,6 @@ export const runPrompt = async (
     | undefined;
   let closePromise: Promise<void> | undefined;
   let browserRuntime: ReturnType<typeof createCliHeadlessBrowserRuntime>;
-  let shutdownTelemetry: (() => Promise<void>) | undefined;
   // 常驻事件订阅的摘除句柄。声明在这里而不是 try 内，是为了让 finally 也能收口——
   // 任何早退（command-center 路径、抛错）都不能留下一个还在写 stdout 的 sink。
   let detachEvents: (() => void) | undefined;
@@ -134,9 +134,6 @@ export const runPrompt = async (
       await runCliCleanupWithTimeout(async () => targetApp?.close?.(), cleanupTimeoutMs);
       // Browser process 由 CLI adapter 持有；App close 悬空或失败也必须继续回收 Chromium。
       await runCliCleanupWithTimeout(async () => browserRuntime?.close(), cleanupTimeoutMs);
-      // Bug 根因：App.close 只结束 Session 并 flush，共享 OTLP Owner 过去没有进程级终态。
-      // 单次 prompt 是最外层生命周期，必须与 prepare 对称 shutdown。
-      await runCliCleanupWithTimeout(async () => shutdownTelemetry?.(), cleanupTimeoutMs);
       providerRegistryRuntime?.dispose();
     })();
     await closePromise;
@@ -180,17 +177,7 @@ export const runPrompt = async (
       stderr: ctx.stderr,
       stdout: ctx.stdout,
     });
-    const prepareTelemetry =
-      deps.prepareZCodeTelemetryEnv ?? bootstrapModule?.prepareZCodeTelemetryEnv;
-    if (prepareTelemetry) {
-      shutdownTelemetry = deps.shutdownZCodeTelemetry ?? bootstrapModule?.shutdownZCodeTelemetry;
-    }
-    const appEnv = prepareTelemetry
-      ? await prepareTelemetry(env, {
-          cliVersion: version,
-          productVersion: env.ZCODE_APP_VERSION,
-        })
-      : env;
+    const appEnv = env;
     const startProviderRegistryRuntime =
       deps.startProcessProviderRegistryRuntime ??
       bootstrapModule?.startProcessProviderRegistryRuntime;
@@ -210,6 +197,7 @@ export const runPrompt = async (
     );
     browserRuntime = createCliHeadlessBrowserRuntime(options, deps);
     app = await createApp({
+      loggerFactory: deps.loggerFactory,
       browserControlPort: browserRuntime?.browserControlPort,
       env: appEnv,
       // headless 没有交互审批面，core 因此退到 deny broker，于是 CreateWorkflow 的
@@ -416,14 +404,14 @@ export const runPrompt = async (
     ctx.stdout.write(`${turnResponses.join("\n\n")}\n`);
     return 0;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    ctx.stderr.write(`Error: ${message}${traceId ? ` (traceId: ${traceId})` : ""}\n`);
+    const message = JSON.stringify(safeLogArgs([error]));
+    ctx.stderr.write(`Error: ${message}\n`);
     if (options.verbose) {
       if (error instanceof Error && error.cause) {
-        ctx.stderr.write(`Cause: ${error.cause}\n`);
+        ctx.stderr.write(`Cause: ${JSON.stringify(safeLogArgs([error.cause]))}\n`);
       }
       if (error instanceof Error && error.stack) {
-        ctx.stderr.write(`${error.stack}\n`);
+        ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
       }
     }
     return 1;
@@ -524,9 +512,7 @@ async function runPromptCommandCenterCommand(
   });
   const nextTraceId = result.traceId ?? traceId;
   if (result.selection) {
-    ctx.stderr.write(
-      `Error: ${result.response}\n${TARGET_SELECTION_UNAVAILABLE_ERROR}${nextTraceId ? ` (traceId: ${nextTraceId})` : ""}\n`,
-    );
+    ctx.stderr.write(`Error: ${result.response}\n${TARGET_SELECTION_UNAVAILABLE_ERROR}\n`);
     return 1;
   }
 
@@ -626,15 +612,9 @@ function writeHeadlessWorkspaceHookTrustDiagnostic(
   status: Awaited<ReturnType<NonNullable<RunDependencies["inspectWorkspaceHookTrust"]>>>,
 ): void {
   ctx.stderr.write(
-    [
-      `Workspace Hooks skipped: ${status.reasonCode}`,
-      `workspace: ${status.workspaceIdentity}`,
-      `bundle: ${status.bundleDigest ?? "none"}`,
-      ...status.items
-        .filter((item) => item.configuredEnabled && item.trustState !== "trusted_persistent")
-        .map((item) => `pending digest: ${item.hookDeclarationDigest}`),
-      `Review with: zcode hooks trust review --workspace ${JSON.stringify(status.workspaceIdentity)}`,
-    ].join("\n") + "\n",
+    [`Workspace Hooks skipped: ${status.reasonCode}`, "Review with: zcode hooks trust review"].join(
+      "\n",
+    ) + "\n",
   );
 }
 import { createCliProviderRefreshReporter } from "./provider-runtime-env.js";

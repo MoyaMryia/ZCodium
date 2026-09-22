@@ -79,12 +79,6 @@ export async function compactActiveConversation(
   events: SessionEvent[],
   options: {
     abortSignal?: AbortSignal;
-    compactContextTelemetry?: {
-      inputTokens: number;
-      policyContextWindowTokens: number;
-      thresholdTokens?: number;
-      tokenSource: "estimate" | "provider_usage";
-    };
     autoCompactThreshold?: number;
     compactReason?: CompactReason;
     initialPromptTooLongCause?: unknown;
@@ -100,43 +94,13 @@ export async function compactActiveConversation(
   outcome: Extract<CompactAttemptOutcome, "compacted" | "skipped">;
   tokenCount: number;
 }> {
-  const trigger = options.trigger ?? CompactTrigger.Manual;
-  const phase = options.phase ?? defaultCompactPhaseForTrigger(trigger);
-  const compactTelemetry = this.agentTelemetry.compaction({
-    trigger,
-    phase,
-    maxAttempts: AUTO_COMPACT_MAX_ATTEMPTS,
-    modelMode: this.config.modelStreaming === "off" ? "non_streaming" : "streaming",
-    policyContextWindowTokens: options.compactContextTelemetry?.policyContextWindowTokens,
-    thresholdTokens: options.compactContextTelemetry?.thresholdTokens,
-    tokenSource: options.compactContextTelemetry?.tokenSource,
-    traceContext: turnTraceContext,
-  });
-  if (options.compactContextTelemetry) {
-    // Auto 复用策略决策，Reactive 复用 overflow 路径 activeMessages；其他 trigger 不额外投影。
-    compactTelemetry.setInputTokens(options.compactContextTelemetry.inputTokens);
-  }
-  return compactTelemetry.run(async () => {
-    try {
-      const result = await compactActiveConversationImpl.call(
-        this,
-        customInstructions,
-        turnTraceContext,
-        events,
-        options,
-      );
-      compactTelemetry.setOutputTokens(result.tokenCount);
-      compactTelemetry.finishCompleted();
-      return result;
-    } catch (error) {
-      if (isTurnCancellationError(error, options.abortSignal)) {
-        compactTelemetry.finishCancelled("abort_signal");
-      } else {
-        compactTelemetry.finishFailed("unhandled", "unknown", error);
-      }
-      throw error;
-    }
-  });
+  return compactActiveConversationImpl.call(
+    this,
+    customInstructions,
+    turnTraceContext,
+    events,
+    options,
+  );
 }
 
 async function compactActiveConversationImpl(
@@ -146,12 +110,6 @@ async function compactActiveConversationImpl(
   events: SessionEvent[],
   options: {
     abortSignal?: AbortSignal;
-    compactContextTelemetry?: {
-      inputTokens: number;
-      policyContextWindowTokens: number;
-      thresholdTokens?: number;
-      tokenSource: "estimate" | "provider_usage";
-    };
     autoCompactThreshold?: number;
     compactReason?: CompactReason;
     initialPromptTooLongCause?: unknown;
@@ -176,7 +134,6 @@ async function compactActiveConversationImpl(
     createRuntimeModel(this, {
       selection: this.getSessionModelSelection(),
     });
-  const executionMaxOutputTokens = compactModel.optionSpecs.maxOutputTokens.max;
   // Active compact 会跨多个 await 保留这份成员浅快照；它依赖 RuntimeMessageEntry
   // 不可变约定。selection、provider render 和最终 replace 会创建各自拥有的副本，
   // 禁止在 compact 期间原地修改 activeEntries 内共享的 entry/message/content。

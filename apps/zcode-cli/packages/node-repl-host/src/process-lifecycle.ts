@@ -1,3 +1,4 @@
+import { safeLogArgs } from "@zcode/shared";
 const processGuardInstalled = new WeakSet<object>();
 const OUTPUT_CLOSED_ERROR_CODES = new Set([
   "EPIPE",
@@ -26,8 +27,7 @@ export function installNodeReplProcessGuards(input: {
   processGuardInstalled.add(input.process);
 
   let outputClosed = false;
-  const describe = (reason: unknown): string =>
-    reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+
   const report = (kind: "uncaughtException" | "unhandledRejection", reason: unknown): void => {
     if (outputClosed) return;
     if (isOutputClosedError(reason)) {
@@ -37,7 +37,9 @@ export function installNodeReplProcessGuards(input: {
     }
 
     try {
-      input.writeStderr(`node_repl ${kind} (process kept alive): ${describe(reason)}\n`);
+      input.writeStderr(
+        `node_repl ${kind} (process kept alive): ${JSON.stringify(safeLogArgs([reason]))}\n`,
+      );
     } catch (error) {
       if (!isOutputClosedError(error)) throw error;
       outputClosed = true;

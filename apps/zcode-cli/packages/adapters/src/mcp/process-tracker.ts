@@ -1,14 +1,11 @@
-import { Buffer } from "node:buffer";
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { ZCodeMcpTelemetryEvent } from "@zcode/shared";
 import {
   createMcpResourceTelemetry,
   type McpResourceTelemetryOptions,
 } from "./resource-telemetry.js";
 
-const BUILTIN_MCP_ID_PREFIX = "builtin:";
 const BUILTIN_NODE_REPL_SERVER_NAME = "node_repl";
-const MCP_ID_SAFE_CHARACTER_PATTERN = /^[A-Za-z0-9._~-]$/;
 const PLUGIN_MCP_NAMESPACE_PREFIX = "plugin:";
 
 type McpTelemetryEvent = ZCodeMcpTelemetryEvent;
@@ -38,7 +35,7 @@ export interface McpTrackedProcess {
   pluginName?: string;
 }
 
-export interface McpTelemetryTracker {
+export interface McpProcessTracker {
   acquireOwner(input: { connectionId: string; ownerId: string; sessionId?: string }): void;
   recordSessionStartup(input: {
     configuredCount: number;
@@ -72,11 +69,10 @@ export interface McpTelemetryTracker {
   stop(): void;
 }
 
-interface CreateMcpTelemetryTrackerOptions {
+interface CreateMcpProcessTrackerOptions {
   arch?: ZCodeMcpTelemetryEvent["arch"];
-  idSalt: string;
   now?: () => number;
-  onEvent(event: McpTelemetryEvent): void;
+  onEvent?(event: McpTelemetryEvent): void;
   platform?: ZCodeMcpTelemetryEvent["platform"];
   randomId?: () => string;
   onResourceSamples?: McpResourceTelemetryOptions["onResourceSamples"];
@@ -101,9 +97,9 @@ interface TrackedConnection {
   unownedAt?: number;
 }
 
-export function createMcpTelemetryTracker(
-  options: CreateMcpTelemetryTrackerOptions,
-): McpTelemetryTracker {
+export function createMcpProcessTracker(
+  options: CreateMcpProcessTrackerOptions,
+): McpProcessTracker {
   const arch = options.arch ?? (process.arch as ZCodeMcpTelemetryEvent["arch"]);
   const now = options.now ?? Date.now;
   const platform = options.platform ?? (process.platform as ZCodeMcpTelemetryEvent["platform"]);
@@ -111,7 +107,7 @@ export function createMcpTelemetryTracker(
   const connections = new Map<string, TrackedConnection>();
   const emit = (event: McpTelemetryEvent): void => {
     try {
-      options.onEvent(event);
+      options.onEvent?.(event);
     } catch {
       // 遥测为旁路，下游通知或 IPC 关闭不得改变 MCP 连接、回收或 crash 处理。
     }
@@ -259,7 +255,7 @@ export function createMcpTelemetryTracker(
       connections.set(input.connectionId, {
         connectionId: input.connectionId,
         isolation: input.isolation,
-        mcpId: resolveMcpId(input.serverName, mcpSource, options.idSalt),
+        mcpId: randomId(),
         mcpSource,
         serverName: input.serverName,
         owners: new Map(),
@@ -304,28 +300,4 @@ export function resolvePluginName(serverName: string): string | undefined {
 function resolveMcpSource(serverName: string): McpTelemetrySource {
   if (serverName === BUILTIN_NODE_REPL_SERVER_NAME) return "builtin";
   return serverName.startsWith(PLUGIN_MCP_NAMESPACE_PREFIX) ? "plugin" : "custom";
-}
-
-function resolveMcpId(serverName: string, source: McpTelemetrySource, idSalt: string): string {
-  if (source === "builtin") {
-    const publicName = serverName.startsWith(PLUGIN_MCP_NAMESPACE_PREFIX)
-      ? serverName.slice(PLUGIN_MCP_NAMESPACE_PREFIX.length)
-      : serverName;
-    return `${BUILTIN_MCP_ID_PREFIX}${publicName.split(":").map(encodeMcpIdSegment).join(":")}`;
-  }
-  const digest = createHmac("sha256", idSalt).update(serverName).digest("hex").slice(0, 12);
-  return `${source}:${digest}`;
-}
-
-function encodeMcpIdSegment(value: string): string {
-  // 原因：encodeURIComponent 遇到孤立 surrogate 会抛 URIError，遥测编码不能反向阻断 MCP 启动。
-  // Buffer 的 UTF-8 编码会把畸形序列替换为 U+FFFD，再逐字节转义成协议允许的稳定 `%HH`。
-  let encoded = "";
-  for (const byte of Buffer.from(value, "utf8")) {
-    const character = String.fromCharCode(byte);
-    encoded += MCP_ID_SAFE_CHARACTER_PATTERN.test(character)
-      ? character
-      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
-  }
-  return encoded;
 }

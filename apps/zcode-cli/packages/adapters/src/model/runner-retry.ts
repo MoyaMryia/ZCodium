@@ -10,7 +10,7 @@ import {
 } from "./errors.js";
 import type { ResolvedAiSdkModelRetryOptions } from "./retry-policy.js";
 import { modelStatusContextToLogContext, type ModelStatusContext } from "./runner-status.js";
-import { modelFailureAttributionFields } from "./runner-telemetry.js";
+import { modelFailureAttributionFields } from "./runner-failure-status.js";
 
 const MAX_REASONABLE_RETRY_AFTER_MS = 5 * 60_000;
 const RELIABLE_ATTRIBUTION_CONTEXT_KEYS = [

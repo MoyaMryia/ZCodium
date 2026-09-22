@@ -6,7 +6,7 @@ import type { Logger } from "@zcode/contracts";
 export const LOG_RETENTION_DAYS = 7;
 export const LOG_CLEANUP_STARTUP_DELAY_MS = 60_000;
 
-const LOG_FILE_NAME_PATTERN = /^zcode-(\d{4})-(\d{2})-(\d{2})\.jsonl$/;
+const LOG_FILE_NAME_PATTERN = /^zcode-(\d{4})-(\d{2})-(\d{2})(?:\.[1-3])?\.jsonl$/;
 const MIN_RETENTION_DAYS = 1;
 
 export interface LogRetentionCleanupOptions {
@@ -108,7 +108,8 @@ export function scheduleLogRetentionCleanup(
     status: "waiting",
   });
   const scheduleTimer =
-    options.setTimeout ?? ((callback: () => void, timeoutMs: number) => setTimeout(callback, timeoutMs));
+    options.setTimeout ??
+    ((callback: () => void, timeoutMs: number) => setTimeout(callback, timeoutMs));
   const timer = scheduleTimer(() => {
     void cleanupLogRetention({
       logDir: options.logDir,

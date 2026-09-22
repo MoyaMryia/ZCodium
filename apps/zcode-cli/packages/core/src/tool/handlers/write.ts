@@ -27,7 +27,7 @@ import {
 import { createReadFileStateMetadataFromEntry } from "../read-file-state-metadata.js";
 import type { ReadFileStateEntry, ReadFileStateMap, ToolExecutionContext } from "../types.js";
 import {
-  attachToolExecutionTelemetry,
+  attachToolExecutionPerformance,
   elapsedMsSince,
   fileByteCount,
   workspaceKind,
@@ -146,7 +146,7 @@ const writeHandler: ToolHandler = async (input, context) => {
   recordReadFileStateMetadata(context, readFileStateEntry);
 
   if (originalFile) {
-    return attachToolExecutionTelemetry(
+    return attachToolExecutionPerformance(
       {
         type: "update",
         filePath: file_path,
@@ -159,7 +159,7 @@ const writeHandler: ToolHandler = async (input, context) => {
         originalFile,
         userModified: false,
       },
-      createWritePerformanceTelemetry({
+      createWritePerformance({
         content: contentToWrite,
         fsReadMs,
         fsWriteMs,
@@ -168,7 +168,7 @@ const writeHandler: ToolHandler = async (input, context) => {
     );
   }
 
-  return attachToolExecutionTelemetry(
+  return attachToolExecutionPerformance(
     {
       type: "create",
       filePath: file_path,
@@ -177,7 +177,7 @@ const writeHandler: ToolHandler = async (input, context) => {
       originalFile: null,
       userModified: false,
     },
-    createWritePerformanceTelemetry({
+    createWritePerformance({
       content: contentToWrite,
       fsReadMs,
       fsWriteMs,
@@ -186,7 +186,7 @@ const writeHandler: ToolHandler = async (input, context) => {
   );
 };
 
-function createWritePerformanceTelemetry(input: {
+function createWritePerformance(input: {
   content: string;
   context: ToolExecutionContext;
   fsReadMs: number;

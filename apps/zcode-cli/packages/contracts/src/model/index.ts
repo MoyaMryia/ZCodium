@@ -14,7 +14,7 @@ import type {
   ModelApiCallObservation,
   ModelApiErrorPhase,
   ResolvedModelApiCallObservation,
-} from "../telemetry/index.js";
+} from "../model/observation.js";
 
 export * from "./image-media.js";
 export * from "./model.js";
@@ -258,15 +258,6 @@ export interface ModelStreamStalledStatusEvent extends ModelNetworkStatusBase {
   message: string;
 }
 
-/**
- * 仅供实时观测 Sink 消费的 Provider 里程碑。它们不进入 SessionEvent/回放协议，
- * 避免为了 Trace 事件扩大产品状态面。
- */
-export interface ModelTelemetryMilestoneStatusEvent extends ModelNetworkStatusBase {
-  type: "model_first_provider_event" | "model_first_content" | "model_first_text";
-  elapsedMs: number;
-}
-
 export type ModelNetworkStatusEvent =
   | ModelRequestQueuedStatusEvent
   | ModelRequestAdmittedStatusEvent
@@ -274,16 +265,10 @@ export type ModelNetworkStatusEvent =
   | ModelRequestCompletedStatusEvent
   | ModelRequestFailedStatusEvent
   | ModelRetryScheduledStatusEvent
-  | ModelStreamStalledStatusEvent
-  | ModelTelemetryMilestoneStatusEvent;
+  | ModelStreamStalledStatusEvent;
 
 export interface ModelStatusSink {
   publish(event: ModelNetworkStatusEvent): void | Promise<void>;
-  /**
-   * Transport 捕获失败时可把原始异常直接交给进程级观测 Sink。产品 SessionEvent/日志仍只消费
-   * publish(event)，避免原始异常对象和消息正文进入持久化领域状态。
-   */
-  publishFailure?(event: ModelRequestFailedStatusEvent, error: unknown): void | Promise<void>;
 }
 
 export class ModelProtocolError extends Error {
@@ -672,7 +657,7 @@ export interface ModelTextRequest extends ModelRequestSettings {
    * 每重试一次在 adapter base timeout 上加 30000ms。
    */
   streamIdleTimeoutRetryNumber?: number;
-  /** Runtime-only recovery attribution；只进入 status/telemetry，不发送给 Provider。 */
+  /** Runtime-only recovery attribution；只进入 status/diagnostics，不发送给 Provider。 */
   streamRecovery?: ModelStreamRecoveryStatus;
   /**
    * Runtime-only provider stream 边界开关。compact 隐藏流用它保留首个真实 provider event
@@ -1059,3 +1044,5 @@ export const modelNetworkStatusEventJsonSchema = {
 export type { ModelToolCall as ToolCall };
 
 export * from "./content-protection.js";
+
+export * from "./observation.js";

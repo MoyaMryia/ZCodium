@@ -6,10 +6,10 @@ import type {
 } from "@zcode/contracts";
 import type { WorkspaceHookTrustCoordinator } from "./workspace-hook-trust-coordinator.js";
 import {
-  emitWorkspaceHookTelemetry,
-  type WorkspaceHookTelemetryEvent,
-  type WorkspaceHookTelemetryFields,
-} from "./workspace-hook-telemetry.js";
+  emitWorkspaceHookDiagnostics,
+  type WorkspaceHookDiagnosticsEvent,
+  type WorkspaceHookDiagnosticsFields,
+} from "./workspace-hook-diagnostics.js";
 import type { WorkspaceHookSnapshotEvaluation } from "./workspace-hook-trust-types.js";
 
 export type WorkspaceHookActivationSource = "startup" | "resume" | "clear" | "compact";
@@ -69,7 +69,7 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
   private evaluation?: WorkspaceHookSnapshotEvaluation;
   private validatedRevision?: WorkspaceHookSecurityRevision;
   private invalidatedReason?: WorkspaceHookReasonCode;
-  private readonly emittedTelemetry = new Set<string>();
+  private readonly emittedDiagnostics = new Set<string>();
   private activated = false;
   private bootstrapFailed = false;
 
@@ -88,7 +88,7 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
     if (!this.enabled) {
       if (!this.activated) {
         this.activated = true;
-        this.emitTelemetryOnce("workspace_hook.feature_disabled", {
+        this.emitDiagnosticsOnce("workspace_hook.feature_disabled", {
           workspaceIdentity: this.snapshot.workspaceIdentity,
           reasonCode: "workspace_hooks_feature_disabled",
           source,
@@ -115,7 +115,7 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
 
   evaluateDispatch(input: WorkspaceHookDispatchInput): WorkspaceHookDispatchDecision {
     if (!this.matchesSnapshot(input)) {
-      this.emitTelemetryOnce("workspace_hook.snapshot_mismatch", {
+      this.emitDiagnosticsOnce("workspace_hook.snapshot_mismatch", {
         workspaceIdentity: this.snapshot.workspaceIdentity,
         reasonCode: "workspace_hooks_snapshot_mismatch",
         bundleDigest: input.bundleDigest,
@@ -136,7 +136,7 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
       return { allowed: false, reasonCode: "workspace_hooks_feature_disabled" };
     }
     if (this.bootstrapFailed) {
-      this.emitTelemetryOnce("workspace_hook.trust_store_failure", {
+      this.emitDiagnosticsOnce("workspace_hook.trust_store_failure", {
         workspaceIdentity: this.snapshot.workspaceIdentity,
         reasonCode: "workspace_hooks_trust_store_corrupt",
       });
@@ -162,7 +162,7 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
       (candidate) => candidate.reviewItemId === input.reviewItemId,
     );
     if (!item || item.hookDeclarationDigest !== input.hookDeclarationDigest) {
-      this.emitTelemetryOnce("workspace_hook.snapshot_mismatch", {
+      this.emitDiagnosticsOnce("workspace_hook.snapshot_mismatch", {
         workspaceIdentity: this.snapshot.workspaceIdentity,
         bundleDigest: this.snapshot.bundleDigest,
         declarationDigest: input.hookDeclarationDigest,
@@ -176,7 +176,7 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
     if (item.effectiveRunnable) return { allowed: true };
     const reasonCode = item.reasonCode ?? "workspace_hooks_blocked_untrusted";
     if (reasonCode === "workspace_hooks_blocked_by_policy") {
-      this.emitTelemetryOnce("workspace_hook.policy_blocked", {
+      this.emitDiagnosticsOnce("workspace_hook.policy_blocked", {
         workspaceIdentity: this.snapshot.workspaceIdentity,
         bundleDigest: this.snapshot.bundleDigest,
         declarationDigest: item.hookDeclarationDigest,
@@ -254,9 +254,13 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
     });
   }
 
-  private emitTelemetryOnce(
-    event: WorkspaceHookTelemetryEvent,
-    fields: WorkspaceHookTelemetryFields,
+  private emitDiagnosticsOnce(
+    event: WorkspaceHookDiagnosticsEvent,
+    fields: WorkspaceHookDiagnosticsFields & {
+      workspaceIdentity?: string;
+      bundleDigest?: string;
+      declarationDigest?: string;
+    },
   ): void {
     const key = [
       event,
@@ -265,9 +269,11 @@ export class WorkspaceHookRuntimeAdmission implements WorkspaceHookRuntimeAdmiss
       fields.declarationDigest,
       fields.source,
     ].join(":");
-    if (this.emittedTelemetry.has(key)) return;
-    this.emittedTelemetry.add(key);
-    emitWorkspaceHookTelemetry(this.logger, event, fields);
+    if (this.emittedDiagnostics.has(key)) return;
+    this.emittedDiagnostics.add(key);
+    // 业务摘要只用于当前 owner 的幂等键；诊断记录不复制路径或内容派生摘要。
+    const { reasonCode, source, action, generation } = fields;
+    emitWorkspaceHookDiagnostics(this.logger, event, { reasonCode, source, action, generation });
   }
 
   private refreshEvaluation(): void {

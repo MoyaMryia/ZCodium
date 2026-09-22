@@ -12,10 +12,16 @@ import {
 } from "../process-resource-sampler.js";
 import type { ZCodeProtocolAgentServer } from "./server.js";
 
-export function startProtocolResourceSampler(
-  server: ZCodeProtocolAgentServer,
-  send: (message: ZCodeProtocolNotification) => void,
+export function startProtocolMaintenance(
+  server: Pick<
+    ZCodeProtocolAgentServer,
+    | "rebalanceResidentSessions"
+    | "pruneSessionEventStores"
+    | "pruneDetachedChildPublishers"
+    | "collectMemoryDiagnostics"
+  >,
   logger: Logger,
+  send?: (message: ZCodeProtocolNotification) => void,
 ): ZCodeProcessResourceSampler | undefined {
   try {
     // 本地内存诊断日志：复用同一 60s 节拍，
@@ -23,13 +29,18 @@ export function startProtocolResourceSampler(
     const memoryDiagnosticsGate = createMemorySampleWriteGate();
     const sampler = createZCodeProcessResourceSampler({
       onSample: (sample, memoryUsage) => {
-        send({
-          method: zcodeProtocolNotifications.processResourceSample,
-          params: sample,
-        });
+        try {
+          send?.({ method: zcodeProtocolNotifications.processResourceSample, params: sample });
+        } catch {
+          // 本地 IPC 关闭不能阻断会话维护和本地日志。
+        }
         // resident session TTL / 水位收敛借用资源采样节拍（60s）作兜底，不新增定时器；
         // sampler 对 onSample 已有异常兜底，单次 rebalance 失败不影响遥测上报。
-        server.rebalanceResidentSessions();
+        try {
+          server.rebalanceResidentSessions();
+        } catch {
+          // 一项维护失败不能阻断其他清理与诊断。
+        }
         try {
           // 同一节拍先做瞬态事件时间兜底淘汰，再采样，日志里的 eventRows 反映淘汰后的驻留量。
           server.pruneSessionEventStores();
@@ -49,8 +60,27 @@ export function startProtocolResourceSampler(
             logger.info("Process memory sample", {
               event: "zcode_protocol.process.memory_sample",
               reason,
-              ...memoryFields,
-              counters,
+              rssBytes: memoryFields.rssKb === undefined ? undefined : memoryFields.rssKb * 1024,
+              heapUsedBytes:
+                memoryFields.heapUsedKb === undefined ? undefined : memoryFields.heapUsedKb * 1024,
+              heapTotalBytes:
+                memoryFields.heapTotalKb === undefined
+                  ? undefined
+                  : memoryFields.heapTotalKb * 1024,
+              externalBytes:
+                memoryFields.externalKb === undefined ? undefined : memoryFields.externalKb * 1024,
+              arrayBuffersBytes:
+                memoryFields.arrayBuffersKb === undefined
+                  ? undefined
+                  : memoryFields.arrayBuffersKb * 1024,
+              sessionCount: counters?.sessions,
+              eventRowCount: counters?.eventRows,
+              eventEvictedCount: counters?.eventEvicted,
+              eventTransientRetainedCount: counters?.eventTransientRetained,
+              publisherCount: counters?.["v4.publishers"],
+              detachedLiveCount: counters?.["v4.detachedLive"],
+              detachedTerminalCount: counters?.["v4.detachedTerminal"],
+              rawSequenceStateCount: counters?.["v4.rawSeqStates"],
             });
           }
         } catch {
@@ -65,3 +95,5 @@ export function startProtocolResourceSampler(
     return undefined;
   }
 }
+
+export type ProtocolMaintenance = ZCodeProcessResourceSampler;

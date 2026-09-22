@@ -1,3 +1,4 @@
+import { safeLogArgs, safeDiagnosticFrames } from "@zcode/shared";
 import { formatJson } from "@zcode/core";
 import type { Logger } from "@zcode/contracts";
 import type { GlobalOptions, RunContext } from "@zcode/shared-types";
@@ -119,18 +120,15 @@ async function resolveInspectCustomCommand(deps: CommandsCommandDependencies) {
 }
 
 function reportCommandsError(ctx: RunContext, options: GlobalOptions, error: unknown): number {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = JSON.stringify(safeLogArgs([error]));
   ctx.stderr.write(`Error: ${message}\n`);
   if (options.verbose && error instanceof Error && error.stack) {
-    ctx.stderr.write(`${error.stack}\n`);
+    ctx.stderr.write(`${safeDiagnosticFrames(error.stack).join("\n")}\n`);
   }
   return 1;
 }
 
-function formatHumanCommandList(
-  outcome: CustomCommandListOutcome,
-  options: GlobalOptions,
-): string {
+function formatHumanCommandList(outcome: CustomCommandListOutcome, options: GlobalOptions): string {
   if (outcome.commands.length === 0) {
     return "No custom commands found.\n";
   }

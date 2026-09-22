@@ -84,7 +84,6 @@ import {
 import { listMcpServers } from "./mcp.js";
 import { updateInteractionPreferences } from "./interaction-preferences.js";
 import { updateAccountProviderConfig } from "./account-provider-config.js";
-import { updateModelIoPreferences } from "./model-io-preferences.js";
 import { updateOffPeakToolPolicy } from "./off-peak-tool-policy.js";
 import { updateDynamicWorkflowPolicy } from "./dynamic-workflow-policy.js";
 import { grantWorkspaceHookTrustForProtocol } from "./workspace-hook-trust.js";
@@ -248,7 +247,6 @@ export class ZCodeProtocolAgentServer {
       logger: this.logger,
       appRuntimePreferences: {
         askUserQuestionAutoResolutionEnabled: true,
-        modelIoFullRetentionEnabled: false,
         offPeakToolEnabled: false,
         // 动态工作流灰度门 fail-closed：Host 必须显式 workspace/updateDynamicWorkflowPolicy
         // 才开启。
@@ -627,8 +625,6 @@ export class ZCodeProtocolAgentServer {
         return await updateAccountProviderConfig(this.context, request.params);
       case zcodeProtocolMethods.workspaceUpdateInteractionPreferences:
         return await updateInteractionPreferences(this.context, request.params);
-      case zcodeProtocolMethods.workspaceUpdateModelIoPreferences:
-        return await updateModelIoPreferences(this.context, request.params);
       case zcodeProtocolMethods.workspaceUpdateOffPeakToolPolicy:
         return await updateOffPeakToolPolicy(this.context, request.params);
       case zcodeProtocolMethods.workspaceUpdateDynamicWorkflowPolicy:
@@ -674,7 +670,7 @@ export class ZCodeProtocolAgentServer {
       case zcodeProtocolMethods.pluginsOverview:
         return await getPluginsOverview(this.context, request.params);
       case zcodeProtocolMethods.processChildProcesses:
-        return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
+        return listChildProcesses(this.context.deps.mcpProcesses?.listProcesses() ?? []);
       case zcodeProtocolMethods.runtimeCapabilities:
         return { independentPlanState: true };
       case zcodeProtocolMethods.pluginsMarketplaceAdd:

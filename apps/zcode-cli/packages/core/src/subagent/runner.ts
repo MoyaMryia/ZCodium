@@ -187,14 +187,6 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
           status: "running",
         }),
       );
-      try {
-        await writeAgentMetadataFile(lifecycle, request, "running");
-      } catch (error) {
-        // 启动元数据写入失败时，child runtime 还没有开始执行；
-        // 保留 running task 会让父 runtime 误以为仍有后台任务并持续 defer。
-        registry.remove(lifecycle.agentId);
-        throw error;
-      }
 
       const taskAbort = createSubagentTaskAbortController(
         abortControllers,
@@ -336,7 +328,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
         taskAbort.dispose();
         borrowedForegroundAgentIds.delete(lifecycle.agentId);
 
-        await writeCompletedAgentArtifacts(lifecycle, request, completed.output);
+        await writeCompletedAgentArtifacts(lifecycle, completed.output);
         registry.update(lifecycle.agentId, (task) => ({
           ...withoutRuntimeMessageState(task),
           status: "completed",
@@ -385,7 +377,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
         borrowedForegroundAgentIds.delete(lifecycle.agentId);
         const totalDurationMs = Date.now() - lifecycle.startedAt;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        await writeFailedAgentArtifacts(lifecycle, request, errorMessage);
+        await writeAgentOutputFiles(lifecycle, errorMessage);
         registry.update(lifecycle.agentId, (task) => ({
           ...withoutRuntimeMessageState(task),
           status: "failed",
@@ -454,13 +446,6 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
           status: "running",
         }),
       );
-      try {
-        await writeAgentMetadataFile(lifecycle, request, "running");
-      } catch (error) {
-        // setup 失败时移除 registry 记录，避免 fake running background task。
-        registry.remove(lifecycle.agentId);
-        throw error;
-      }
 
       const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
       if (startOptions?.signal?.aborted) {
@@ -586,7 +571,6 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
 interface SubagentLifecycle {
   agentId: string;
   childSessionId: SessionId;
-  metadataFile: string;
   outputFile: string;
   taskOutputFile: string;
   profile: AgentProfile;
@@ -810,7 +794,6 @@ function createSubagentLifecycle(
     request.sessionId,
     agentId,
   );
-  const metadataFile = join(agentOutputDir, "metadata.json");
   const outputFile = join(agentOutputDir, "output.txt");
   const taskOutputFile = join(agentOutputDir, "task.output");
   const runTraceContext = createChildTraceContext(request.trace, {
@@ -836,7 +819,6 @@ function createSubagentLifecycle(
   return {
     agentId,
     childSessionId,
-    metadataFile,
     outputFile,
     taskOutputFile,
     profile,
@@ -859,7 +841,6 @@ function createSubagentLifecycleFromTask(
   const agentOutputDir = task.outputFile
     ? dirname(task.outputFile)
     : join(options.outputRootDir ?? join(tmpdir(), "zcode-agents"), request.sessionId, agentId);
-  const metadataFile = join(agentOutputDir, "metadata.json");
   const outputFile = join(agentOutputDir, "output.txt");
   const taskOutputFile = join(agentOutputDir, "task.output");
   const runTraceContext = createChildTraceContext(request.trace, {
@@ -887,7 +868,6 @@ function createSubagentLifecycleFromTask(
   return {
     agentId,
     childSessionId,
-    metadataFile,
     outputFile,
     taskOutputFile,
     profile,
@@ -998,17 +978,6 @@ async function resumeTerminalAgentInBackground(
       status: "running",
     }),
   );
-  try {
-    await writeAgentMetadataFile(lifecycle, resumeRequest, "running", {
-      resumedAt: new Date().toISOString(),
-      resumedFromMessageId: message.id,
-    });
-  } catch (error) {
-    // SendMessage resume setup 失败不能覆盖原 terminal task；
-    // 还原旧 snapshot，避免一个未启动的新 turn 卡成 running。
-    registry.register(previousTask);
-    throw error;
-  }
 
   const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
   const readyGate = createSubagentSessionReadyGate();
@@ -1501,7 +1470,7 @@ async function finalizeBackgroundCompletion(
   const current = registry.get(lifecycle.agentId);
   if (current && isTerminalRuntimeTask(current)) return;
 
-  await writeCompletedAgentArtifacts(lifecycle, request, completed.output);
+  await writeCompletedAgentArtifacts(lifecycle, completed.output);
   const notification = formatLocalAgentTaskNotification({
     agentId: completed.output.agentId,
     agentType: completed.output.agentType,
@@ -1586,7 +1555,7 @@ async function finalizeBackgroundFailure(
   const errorMessage = error instanceof Error ? selectExecutionErrorMessage(error) : String(error);
   const completedAt = new Date();
   const totalDurationMs = Date.now() - lifecycle.startedAt;
-  await writeFailedAgentArtifacts(lifecycle, request, errorMessage);
+  await writeAgentOutputFiles(lifecycle, errorMessage);
   const notification = formatLocalAgentTaskNotification({
     agentId: lifecycle.agentId,
     agentType: request.agentType,
@@ -1922,31 +1891,11 @@ async function emitSubagentEvent(
 
 async function writeCompletedAgentArtifacts(
   lifecycle: SubagentLifecycle,
-  request: SubagentRunRequest,
   output: AgentCompletedOutput,
 ): Promise<void> {
   const text = output.content.map((block) => block.text).join("\n\n");
+  // Session store 已持有业务历史；这里只写 TaskOutput 消费的结果，不另存 prompt metadata。
   await writeAgentOutputFiles(lifecycle, text);
-  // 子 agent 事件已由 session event store 持久化，不再重复写入 transcript sidecar。
-  await writeAgentMetadataFile(lifecycle, request, "completed", {
-    completedAt: new Date().toISOString(),
-    totalDurationMs: output.totalDurationMs,
-    totalTokens: output.totalTokens,
-    totalToolUseCount: output.totalToolUseCount,
-    usage: output.usage,
-  });
-}
-
-async function writeFailedAgentArtifacts(
-  lifecycle: SubagentLifecycle,
-  request: SubagentRunRequest,
-  errorMessage: string,
-): Promise<void> {
-  await writeAgentOutputFiles(lifecycle, errorMessage);
-  await writeAgentMetadataFile(lifecycle, request, "failed", {
-    completedAt: new Date().toISOString(),
-    error: errorMessage,
-  });
 }
 
 async function writeStoppedAgentArtifacts(task: RuntimeTaskSnapshot): Promise<void> {
@@ -1955,27 +1904,6 @@ async function writeStoppedAgentArtifacts(task: RuntimeTaskSnapshot): Promise<vo
   const content = `${BACKGROUND_AGENT_STOPPED_STATE.message}\n`;
   await writeTextFile(task.outputFile, content);
   await writeTextFile(join(outputDir, "task.output"), content);
-  await writeTextFile(
-    join(outputDir, "metadata.json"),
-    `${JSON.stringify(
-      {
-        agentId: task.agentId,
-        childSessionId: task.childSessionId,
-        completedAt: new Date().toISOString(),
-        description: task.description,
-        outputFile: task.outputFile,
-        parentSessionId: task.parentSessionId,
-        parentToolUseId: task.parentToolCallId,
-        profileId: task.agentType,
-        prompt: task.prompt,
-        status: BACKGROUND_AGENT_STOPPED_STATE.subagentEventStatus,
-        taskOutputFile: join(outputDir, "task.output"),
-        updatedAt: new Date().toISOString(),
-      },
-      null,
-      2,
-    )}\n`,
-  );
 }
 
 async function writeAgentOutputFiles(
@@ -1984,40 +1912,6 @@ async function writeAgentOutputFiles(
 ): Promise<void> {
   await writeTextFile(lifecycle.outputFile, content);
   await writeTextFile(lifecycle.taskOutputFile, content);
-}
-
-async function writeAgentMetadataFile(
-  lifecycle: SubagentLifecycle,
-  request: SubagentRunRequest,
-  status: "running" | "completed" | "failed" | "stopped",
-  extra: Record<string, unknown> = {},
-): Promise<void> {
-  await writeTextFile(
-    lifecycle.metadataFile,
-    `${JSON.stringify(
-      {
-        agentId: lifecycle.agentId,
-        childSessionId: lifecycle.childSessionId,
-        createdAt: new Date(lifecycle.startedAt).toISOString(),
-        cwd: request.workingDirectory,
-        description: request.description,
-        metadataFile: lifecycle.metadataFile,
-        outputFile: lifecycle.outputFile,
-        parentSessionId: request.sessionId,
-        parentToolUseId: request.parentToolCallId,
-        profileId: request.agentType,
-        profileSnapshot: lifecycle.profile,
-        prompt: request.prompt,
-        status,
-        taskOutputFile: lifecycle.taskOutputFile,
-        updatedAt: new Date().toISOString(),
-        workspaceRoot: request.workspaceRoot,
-        ...extra,
-      },
-      null,
-      2,
-    )}\n`,
-  );
 }
 
 function aggregateModelUsage(events: SessionEvent[]): ModelUsage | undefined {

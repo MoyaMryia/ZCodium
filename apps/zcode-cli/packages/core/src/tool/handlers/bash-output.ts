@@ -3,7 +3,7 @@ import {
   type BashOutput,
   type ToolCommandStatus,
   type ExecutionResult,
-  type ToolExecutionTelemetry,
+  type ToolExecutionPerformance,
 } from "@zcode/contracts";
 import type { ToolExecutionContext } from "../types.js";
 import { appendBashCwdStderrSuffix } from "./bash-cwd-policy.js";
@@ -15,11 +15,10 @@ import {
   isSilentBashCommand,
 } from "./bash-semantics.js";
 import {
-  attachToolExecutionTelemetry,
+  attachToolExecutionPerformance,
   classifyCommand,
   classifySafeCommandIdentity,
-  commandHash,
-  compactToolExecutionTelemetry,
+  compactToolExecutionPerformance,
   roundNonNegativeMs,
 } from "./tool-perf.js";
 
@@ -70,7 +69,7 @@ export async function toBashOutput(
   const ghRateLimitHint = providerError
     ? undefined
     : getGhRateLimitHint(input.command, result.stdout.text);
-  return attachToolExecutionTelemetry(
+  return attachToolExecutionPerformance(
     {
       stdout,
       stderr,
@@ -97,18 +96,18 @@ export async function toBashOutput(
       stderrPersistedOutputSize,
       ...(ghRateLimitHint ? { ghRateLimitHint } : {}),
     },
-    createBashPerformanceTelemetry(input, result, options.progressTiming),
+    createBashPerformance(input, result, options.progressTiming),
   );
 }
 
-function createBashPerformanceTelemetry(
+function createBashPerformance(
   input: BashInput,
   result: ExecutionResult,
   progressTiming: BashProgressTiming | undefined,
-): ToolExecutionTelemetry | undefined {
+): ToolExecutionPerformance | undefined {
   const outputBytes = result.stdout.bytes + result.stderr.bytes;
   const firstOutputMs = progressTiming?.firstOutputMs;
-  return compactToolExecutionTelemetry({
+  return compactToolExecutionPerformance({
     detail: {
       kind: "command",
       command: {
@@ -121,32 +120,28 @@ function createBashPerformanceTelemetry(
         category: classifyCommand(input.command),
         ...classifySafeCommandIdentity(input.command),
         status: resolveBashCommandStatus(result),
-        hash: commandHash(input.command),
       },
     },
   });
 }
 
-export function createBashBackgroundPerformanceTelemetry(
+export function createBashBackgroundPerformance(
   input: BashInput,
-): ToolExecutionTelemetry | undefined {
-  return compactToolExecutionTelemetry({
+): ToolExecutionPerformance | undefined {
+  return compactToolExecutionPerformance({
     detail: {
       kind: "command",
       command: {
         category: classifyCommand(input.command),
         ...classifySafeCommandIdentity(input.command),
         status: "backgrounded",
-        hash: commandHash(input.command),
       },
     },
   });
 }
 
-export function createEmptyBashPerformanceTelemetry(
-  input: BashInput,
-): ToolExecutionTelemetry | undefined {
-  return compactToolExecutionTelemetry({
+export function createEmptyBashPerformance(): ToolExecutionPerformance | undefined {
+  return compactToolExecutionPerformance({
     detail: {
       kind: "command",
       command: {
@@ -154,15 +149,12 @@ export function createEmptyBashPerformanceTelemetry(
         count: 0,
         name: "empty",
         status: "completed",
-        hash: commandHash(input.command),
       },
     },
   });
 }
 
-function resolveBashCommandStatus(
-  result: ExecutionResult,
-): ToolCommandStatus {
+function resolveBashCommandStatus(result: ExecutionResult): ToolCommandStatus {
   if (result.timedOut) return "timed_out";
   if (result.cancelled) return "cancelled";
   if (result.status === "completed" && result.exitCode !== undefined && result.exitCode !== 0) {
