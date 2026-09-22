@@ -34,11 +34,12 @@ the bounding-box checker and its test) are retained as upstream had them.
 ## Everything else in this plugin
 
 `package.json`, `.zcode-plugin/plugin.json`, this `NOTICE.md`,
-`agents/visual-judge.md`, `skills/pdf/SKILL.md` and the three typesetting briefs
-under `skills/pdf/briefs/` are original work written for this repository. They
-are covered by the repository's root Apache-2.0 license, which is why the
-`license` field of both manifests reads `Apache-2.0`, with no
-`SEE LICENSE IN` pointer.
+`agents/visual-judge.md`, `skills/pdf/SKILL.md`, the three typesetting briefs
+under `skills/pdf/briefs/`, and the `pdf_qa` family
+(`pdf_qa.py`, `pdf_qa_document.py`, `pdf_qa_text.py`, `pdf_qa_checks.py`,
+`pdf_qa_colors.py`) are original work written for this repository. They are
+covered by the repository's root Apache-2.0 license, which is why the `license`
+field of both manifests reads `Apache-2.0`, with no `SEE LICENSE IN` pointer.
 
 The typesetting content in `SKILL.md` and the briefs is derived from publicly
 available LaTeX and typesetting knowledge — document class and engine behaviour,

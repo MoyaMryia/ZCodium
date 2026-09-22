@@ -63,6 +63,12 @@ const PDF_PLUGIN_SEED_PATHS = [
   "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
   "skills/pdf/scripts/check_bounding_boxes.py",
   "skills/pdf/scripts/check_bounding_boxes_test.py",
+  // pdf_qa 家族是质量门，五个模块互相导入；只 seed pdf_qa.py 会让门在首次 import 就死。
+  "skills/pdf/scripts/pdf_qa.py",
+  "skills/pdf/scripts/pdf_qa_document.py",
+  "skills/pdf/scripts/pdf_qa_text.py",
+  "skills/pdf/scripts/pdf_qa_checks.py",
+  "skills/pdf/scripts/pdf_qa_colors.py",
 ] as const;
 
 const SPREADSHEETS_PLUGIN_SEED_PATHS = [

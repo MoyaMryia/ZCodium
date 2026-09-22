@@ -88,7 +88,13 @@ export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = [
   "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
   "skills/pdf/scripts/check_bounding_boxes.py",
   "skills/pdf/scripts/check_bounding_boxes_test.py",
-]
+  // pdf_qa 家族是质量门，五个模块互相导入；只 seed pdf_qa.py 会让门在首次 import 就死。
+  "skills/pdf/scripts/pdf_qa.py",
+  "skills/pdf/scripts/pdf_qa_document.py",
+  "skills/pdf/scripts/pdf_qa_text.py",
+  "skills/pdf/scripts/pdf_qa_checks.py",
+  "skills/pdf/scripts/pdf_qa_colors.py",
+] as const;
 
 export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = [
   // 脚本与模板是技能正文描述的能力的执行体；routes/references 是 SKILL.md 的下一步
@@ -124,8 +130,6 @@ export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = [
   "skills/docx/env_setup/setup.md",
   "skills/docx/env_setup/env_check.sh",
 ] as const;
- as const;
- as const;
 
 const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
   "docs/computer-use.md",

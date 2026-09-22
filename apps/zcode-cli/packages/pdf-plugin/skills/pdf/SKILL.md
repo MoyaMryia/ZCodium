@@ -15,7 +15,7 @@ It does **not**:
 
 - convert between formats — no `.docx` → PDF exporter, no PDF → text extraction pipeline, no HTML or poster renderer;
 - redact or do page surgery — no script here removes content, splits or merges pages, or strips annotations; form filling adds fields and annotations, it does not rewrite page content;
-- ship a design engine, a template library or a LaTeX renderer of its own. The typesetting path runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it; the scripts under `skills/pdf/scripts/` are thin Python wrappers over `pdf2image` and `pypdf`, and `pdf2image` in turn shells out to poppler.
+- ship a design engine, a template library or a LaTeX renderer of its own. The typesetting path runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it. The scripts under `skills/pdf/scripts/` are thin Python wrappers: the rendering and form-filling ones over `pdf2image` and `pypdf` (`pdf2image` in turn shells out to poppler), and the quality gate over the standard library plus the poppler command-line tools.
 
 Keep the `.tex` source next to the output. The build is reproducible, the reader will ask for changes, and a PDF whose source has been thrown away cannot be revised. A form you fill is different in kind: keep the `fields.json` and the field values beside the output so a correction is a re-run of the fill step, not a fresh analysis of the page.
 
@@ -185,7 +185,7 @@ Fix the source, rebuild, re-rasterize, re-gate. The loop is source → PDF → P
 
 ## 6. Rendering, inspection and form filling
 
-The scripts under `skills/pdf/scripts/` are thin, MIT-derived Python wrappers over `pdf2image` and `pypdf`. They are utilities, not a framework: each takes file paths on the command line, prints a short human-readable line, and exits. None of them touches the LaTeX path above, and none is required to typeset — they cover the two jobs §1 names: render a page for the judge, and fill a form.
+The scripts under `skills/pdf/scripts/` are thin Python wrappers. The rendering and form-filling ones wrap `pdf2image` and `pypdf`; the quality gate (`pdf_qa.py`, §6.5) imports nothing outside the standard library and shells out to the poppler tools instead. They are utilities, not a framework: each takes file paths on the command line, prints a short human-readable line, and exits. None of them touches the LaTeX path above, and none is required to typeset — they cover the two jobs §1 names: render a page for the judge, fill a form, and gate the artifact you built.
 
 ### 6.1 Dependencies are real, not assumed
 
@@ -195,15 +195,16 @@ The scripts under `skills/pdf/scripts/` are thin, MIT-derived Python wrappers ov
 | poppler `pdftoppm` | the raster backend `pdf2image` shells out to                                                                | `convert_from_path` raises (`PDFInfoNotInstalledError`)        |
 | `pypdf`            | `check_fillable_fields.py`, `extract_form_field_info.py`, `fill_fillable_fields.py`, `fill_pdf_form_with_annotations.py` | `import` fails — the script will not start |
 | `Pillow` (`PIL`)   | `create_validation_image.py`                                                                               | `import` fails — the script will not start                    |
+| poppler `pdftotext`, `pdfinfo`, `pdffonts`, `pdftoppm` | `pdf_qa.py` and its four modules (§6.5)                                              | a readable error naming the missing tool, and exit 1 — never a degraded run |
 
 Detect before promising a result:
 
 ```bash
 python3 -c "import pdf2image, pypdf, PIL"   # the three Python packages
-which pdftoppm                              # the raster backend pdf2image calls
+which pdftoppm pdftotext pdfinfo pdffonts   # the poppler tools
 ```
 
-`check_bounding_boxes.py` and `check_bounding_boxes_test.py` are the exception: they import only the standard library and run anywhere. Do not describe any of the others as unconditionally available — a missing dependency is an `ImportError` at start (or, for poppler, a raised exception on first render), not a degraded run.
+`check_bounding_boxes.py` and `check_bounding_boxes_test.py` are the exception: they import only the standard library and run anywhere. The `pdf_qa.py` family is the second exception in the other direction — it too imports only the standard library, but it *requires* the four poppler binaries on `PATH`, because they are the only source of page geometry, word boxes, fonts and ink. Do not describe any of the others as unconditionally available — a missing dependency is an `ImportError` at start (or, for poppler, a raised exception on first render), not a degraded run.
 
 ### 6.2 Render a page to PNG — `convert_pdf_to_images.py`
 
@@ -267,6 +268,68 @@ python3 skills/pdf/scripts/create_validation_image.py <page_number> <fields.json
 
 Draws red rectangles over entry boxes and blue over label boxes onto a rendered page PNG, so you can confirm the geometry by eye before stamping text. Needs `Pillow`.
 
+### 6.5 Gate the artifact — `pdf_qa.py`
+
+```bash
+python3 skills/pdf/scripts/pdf_qa.py <file.pdf> [more.pdf ...] [--json] [--poster] [--skip-cover] [--no-tables] [--formulas]
+```
+
+This is the quality gate for a PDF you produced. It does not validate the file against the specification — a PDF can be perfectly legal and still print wrong — it inspects the artifact the way a reader would: page by page, on rendered ink and on extracted word positions. Run it after the build (§5 Step 6) and before or beside the visual gate; it is deterministic, and it catches the defects a compile log never mentions.
+
+Positional arguments are glob patterns, so a whole build directory can be gated in one call. With more than one file each gets its own report, separated by a blank line.
+
+The switches:
+
+| Switch          | Effect                                                                 |
+| --------------- | ---------------------------------------------------------------------- |
+| `--poster`      | poster mode: also checks that the cover background bleeds to the edge  |
+| `--skip-cover`  | skips the first page when judging left/right margin symmetry           |
+| `--no-tables`   | does not judge table centering                                          |
+| `--formulas`    | also checks display formulas against the text column                   |
+| `--json`        | machine-readable output: `{"files":[…], "errors":n, "warnings":n}`     |
+
+The fifteen checks, in the order they run:
+
+| # | Check                   | Reports                                                              |
+| - | ----------------------- | -------------------------------------------------------------------- |
+| 1 | `last_page_fill`        | a last page that is nearly empty (single-page documents are skipped)  |
+| 2 | `punctuation`           | halfwidth punctuation beside Chinese, fullwidth beside Latin, doubled marks |
+| 3 | `blank_pages`           | a page with neither extractable text nor ink                          |
+| 4 | `colors`                | more than eight distinct painted colours, or a near-white one that will not print |
+| 5 | `page_size_consistency` | pages on different stock (single-page documents are skipped)          |
+| 6 | `text_overflow`         | a word whose box leaves the page                                      |
+| 7 | `content_fill_ratio`    | a middle page under 40% filled, or a last page under 25%              |
+| 8 | `cover_bleed`           | cover ink stopping more than 5% short of an edge (`--poster` only)    |
+| 9 | `margin_symmetry`       | left and right margins differing by more than 24 pt                   |
+| 10 | `table_centering`       | a table hanging more than 12 pt off the page centre (`--no-tables` off) |
+| 11 | `font_embedding`        | a font that is not embedded                                          |
+| 12 | `helvetica_in_cjk`      | Chinese text set in a base-14 Latin font, which has no CJK glyphs     |
+| 13 | `metadata`              | no title, or no author                                                |
+| 14 | `toc_without_cover`     | a table of contents with no cover before it (single-page skipped)     |
+| 15 | `formula_overflow`      | a formula line reaching past the text column (`--formulas` only)      |
+
+Every conclusion carries a severity. `ERROR` is a defect the reader sees; `WARN` is a judgement call the author makes; `OK` is a pass. Only `ERROR` fails the gate:
+
+| Exit | Meaning                                                              |
+| ---- | -------------------------------------------------------------------- |
+| 0    | every check passed, or reported at most a warning                    |
+| 1    | usage error, a file that is not a readable PDF, or a missing poppler tool |
+| 2    | at least one check reported an `ERROR`                               |
+
+A missing poppler tool is an explicit error naming the tool, never a skipped check — a gate that silently passes because `pdftotext` is absent is worse than no gate. Thresholds (fill ratios, bleed, tolerances) are named constants at the top of `pdf_qa_checks.py`, so they can be retuned in one place.
+
+The gate is five files, all standard library plus poppler, with no `pypdf` or `pdfplumber`:
+
+| File                  | Role                                                              |
+| --------------------- | ----------------------------------------------------------------- |
+| `pdf_qa.py`           | CLI, glob expansion, report layout, exit status                   |
+| `pdf_qa_document.py`  | read-only facts: one poppler call per tool, page geometry, word boxes, ink maps, fonts, metadata |
+| `pdf_qa_text.py`      | shared measurements: lines, table columns, script and math classification |
+| `pdf_qa_checks.py`    | the fifteen rules, their thresholds and the registry              |
+| `pdf_qa_colors.py`    | the colour scan, read straight out of the content streams         |
+
+Run them by path from the repository root, as above; they import each other by flat module name, so `python3 skills/pdf/scripts/pdf_qa.py …` works and `import pdf_qa` from elsewhere does not.
+
 ## 7. Defects and self-check
 
 These are the ones a reader notices and a clean compile log walks past. Read the log for them; do not wait for the visual gate.
@@ -291,6 +354,8 @@ Two log lines worth reading every time:
 - `Overfull \hbox (...pt too wide)` — real, visible, and almost always a reader-visible defect. A few points of overhang on a URL is tolerable; a line that runs off the paper is not.
 - `Underfull \hbox` — loose, gappy justification. Usually a long unbreakable token in a narrow column; `microtype` and `\emergencystretch` fix most of it.
 
+The mechanical half of this table is automated: `pdf_qa.py` (§6.5) reports blank pages, mixed page sizes, an unembedded font, a nearly empty last page, text off the paper and a formula past the column. Run it instead of re-reading the log by eye, then come back here for the causes it cannot see — a float deferred, a caption orphaned, a heading left alone at the foot of a page.
+
 ## 8. Pitfalls
 
 - **`hyperref` late, `cleveref` after it.** Load order is not cosmetic.
@@ -303,4 +368,5 @@ Two log lines worth reading every time:
 - **`\resizebox` scales the type inside a table too.** A table shrunk to fit also shrinks its font below the body size, which is a defect the reader sees. Prefer `tabularx`, `longtable` or a smaller table.
 - **The PDF is a build artifact.** Regenerate it; never edit it.
 - **The `scripts/` tools are not unconditional.** `pdf2image`, `pypdf` and `Pillow` each fail at import when absent, and `convert_pdf_to_images.py` also needs poppler's `pdftoppm` on `PATH`. Detect the dependencies (§6.1) before promising a render, a fill or a validation image.
+- **`pdf_qa.py` needs four poppler binaries, not Python packages.** It imports only the standard library, so a missing `pdftotext` / `pdfinfo` / `pdffonts` / `pdftoppm` shows up as a run-time error naming the tool and exit 1 — not as an `ImportError` at start, and never as a silently passing gate. It also renders every page at 40 dpi to judge ink, so on a very large document that render is the slow part.
 - **`fill_pdf_form_with_annotations.py` overlays text; it does not create a field.** The stamped text is a `FreeText` annotation a viewer shows but a recipient cannot edit as a form value. A PDF whose filled values must stay editable needs real AcroForm fields, which the non-fillable path does not add.
