@@ -97,6 +97,8 @@ const browserUseRequiredRuntimePaths = [
 const builtinContentPluginPackages = [
   // 与桌面发行清单保持一致，避免远端要求未发行的插件资源。
   "presentations-plugin",
+  // documents 的 Python 脚本是技能正文描述的能力的执行体，seed 必须带齐。
+  "documents-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",

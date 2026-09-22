@@ -18,6 +18,7 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 | 包                                      | 内容形态                              | 运行时依赖                     |
 | --------------------------------------- | ------------------------------------- | ------------------------------ |
 | `@zcode/presentations-plugin`           | skills + agents（PPTX）               | 无                             |
+| `@zcode/documents-plugin`               | skills + agents + scripts（DOCX）     | 无（Python 脚本由宿主执行）     |
 | `@zcode/skill-creator-plugin`           | skills                                | 无                             |
 | `@zcode/plugin-creator-plugin`          | skills + scripts（纯 `.mjs`，无构建） | 无                             |
 | `@zcode/image-search-plugin`            | `.mcp.json`（HTTP MCP）               | 指向官方后端                   |
@@ -41,13 +42,32 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
 
 ## 状态所有者与契约
 
-插件是否进入安装包，由 **三处清单共同决定**，必须逐字一致：
+插件是否进入安装包，由 **四处清单共同决定**，必须逐字一致：
 
 | 位置                                                                                                                              | 职责                        |
 | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts` → `OFFICIAL_PLUGIN_DEFINITIONS`                          | bootstrap 注册与 seed 校验   |
 | `scripts/prepare-prebuilds.mjs` → `remoteOfficialPluginPackages` / `remoteOfficialPluginRequiredPaths`                            | 远端 shared-host staging    |
 | `packages/desktop/scripts/prepare-agent-node-bundle.mjs` → `officialPluginPackages`                                               | 桌面 agent node bundle seed |
 | `packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts` → `REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES` / `..._ASSET_PATHS` | 远端合同                    |
+
+### seed 路径是校验闸门，不是复制过滤器
+
+顶层白名单（`bundled-plugins.ts` 的 `includedTopLevelPaths`、`prepare-agent-node-bundle.mjs` 的
+`includedOfficialPluginTopLevelPaths`）决定**复制哪些目录**，已覆盖 `.mcp.json`、`.zcode-plugin`、
+`README.md`、`agents`、`commands`、`dist`、`docs`、`hooks`、`output-styles`、`package.json`、
+`scripts`、`skills`、`templates`。`requiredSeedPaths` 只决定**缺项时是否拒绝 seed**
+（`bundled-plugins.ts` 的 `findMissingOfficialPluginSeedPaths` 抛 `ZCODE_PLUGIN_SEED_INCOMPLETE`，
+`prepare-agent-node-bundle.mjs` 直接 throw）。
+
+因此 `requiredSeedPaths` 仍应逐项列出插件运行真正依赖的文件：只列两个 markdown 能让校验通过，
+却挡不住拷贝被截断，最终装出一个「看得见技能、import 不到脚本」的残缺插件。
+`OFFICIAL_CUA_REQUIRED_SEED_PATHS` 从 3 项扩到 7 项正是这个原因。
+
+### documents-plugin 的 seed 清单
+
+`documents` 的 `requiredSeedPaths` 为 15 项：两个 markdown、8 个 Python 模块、5 个 OOXML 模板。
+Python 脚本是技能正文描述的全部能力的执行体，缺任一项都会让 `SKILL.md` 指向不存在的工具。
 
 顶层白名单 `remoteOfficialPluginTopLevelPaths` 已覆盖 `.zcode-plugin`、`agents`、
 `commands`、`docs`、`skills`、`scripts`、`package.json`，**本次不需要扩容**。
@@ -61,9 +81,12 @@ browser-use 之外的插件源码，但 `scripts/prepare-prebuilds.mjs` 的 stag
    `name` 后缀一致。
 2. `pnpm typecheck` 与 `pnpm lint` 保持基线（0 error；warning 不新增）。
 3. 新增包被 `pnpm-workspace.yaml` 的 `packages/*` 自动纳入，无需改 workspace 配置。
-4. 三处内容插件清单一致，且 `stagedPath` 均为 `packages/<dir>`。
+4. 四处内容插件清单一致，且 `stagedPath` 均为 `packages/<dir>`。
 5. 不引入 `node_modules`、`.venv`、`__pycache__`、`*.pyc`（staging 过滤器已排除，
    提交时也不得带入）。
+6. **documents 注册回归**：四处清单均含 `documents`；staging 与 desktop seed
+   校验通过，不抛 `missing remote official plugin manifest` 或
+   `missing staged official plugin seed asset`。
 
 ## 实测结果（2026-09-21）
 

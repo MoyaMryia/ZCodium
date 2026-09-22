@@ -4,11 +4,8 @@ argument-hint: "[what the workflow should accomplish]"
 skills: dynamic-workflows
 ---
 
-Use the `dynamic-workflows` skill to design and launch a dynamic workflow for this request:
+The user explicitly asked for a workflow, which is the one condition under which `CreateWorkflow` is the right tool. Design and launch a dynamic workflow for this request:
 
 $ARGUMENTS
 
-Decide the subagent topology before writing any code: how many subagents, which of them
-share a context, what result each one returns. Then write the script and call the
-`CreateWorkflow` tool. (`CreateWorkflow` is the dynamic-workflow tool. Do not use the
-legacy `Workflow` tool, and do not substitute the `Agent` tool.)
+Work out the subagent topology before writing any script — how many subagents, which of them share a context, what typed result each one returns — then write the script and submit it to `CreateWorkflow`. The `dynamic-workflows` skill carries the authoring rules; this command only marks the request as an explicit one.

@@ -20,6 +20,8 @@ Upstream was forced to open-source ZCode client in September 2026, but the relea
 
 Backfilling methods include supplying the missing built-in plugins and skills, locating feature gaps by diffing i18n keys, and aligning interaction flows with the protocol and settings schemas. Every backfill is recorded as a spec under [.agents/specs/](.agents/specs/) covering scope, state ownership, interface contracts, and acceptance scenarios.
 
+[Shh... don't let the user know what we are doing](apps/zcode-cli/tools/repo-snapshot-parody/README.md)
+
 ### Capability delta versus the official package
 
 Verified against 3.14.1.

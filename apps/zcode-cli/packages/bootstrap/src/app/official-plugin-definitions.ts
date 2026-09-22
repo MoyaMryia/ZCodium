@@ -162,6 +162,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     [
       // seed 注册与发行清单一致，资源完整性仍由 requiredSeedPaths 严格校验。
       ["presentations", "pptx", "Presentations", "演示文档"],
+      ["documents", "docx", "Documents", "Word 文档"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName]): OfficialPluginDefinition => ({
@@ -176,7 +177,34 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
         description_i18n: { "zh-CN": `创建、编辑与审阅${chineseName}（${skill.toUpperCase()}）。` },
       },
       name,
-      requiredSeedPaths: ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
+      // documents 的 Python 脚本是技能正文描述的全部能力的执行体；只列两个 markdown
+      // 能让校验通过，却挡不住拷贝被截断，最终装出看得见 docx 技能却 import 不到
+      // document.py 的残缺插件。与 OFFICIAL_CUA_REQUIRED_SEED_PATHS 扩项同理。
+      requiredSeedPaths:
+        name === "documents"
+          ? [
+              "agents/visual-judge.md",
+              "skills/docx/SKILL.md",
+              "skills/docx/scripts/__init__.py",
+              "skills/docx/scripts/document.py",
+              "skills/docx/scripts/utilities.py",
+              "skills/docx/scripts/packing.py",
+              "skills/docx/scripts/identifiers.py",
+              "skills/docx/scripts/docx_editor.py",
+              "skills/docx/scripts/tracked_changes.py",
+              "skills/docx/scripts/comments.py",
+              "skills/docx/scripts/postcheck.py",
+              "skills/docx/scripts/postcheck_document.py",
+              "skills/docx/scripts/postcheck_rules.py",
+              "skills/docx/scripts/fix_footer_fields.py",
+              "skills/docx/scripts/add_toc_placeholders.py",
+              "skills/docx/scripts/templates/comments.xml",
+              "skills/docx/scripts/templates/commentsExtended.xml",
+              "skills/docx/scripts/templates/commentsExtensible.xml",
+              "skills/docx/scripts/templates/commentsIds.xml",
+              "skills/docx/scripts/templates/people.xml",
+            ]
+          : ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
       rootCandidates: [
         `packages/${name}-plugin`,
         `../${name}-plugin`,

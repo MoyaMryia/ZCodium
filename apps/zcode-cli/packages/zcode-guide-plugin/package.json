@@ -4,5 +4,5 @@
   "version": "0.2.0",
   "private": true,
   "license": "MIT",
-  "description": "作为官方 ZCode 内置插件发布的使用与自诊断指南技能集。"
+  "description": "内置指南与自诊断技能集：覆盖客户端配置、slash command、hook、MCP、插件与技能的问题定位。"
 }
