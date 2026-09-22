@@ -26,33 +26,6 @@ The five templates/ XML parts are byte-identical to the reference's and carry
 the same MIT notice via NOTICE.md at the repository root.
 """
 
-#!/usr/bin/env python3
-"""
-Library for working with Word documents: comments, tracked changes, and editing.
-
-Usage:
-    from skills.docx.scripts.document import Document
-
-    # Initialize
-    doc = Document('workspace/unpacked')
-    doc = Document('workspace/unpacked', author="John Doe", initials="JD")
-
-    # Find nodes
-    node = doc["word/document.xml"].get_node(tag="w:del", attrs={"w:id": "1"})
-    node = doc["word/document.xml"].get_node(tag="w:p", line_number=10)
-
-    # Add comments
-    doc.add_comment(start=node, end=node, text="Comment text")
-    doc.reply_to_comment(parent_comment_id=0, text="Reply text")
-
-    # Suggest tracked changes
-    doc["word/document.xml"].suggest_deletion(node)  # Delete content
-    doc["word/document.xml"].revert_insertion(ins_node)  # Reject insertion
-    doc["word/document.xml"].revert_deletion(del_node)  # Reject deletion
-
-    # Save
-    doc.save()
-"""
 
 import html
 import random
@@ -62,7 +35,6 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import defusedxml.minidom
 from defusedxml import minidom
 
 from .utilities import XMLEditor
@@ -83,7 +55,7 @@ from .utilities import XMLEditor
 def _strip_formatting_whitespace(xml_file):
     """Remove inter-element whitespace and comments from an XML part, in place."""
     with open(xml_file, encoding="utf-8") as handle:
-        dom = defusedxml.minidom.parse(handle)
+        dom = minidom.parse(handle)
     for element in dom.getElementsByTagName("*"):
         # w:t 一类承载正文的节点整体跳过：那里的空白是内容，不是格式。
         if element.tagName.endswith(":t"):
