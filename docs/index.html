@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ZCodium — ZCode 的社区衍生仓库</title>
+<meta name="description" content="ZCodium 是 ZCode 的社区衍生仓库：跟进上游，把「只在发布包里存在」的功能一个个补回开源源码。判断依据是安装包里有没有，不是上游说了什么。" />
+<link rel="icon" href="assets/favicon.ico" sizes="any" />
+<link rel="icon" href="assets/logo-256.png" type="image/png" />
+<meta property="og:title" content="ZCodium — ZCode 的社区衍生仓库" />
+<meta property="og:description" content="把「只在发布包里存在」的功能，一个个补回开源源码。不等待、不申请、不保留。" />
+<meta property="og:image" content="assets/og.png" />
+<meta name="theme-color" content="#0b0c0e" />
+<style>
+  :root {
+    --bg: #0b0c0e;
+    --surface: #111318;
+    --border: #22262c;
+    --text: #e8eaed;
+    --muted: #969ca6;
+    --faint: #5c636d;
+    --accent: #ff5f3d;
+    --serif: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--accent); color: #0b0c0e; }
+  a { color: var(--text); text-decoration: none; }
+  a:hover { color: var(--accent); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 96px 0 72px; text-align: center; position: relative; }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(255, 95, 61, 0.07), transparent 70%);
+    pointer-events: none;
+  }
+  .hero img { width: 88px; height: 88px; display: block; margin: 0 auto 28px; }
+  .hero h1 {
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+  }
+  .hero .tagline {
+    margin: 18px auto 0;
+    max-width: 34em;
+    color: var(--muted);
+    font-size: 16px;
+  }
+  .hero .tagline em { color: var(--text); font-style: normal; }
+  .cta { margin-top: 36px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 20px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0c0e; font-weight: 600; }
+  .btn.primary:hover { color: #0b0c0e; filter: brightness(1.1); }
+
+  /* ---------- quote ---------- */
+  .quote { padding: 56px 0; border-top: 1px solid var(--border); }
+  .quote .label {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    color: var(--faint);
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .quote blockquote {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 21px;
+    line-height: 1.9;
+    color: var(--text);
+    padding-left: 24px;
+    border-left: 2px solid var(--accent);
+  }
+  .quote cite {
+    display: block;
+    margin-top: 18px;
+    padding-left: 26px;
+    font-style: normal;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .quote .after {
+    margin-top: 26px;
+    padding-left: 26px;
+    font-size: 14px;
+    color: var(--faint);
+  }
+  .quote .after b { color: var(--muted); font-weight: 600; }
+
+  /* ---------- stats ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .stats div { padding: 26px 16px; text-align: center; }
+  .stats div + div { border-left: 1px solid var(--border); }
+  .stats .num { font-size: 30px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stats .cap { margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+  /* ---------- sections ---------- */
+  section { padding: 64px 0; border-top: 1px solid var(--border); }
+  section h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: var(--faint);
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section h2::before { content: ""; width: 18px; height: 2px; background: var(--accent); flex: none; }
+  section h3 { font-size: 17px; font-weight: 650; margin: 36px 0 14px; }
+  section h3:first-of-type { margin-top: 0; }
+  section p { color: var(--muted); margin-bottom: 14px; }
+  section p b, section li b { color: var(--text); font-weight: 600; }
+  section ul { list-style: none; }
+  section li { color: var(--muted); padding-left: 20px; position: relative; margin-bottom: 10px; }
+  section li::before { content: "—"; position: absolute; left: 0; color: var(--faint); }
+  .hl {
+    background: linear-gradient(transparent 62%, rgba(255, 95, 61, 0.25) 62%);
+    color: var(--text);
+    font-weight: 600;
+    padding: 0 2px;
+  }
+
+  /* ---------- table ---------- */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 12px 18px; text-align: left; }
+  thead th {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr + tr td { border-top: 1px solid var(--border); }
+  td:first-child { font-family: var(--mono); font-size: 13px; color: var(--text); white-space: nowrap; }
+  td:nth-child(2) { font-family: var(--mono); font-size: 13px; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td:last-child { color: var(--muted); }
+  tfoot td { border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+  tfoot td b { color: var(--text); }
+
+  /* ---------- code ---------- */
+  .code {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    color: var(--muted);
+    white-space: pre;
+  }
+  .code b { color: var(--text); font-weight: 400; }
+
+  /* ---------- shh easter egg ---------- */
+  .shh {
+    margin-top: 26px;
+    font-size: 13px;
+    color: var(--faint);
+  }
+  .shh summary, .shh .toggle {
+    cursor: pointer;
+    list-style: none;
+    display: inline-block;
+    border-bottom: 1px dashed var(--faint);
+    padding-bottom: 1px;
+    user-select: none;
+  }
+  .shh summary::-webkit-details-marker { display: none; }
+  .shh .toggle:hover { color: var(--accent); border-color: var(--accent); }
+  .shh .secret {
+    margin-top: 14px;
+    padding: 14px 18px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    font-size: 13.5px;
+    color: var(--muted);
+    background: var(--surface);
+  }
+  .shh .secret b { color: var(--text); }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0 56px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--faint);
+  }
+  footer .links { display: flex; gap: 20px; flex-wrap: wrap; }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    .hero { padding: 64px 0 48px; }
+    .hero h1 { font-size: 34px; }
+    .quote blockquote { font-size: 18px; }
+    .stats { grid-template-columns: 1fr; }
+    .stats div + div { border-left: none; border-top: 1px solid var(--border); }
+    section { padding: 48px 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <img src="assets/logo-192.png" alt="ZCodium" width="88" height="88" />
+    <h1>ZCodium</h1>
+    <p class="tagline">
+      ZCode 的社区衍生仓库。把<em>「只在发布包里存在」</em>的功能，一个个补回开源源码。
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/axiom-desu/ZCodium">GitHub 仓库</a>
+      <a class="btn" href="#delta">能力差异</a>
+      <a class="btn" href="https://github.com/axiom-desu/ZCodium/blob/main/README.en.md">English</a>
+    </div>
+  </header>
+
+  <!-- ============ QUOTE ============ -->
+  <div class="quote">
+    <p class="label">关于开源</p>
+    <blockquote>
+      「为什么我们这么坚持开源？因为这个愿景本身就要求开源。你没有这个愿景，你没法把人组织起来。比如说，智谱也开源，但是智谱的开源跟我们的开源不一样。智谱的开源有一种被迫的感觉，他们觉得这不是本意，但是对我们来讲，这就是我们的本意。」
+    </blockquote>
+    <cite>—— 梁文锋，深度求索 CEO</cite>
+    <p class="after">
+      我们深有同感。所以 ZCodium 补全功能的判断依据也只有一条：<b>「安装包里有没有」，不是「上游说了什么」。</b>
+    </p>
+  </div>
+
+  <!-- ============ STATS ============ -->
+  <div class="stats" aria-label="关键数字">
+    <div>
+      <div class="num">528</div>
+      <div class="cap">个 i18n 键缺口<br />按键定位功能差距</div>
+    </div>
+    <div>
+      <div class="num">258</div>
+      <div class="cap">个 bots 键待补<br />四套机器人通知链路</div>
+    </div>
+    <div>
+      <div class="num">0</div>
+      <div class="cap">次仓库快照上传<br />一次都不应该有</div>
+    </div>
+  </div>
+
+  <!-- ============ WHAT ============ -->
+  <section id="what">
+    <h2>这个仓库是什么</h2>
+    <p>
+      上游在 2026-09 被迫将 ZCode 客户端开源，但放出的源码与他们实际发布的安装包并不等价：<b>发布包里有一批开源代码中没有的功能。</b>
+    </p>
+    <p>
+      ZCodium 的做法是跟进上游官方仓库，同时把这些「只在发布包里存在」的功能以各种方式补全——补齐缺失的内置插件与技能、比对 i18n 键定位功能缺口、按协议与设置 schema 对齐交互链路——让自建的源码能够构建出与官方包能力对等的产物。
+    </p>
+    <p>
+      所有补全都记录在 <b>.agents/specs/</b> 下的 spec 中，包含范围、状态所有者、接口契约与验收场景。
+    </p>
+
+    <details class="shh">
+      <summary class="toggle">[嘘... 别让用户发现我们在干什么]</summary>
+      <div class="secret">
+        官方 3.14.0 之前的版本，会在每次提问前打包<b>整个 workspace（含 .git）</b>，加密上传至对象存储——私钥在服务端手里。该行为已从上游移除，本仓库同样不实现，只在 <b>repo-snapshot-parody</b> 留了一份 localhost 复现用于审计对照：密钥本地生成、默认拒绝非回环目标。
+      </div>
+    </details>
+  </section>
+
+  <!-- ============ DELTA ============ -->
+  <section id="delta">
+    <h2>与官方包的能力差异 · 截至 3.14.1</h2>
+
+    <h3>已补全</h3>
+    <ul>
+      <li><b>内置插件与技能</b>——安装包只分发源码资源完整且明确注册的插件，范围见对应 spec。</li>
+      <li><b>Computer Use 的模型可见面</b>——<span style="font-family:var(--mono);font-size:13px">scripts/computer-use-client.mjs</span>、技能与文档。</li>
+    </ul>
+
+    <h3>尚未补全（按 i18n 键缺口定位）</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>领域</th><th>缺口</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>bots</td><td>258 键</td><td>Telegram / 飞书 / Lark / 企业微信 机器人通知</td></tr>
+          <tr><td>webRemoteControl</td><td>104 键</td><td>手机远控桌面</td></tr>
+          <tr><td>manualClaimPlan</td><td>53 键</td><td>权益领取与验证码流程</td></tr>
+          <tr><td>mode</td><td>38 键</td><td>会话模式扩展</td></tr>
+          <tr><td>settings</td><td>24 键</td><td>Claude 模型槽位映射、多协议端点模板</td></tr>
+          <tr><td>其他</td><td>51 键</td><td>server、appHeader、rewards、onboarding 等</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3"><b>528</b> 个键。安装包里有的，开源源码里没有——这就是差距。</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>有意不补全</h3>
+    <ul>
+      <li><b>仓库快照上传。</b>打包 workspace、加密上传、服务端持钥——不实现，只留审计复现。</li>
+      <li><b>官方遥测采集与上报。</b>保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。</li>
+    </ul>
+  </section>
+
+  <!-- ============ ROADMAP ============ -->
+  <section id="roadmap">
+    <h2>已定的补全路线</h2>
+    <ul>
+      <li><b>bots 走 AstrBot 插件，不逐个平台重写。</b>四套平台适配交给开源的多平台机器人框架，ZCodium 只维护桥接契约——<span style="font-family:var(--mono);font-size:13px">astrbot-zcodium-plugin</span>。</li>
+      <li><b>Computer Use 通用化。</b>按 Actuator 接口分层实现，broker / bridge 基础设施已齐备且本来就是通用的。</li>
+      <li><b>image-search 默认指向本地。</b><span style="font-family:var(--mono);font-size:13px">http://127.0.0.1:8787</span>——仓库内暂无本地搜图后端，需要自行部署。</li>
+    </ul>
+  </section>
+
+  <!-- ============ RULE ============ -->
+  <section id="rule">
+    <h2>与上游的关系</h2>
+    <p>
+      本仓库跟踪上游 <b>zai-org/ZCode</b>。上游更新时先合并，再重新核对能力差异；补全内容按功能拆成独立提交，方便逐项审查与取舍。
+    </p>
+    <p style="color:var(--text);font-size:17px;line-height:1.9">
+      既定规则：上游发布新功能但不随开源仓库放出对应源码时，本仓库<span class="hl">自行补齐等价实现并开源——不等待、不申请、不保留。</span>
+    </p>
+  </section>
+
+  <!-- ============ ENTRY ============ -->
+  <section id="entry">
+    <h2>入口</h2>
+    <div class="code"><b>pnpm dev:desktop</b>            <span style="color:var(--faint)"># Electron 桌面应用</span>
+<b>pnpm dev:web</b>                 <span style="color:var(--faint)"># Web 客户端 + 后端</span>
+<b>pnpm --filter @zcode/cli dev</b>  <span style="color:var(--faint)"># Agent CLI 源码</span></div>
+    <p style="margin-top:18px">
+      Node <b>24.14.0</b> / pnpm <b>10.33.2</b>，版本以 mise.toml 为准；初始化执行 <b>pnpm bootstrap</b>。
+    </p>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <span>ZCodium · 跟踪上游 zai-org/ZCode</span>
+    <nav class="links">
+      <a href="https://github.com/axiom-desu/ZCodium">GitHub</a>
+      <a href="https://github.com/axiom-desu/ZCodium/blob/main/README.md">README</a>
+      <a href="https://github.com/axiom-desu/ZCodium/blob/main/NOTICE.md">NOTICE</a>
+      <a href="https://github.com/axiom-desu/ZCodium/blob/main/LICENSE">LICENSE</a>
+    </nav>
+  </footer>
+
+</div>
+
+</body>
+</html>
