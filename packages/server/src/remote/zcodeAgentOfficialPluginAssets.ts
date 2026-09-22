@@ -8,8 +8,32 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
  * packages/desktop/scripts/prepare-agent-node-bundle.mjs 的清单同源同序，
  * 契约见 .agents/specs/builtin-plugin-parity.md。
  */
+/**
+ * documents 的 seed 清单与 bootstrap 的 `requiredSeedPaths` 同源。
+ * Python 脚本与 OOXML 模板是技能正文描述的全部能力的执行体，缺任一项都会 seed 出
+ * 「看得见 docx 技能却 import 不到 document.py」的残缺插件。
+ */
+const DOCUMENTS_PLUGIN_SEED_PATHS = [
+  "agents/visual-judge.md",
+  "skills/docx/SKILL.md",
+  "skills/docx/scripts/__init__.py",
+  "skills/docx/scripts/document.py",
+  "skills/docx/scripts/utilities.py",
+  "skills/docx/scripts/postcheck.py",
+  "skills/docx/scripts/postcheck_document.py",
+  "skills/docx/scripts/postcheck_rules.py",
+  "skills/docx/scripts/fix_footer_fields.py",
+  "skills/docx/scripts/add_toc_placeholders.py",
+  "skills/docx/scripts/templates/comments.xml",
+  "skills/docx/scripts/templates/commentsExtended.xml",
+  "skills/docx/scripts/templates/commentsExtensible.xml",
+  "skills/docx/scripts/templates/commentsIds.xml",
+  "skills/docx/scripts/templates/people.xml",
+] as const;
+
 const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
   "presentations-plugin": ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
+  "documents-plugin": DOCUMENTS_PLUGIN_SEED_PATHS,
   "image-search-plugin": [".mcp.json"],
   "plugin-creator-plugin": [
     "skills/plugin-creator/SKILL.md",
@@ -39,6 +63,7 @@ const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
 const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES = [
   // 校验范围必须与发行清单一致，避免远端要求未发行的插件资源。
   "presentations-plugin",
+  "documents-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",
