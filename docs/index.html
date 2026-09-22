@@ -1,400 +1,1274 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ZCodium — ZCode 的社区衍生仓库</title>
-<meta name="description" content="ZCodium 是 ZCode 的社区衍生仓库：跟进上游，把「只在发布包里存在」的功能一个个补回开源源码。判断依据是安装包里有没有，不是上游说了什么。" />
-<link rel="icon" href="assets/favicon.ico" sizes="any" />
-<link rel="icon" href="assets/logo-256.png" type="image/png" />
-<meta property="og:title" content="ZCodium — ZCode 的社区衍生仓库" />
-<meta property="og:description" content="把「只在发布包里存在」的功能，一个个补回开源源码。不等待、不申请、不保留。" />
-<meta property="og:image" content="assets/og.png" />
-<meta name="theme-color" content="#0b0c0e" />
-<style>
-  :root {
-    --bg: #0b0c0e;
-    --surface: #111318;
-    --border: #22262c;
-    --text: #e8eaed;
-    --muted: #969ca6;
-    --faint: #5c636d;
-    --accent: #ff5f3d;
-    --serif: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 16px;
-    line-height: 1.75;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-  ::selection { background: var(--accent); color: #0b0c0e; }
-  a { color: var(--text); text-decoration: none; }
-  a:hover { color: var(--accent); }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZCodium — 把只在安装包里存在的功能补回源码</title>
+    <meta
+      name="description"
+      content="ZCodium 是 ZCode 的社区衍生仓库：上游发布新功能却不放出对应源码时，我们补齐等价实现并开源。不等待、不申请、不保留。"
+    />
+    <link rel="icon" href="assets/favicon.ico" sizes="any" />
+    <link rel="icon" href="assets/logo-256.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/logo-192.png" />
+    <meta property="og:title" content="ZCodium — ZCode 的社区衍生仓库" />
+    <meta property="og:description" content="把只存在于安装包里的功能，一个个补回开源源码。" />
+    <meta property="og:image" content="assets/og.png" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#f4f2ee" />
+    <script>
+      document.documentElement.className = "js";
+    </script>
+    <style>
+      /* ============================================================
+     设计语言
+     - 版式与节奏：Apple —— 大字号、宽留白、居中开头、胶囊按钮
+     - 色彩与网格：Tracebit —— 石灰岩底 + 焦橙强调 + 瑞士式微标签
+     ============================================================ */
+      :root {
+        --paper: #f4f2ee;
+        --paper-soft: #efece6;
+        --ink: #17150f;
+        --ink-2: #5b554c;
+        --ink-3: #8a8378;
+        --line: rgba(23, 21, 15, 0.12);
+        --line-strong: rgba(23, 21, 15, 0.22);
+        --accent: #e14b1e;
+        --accent-dark: #bf3d14;
+        --accent-soft: #f7cfc3;
+        --block: #17150f;
+        --white: #fff;
+        --sans:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI",
+          "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", Roboto, Helvetica,
+          Arial, sans-serif;
+        --mono:
+          ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        --container: 1120px;
+        --r: 22px;
+        --r-sm: 12px;
+        --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+      }
 
-  /* ---------- hero ---------- */
-  .hero { padding: 96px 0 72px; text-align: center; position: relative; }
-  .hero::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse 60% 45% at 50% 0%, rgba(255, 95, 61, 0.07), transparent 70%);
-    pointer-events: none;
-  }
-  .hero img { width: 88px; height: 88px; display: block; margin: 0 auto 28px; }
-  .hero h1 {
-    font-size: 44px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    line-height: 1.2;
-  }
-  .hero .tagline {
-    margin: 18px auto 0;
-    max-width: 34em;
-    color: var(--muted);
-    font-size: 16px;
-  }
-  .hero .tagline em { color: var(--text); font-style: normal; }
-  .cta { margin-top: 36px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 20px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    font-size: 14px;
-    color: var(--text);
-    background: var(--surface);
-    transition: border-color .15s ease, color .15s ease;
-  }
-  .btn:hover { border-color: var(--accent); color: var(--accent); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0c0e; font-weight: 600; }
-  .btn.primary:hover { color: #0b0c0e; filter: brightness(1.1); }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        overflow-x: hidden;
+      }
+      ::selection {
+        background: var(--accent);
+        color: #fff;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      img {
+        display: block;
+        max-width: 100%;
+      }
+      svg {
+        display: block;
+      }
 
-  /* ---------- quote ---------- */
-  .quote { padding: 56px 0; border-top: 1px solid var(--border); }
-  .quote .label {
-    font-size: 12px;
-    letter-spacing: 0.22em;
-    color: var(--faint);
-    text-transform: uppercase;
-    margin-bottom: 28px;
-  }
-  .quote blockquote {
-    font-family: var(--serif);
-    font-style: italic;
-    font-size: 21px;
-    line-height: 1.9;
-    color: var(--text);
-    padding-left: 24px;
-    border-left: 2px solid var(--accent);
-  }
-  .quote cite {
-    display: block;
-    margin-top: 18px;
-    padding-left: 26px;
-    font-style: normal;
-    font-size: 14px;
-    color: var(--muted);
-  }
-  .quote .after {
-    margin-top: 26px;
-    padding-left: 26px;
-    font-size: 14px;
-    color: var(--faint);
-  }
-  .quote .after b { color: var(--muted); font-weight: 600; }
+      .container {
+        width: min(100% - 48px, var(--container));
+        margin-inline: auto;
+      }
 
-  /* ---------- stats ---------- */
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--surface);
-    overflow: hidden;
-  }
-  .stats div { padding: 26px 16px; text-align: center; }
-  .stats div + div { border-left: 1px solid var(--border); }
-  .stats .num { font-size: 30px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .stats .cap { margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+      .skip {
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        z-index: 200;
+        background: var(--ink);
+        color: var(--paper);
+        padding: 10px 16px;
+        border-radius: 0 0 var(--r-sm) 0;
+      }
+      .skip:focus {
+        left: 0;
+      }
 
-  /* ---------- sections ---------- */
-  section { padding: 64px 0; border-top: 1px solid var(--border); }
-  section h2 {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    color: var(--faint);
-    text-transform: uppercase;
-    margin-bottom: 32px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  section h2::before { content: ""; width: 18px; height: 2px; background: var(--accent); flex: none; }
-  section h3 { font-size: 17px; font-weight: 650; margin: 36px 0 14px; }
-  section h3:first-of-type { margin-top: 0; }
-  section p { color: var(--muted); margin-bottom: 14px; }
-  section p b, section li b { color: var(--text); font-weight: 600; }
-  section ul { list-style: none; }
-  section li { color: var(--muted); padding-left: 20px; position: relative; margin-bottom: 10px; }
-  section li::before { content: "—"; position: absolute; left: 0; color: var(--faint); }
-  .hl {
-    background: linear-gradient(transparent 62%, rgba(255, 95, 61, 0.25) 62%);
-    color: var(--text);
-    font-weight: 600;
-    padding: 0 2px;
-  }
+      /* 微标签 —— Tracebit 式瑞士排版 */
+      .label {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
 
-  /* ---------- table ---------- */
-  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { padding: 12px 18px; text-align: left; }
-  thead th {
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    color: var(--faint);
-    font-weight: 600;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  tbody tr + tr td { border-top: 1px solid var(--border); }
-  td:first-child { font-family: var(--mono); font-size: 13px; color: var(--text); white-space: nowrap; }
-  td:nth-child(2) { font-family: var(--mono); font-size: 13px; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  td:last-child { color: var(--muted); }
-  tfoot td { border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
-  tfoot td b { color: var(--text); }
+      /* ============================================================
+     顶栏 —— Apple 式全宽半透明玻璃
+     ============================================================ */
+      .site-head {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        background: rgba(244, 242, 238, 0.72);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
+        border-bottom: 1px solid transparent;
+        transition:
+          border-color 0.3s ease,
+          background 0.3s ease;
+      }
+      .site-head.is-scrolled {
+        background: rgba(244, 242, 238, 0.88);
+        border-bottom-color: var(--line);
+      }
+      .head-inner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 62px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .brand img {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+      }
+      .brand b {
+        font-size: 15.5px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .brand span {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-3);
+        padding-left: 10px;
+        margin-left: 4px;
+        border-left: 1px solid var(--line-strong);
+        white-space: nowrap;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        margin-left: auto;
+      }
+      .nav a {
+        font-size: 14px;
+        color: var(--ink-2);
+        transition: color 0.2s ease;
+      }
+      .nav a:hover {
+        color: var(--ink);
+      }
 
-  /* ---------- code ---------- */
-  .code {
-    font-family: var(--mono);
-    font-size: 13.5px;
-    line-height: 1.7;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px 20px;
-    overflow-x: auto;
-    color: var(--muted);
-    white-space: pre;
-  }
-  .code b { color: var(--text); font-weight: 400; }
+      /* ============================================================
+     按钮
+     ============================================================ */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 22px;
+        border-radius: 999px;
+        font-family: var(--sans);
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.2;
+        border: 1px solid transparent;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          border-color 0.2s ease,
+          transform 0.2s ease;
+      }
+      .btn svg {
+        width: 15px;
+        height: 15px;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: var(--accent-dark);
+      }
+      .btn-ghost {
+        border-color: var(--line-strong);
+        color: var(--ink);
+      }
+      .btn-ghost:hover {
+        background: var(--white);
+        border-color: var(--ink);
+      }
+      .btn-dark {
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .btn-dark:hover {
+        background: #2c281e;
+      }
+      .btn-sm {
+        padding: 9px 16px;
+        font-size: 13.5px;
+      }
 
-  /* ---------- shh easter egg ---------- */
-  .shh {
-    margin-top: 26px;
-    font-size: 13px;
-    color: var(--faint);
-  }
-  .shh summary, .shh .toggle {
-    cursor: pointer;
-    list-style: none;
-    display: inline-block;
-    border-bottom: 1px dashed var(--faint);
-    padding-bottom: 1px;
-    user-select: none;
-  }
-  .shh summary::-webkit-details-marker { display: none; }
-  .shh .toggle:hover { color: var(--accent); border-color: var(--accent); }
-  .shh .secret {
-    margin-top: 14px;
-    padding: 14px 18px;
-    border: 1px dashed var(--border);
-    border-radius: 10px;
-    font-size: 13.5px;
-    color: var(--muted);
-    background: var(--surface);
-  }
-  .shh .secret b { color: var(--text); }
+      /* ============================================================
+     Hero —— 第一眼就是梁文锋那句话
+     ============================================================ */
+      .hero {
+        position: relative;
+        padding: 104px 0 96px;
+        text-align: center;
+        overflow: hidden;
+      }
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: -40% -10% auto;
+        height: 130%;
+        background: radial-gradient(
+          60% 55% at 50% 12%,
+          var(--accent-soft),
+          rgba(247, 207, 195, 0) 68%
+        );
+        opacity: 0.75;
+        pointer-events: none;
+      }
+      .hero .container {
+        position: relative;
+        z-index: 1;
+      }
+      .hero .label {
+        display: block;
+        margin-bottom: 30px;
+      }
+      .hero h1 {
+        font-size: clamp(34px, 6.6vw, 76px);
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        line-height: 1.04;
+        text-wrap: balance;
+      }
+      .hero blockquote {
+        max-width: 780px;
+        margin: 34px auto 0;
+        font-size: clamp(17px, 2.1vw, 22px);
+        font-weight: 400;
+        line-height: 1.72;
+        letter-spacing: -0.01em;
+        color: var(--ink-2);
+        text-wrap: pretty;
+      }
+      .hero cite {
+        display: block;
+        margin-top: 26px;
+        font-family: var(--mono);
+        font-style: normal;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+      }
+      .hero-tag {
+        max-width: 640px;
+        margin: 56px auto 0;
+        font-size: clamp(16px, 1.9vw, 19px);
+        line-height: 1.65;
+        color: var(--ink);
+      }
+      .hero-tag b {
+        font-weight: 600;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 34px;
+      }
 
-  /* ---------- footer ---------- */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 40px 0 56px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    font-size: 13px;
-    color: var(--faint);
-  }
-  footer .links { display: flex; gap: 20px; flex-wrap: wrap; }
-  footer a { color: var(--muted); }
-  footer a:hover { color: var(--accent); }
+      /* ============================================================
+     跑马灯 —— Tracebit 的招牌元素
+     ============================================================ */
+      .marquee {
+        overflow: hidden;
+        background: var(--block);
+        color: var(--paper);
+        border-block: 1px solid var(--ink);
+      }
+      .marquee-track {
+        display: flex;
+        width: max-content;
+        animation: marquee 34s linear infinite;
+      }
+      .marquee-track p {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        padding: 15px 14px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .marquee-track span {
+        color: var(--accent);
+      }
+      @keyframes marquee {
+        to {
+          transform: translateX(-50%);
+        }
+      }
 
-  @media (max-width: 560px) {
-    .hero { padding: 64px 0 48px; }
-    .hero h1 { font-size: 34px; }
-    .quote blockquote { font-size: 18px; }
-    .stats { grid-template-columns: 1fr; }
-    .stats div + div { border-left: none; border-top: 1px solid var(--border); }
-    section { padding: 48px 0; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-    * { transition: none !important; }
-  }
-</style>
-</head>
-<body>
+      /* ============================================================
+     通用分区
+     ============================================================ */
+      .section {
+        padding: 120px 0;
+      }
+      .section h2 {
+        margin-top: 18px;
+        font-size: clamp(30px, 4.6vw, 54px);
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.06;
+      }
+      .lede {
+        max-width: 620px;
+        margin-top: 20px;
+        font-size: clamp(16px, 1.7vw, 18px);
+        line-height: 1.7;
+        color: var(--ink-2);
+      }
 
-<div class="wrap">
+      /* ============================================================
+     安装
+     ============================================================ */
+      #install {
+        background: var(--paper-soft);
+        border-block: 1px solid var(--line);
+      }
+      .install-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 28px;
+        margin-top: 54px;
+        align-items: start;
+      }
+      .term {
+        border-radius: var(--r);
+        overflow: hidden;
+        background: var(--block);
+        border: 1px solid #2c281e;
+        box-shadow: 0 30px 60px -30px rgba(23, 21, 15, 0.45);
+      }
+      .term-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+      }
+      .term-bar .dots {
+        display: flex;
+        gap: 6px;
+      }
+      .term-bar .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.18);
+      }
+      .term-bar .name {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: rgba(255, 255, 255, 0.45);
+      }
+      .copy {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        padding: 5px 12px;
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+      }
+      .copy:hover {
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+      }
+      .copy.is-done {
+        color: #8fe0a9;
+        border-color: rgba(143, 224, 169, 0.4);
+      }
+      .copy svg {
+        width: 13px;
+        height: 13px;
+      }
+      .term-body {
+        padding: 20px 22px 24px;
+        overflow-x: auto;
+      }
+      .term-body code {
+        font-family: var(--mono);
+        font-size: 13.5px;
+        line-height: 2.15;
+        color: #f2efe9;
+      }
+      .term-body .line {
+        display: block;
+        white-space: pre;
+      }
+      .term-body .p {
+        color: var(--accent);
+        margin-right: 10px;
+      }
+      .term-body .c {
+        color: rgba(255, 255, 255, 0.34);
+        margin-left: 18px;
+      }
 
-  <!-- ============ HERO ============ -->
-  <header class="hero">
-    <img src="assets/logo-192.png" alt="ZCodium" width="88" height="88" />
-    <h1>ZCodium</h1>
-    <p class="tagline">
-      ZCode 的社区衍生仓库。把<em>「只在发布包里存在」</em>的功能，一个个补回开源源码。
-    </p>
-    <div class="cta">
-      <a class="btn primary" href="https://github.com/axiom-desu/ZCodium">GitHub 仓库</a>
-      <a class="btn" href="#delta">能力差异</a>
-      <a class="btn" href="https://github.com/axiom-desu/ZCodium/blob/main/README.en.md">English</a>
-    </div>
-  </header>
+      .install-side {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 30px;
+        border-radius: var(--r);
+        background: var(--white);
+        border: 1px solid var(--line);
+      }
+      .install-side h3 {
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .install-side p {
+        color: var(--ink-2);
+        font-size: 14.5px;
+        line-height: 1.7;
+      }
+      .install-side .btn {
+        margin-top: 16px;
+      }
 
-  <!-- ============ QUOTE ============ -->
-  <div class="quote">
-    <p class="label">关于开源</p>
-    <blockquote>
-      「为什么我们这么坚持开源？因为这个愿景本身就要求开源。你没有这个愿景，你没法把人组织起来。比如说，智谱也开源，但是智谱的开源跟我们的开源不一样。智谱的开源有一种被迫的感觉，他们觉得这不是本意，但是对我们来讲，这就是我们的本意。」
-    </blockquote>
-    <cite>—— 梁文锋，深度求索 CEO</cite>
-    <p class="after">
-      我们深有同感。所以 ZCodium 补全功能的判断依据也只有一条：<b>「安装包里有没有」，不是「上游说了什么」。</b>
-    </p>
-  </div>
+      .fine {
+        margin-top: 34px;
+        font-size: 14px;
+        color: var(--ink-3);
+        line-height: 1.7;
+      }
+      .fine code {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--ink);
+        background: rgba(23, 21, 15, 0.06);
+        border: 1px solid var(--line);
+        padding: 2px 7px;
+        border-radius: 7px;
+      }
+      .fine a {
+        color: var(--ink);
+        border-bottom: 1px solid var(--line-strong);
+      }
+      .fine a:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
 
-  <!-- ============ STATS ============ -->
-  <div class="stats" aria-label="关键数字">
-    <div>
-      <div class="num">528</div>
-      <div class="cap">个 i18n 键缺口<br />按键定位功能差距</div>
-    </div>
-    <div>
-      <div class="num">258</div>
-      <div class="cap">个 bots 键待补<br />四套机器人通知链路</div>
-    </div>
-    <div>
-      <div class="num">0</div>
-      <div class="cap">次仓库快照上传<br />一次都不应该有</div>
-    </div>
-  </div>
+      /* ============================================================
+     我们做了什么 —— 只给入口，不贴内容
+     ============================================================ */
+      .links {
+        list-style: none;
+        margin-top: 50px;
+        border-top: 1px solid var(--line);
+      }
+      .link-row {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+        padding: 30px 8px;
+        border-bottom: 1px solid var(--line);
+        transition:
+          padding-left 0.3s var(--ease),
+          background 0.3s ease;
+      }
+      .link-row:hover {
+        padding-left: 20px;
+        background: rgba(255, 255, 255, 0.55);
+      }
+      .link-row .num {
+        flex: none;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-3);
+        padding-top: 4px;
+      }
+      .link-main {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+      .link-row:hover .link-title {
+        color: var(--accent);
+      }
+      .link-title {
+        font-size: clamp(19px, 2.1vw, 25px);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        transition: color 0.25s ease;
+      }
+      .link-desc {
+        font-size: 14.5px;
+        color: var(--ink-2);
+        line-height: 1.65;
+      }
+      .link-arrow {
+        flex: none;
+        margin-left: auto;
+        width: 18px;
+        height: 18px;
+        color: var(--ink-3);
+        transition:
+          transform 0.3s var(--ease),
+          color 0.25s ease;
+      }
+      .link-row:hover .link-arrow {
+        transform: translateX(5px);
+        color: var(--accent);
+      }
 
-  <!-- ============ WHAT ============ -->
-  <section id="what">
-    <h2>这个仓库是什么</h2>
-    <p>
-      上游在 2026-09 被迫将 ZCode 客户端开源，但放出的源码与他们实际发布的安装包并不等价：<b>发布包里有一批开源代码中没有的功能。</b>
-    </p>
-    <p>
-      ZCodium 的做法是跟进上游官方仓库，同时把这些「只在发布包里存在」的功能以各种方式补全——补齐缺失的内置插件与技能、比对 i18n 键定位功能缺口、按协议与设置 schema 对齐交互链路——让自建的源码能够构建出与官方包能力对等的产物。
-    </p>
-    <p>
-      所有补全都记录在 <b>.agents/specs/</b> 下的 spec 中，包含范围、状态所有者、接口契约与验收场景。
-    </p>
+      /* ============================================================
+     收尾 CTA
+     ============================================================ */
+      .closing {
+        position: relative;
+        padding: 150px 0;
+        text-align: center;
+        background: var(--block);
+        color: var(--paper);
+        overflow: hidden;
+      }
+      .closing::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 0;
+        width: 780px;
+        height: 480px;
+        transform: translateX(-50%);
+        background: radial-gradient(closest-side, rgba(225, 75, 30, 0.38), transparent 72%);
+        filter: blur(30px);
+        pointer-events: none;
+      }
+      .closing .container {
+        position: relative;
+        z-index: 1;
+      }
+      .closing h2 {
+        font-size: clamp(32px, 5vw, 62px);
+        font-weight: 600;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+        text-wrap: balance;
+      }
+      .closing p {
+        max-width: 600px;
+        margin: 24px auto 0;
+        color: rgba(244, 242, 238, 0.66);
+        font-size: 16.5px;
+        line-height: 1.75;
+      }
+      .closing .btn-ghost {
+        border-color: rgba(244, 242, 238, 0.3);
+        color: var(--paper);
+      }
+      .closing .btn-ghost:hover {
+        background: rgba(244, 242, 238, 0.1);
+        border-color: var(--paper);
+      }
 
-    <details class="shh">
-      <summary class="toggle">[嘘... 别让用户发现我们在干什么]</summary>
-      <div class="secret">
-        官方 3.14.0 之前的版本，会在每次提问前打包<b>整个 workspace（含 .git）</b>，加密上传至对象存储——私钥在服务端手里。该行为已从上游移除，本仓库同样不实现，只在 <b>repo-snapshot-parody</b> 留了一份 localhost 复现用于审计对照：密钥本地生成、默认拒绝非回环目标。
+      /* ============================================================
+     Footer
+     ============================================================ */
+      footer {
+        padding: 52px 0 64px;
+        border-top: 1px solid var(--line);
+      }
+      .foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .foot-brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+      }
+      .foot-brand img {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+      }
+      .foot-brand b {
+        font-size: 14.5px;
+        font-weight: 600;
+      }
+      .foot-brand span {
+        display: block;
+        font-size: 12px;
+        color: var(--ink-3);
+      }
+      .foot-links {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+      }
+      .foot-links a {
+        font-size: 13.5px;
+        color: var(--ink-2);
+        transition: color 0.2s ease;
+      }
+      .foot-links a:hover {
+        color: var(--accent);
+      }
+      .foot-fine {
+        margin-top: 34px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+        font-size: 12.5px;
+        color: var(--ink-3);
+        line-height: 1.8;
+      }
+      .foot-fine a {
+        border-bottom: 1px solid var(--line-strong);
+      }
+      .foot-fine a:hover {
+        color: var(--accent);
+      }
+
+      /* ============================================================
+     进场动画
+     ============================================================ */
+      .js .reveal {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+      .js .reveal.in {
+        opacity: 1;
+        transform: none;
+        transition:
+          opacity 0.9s var(--ease) var(--d, 0s),
+          transform 0.9s var(--ease) var(--d, 0s);
+      }
+
+      /* ============================================================
+     响应式
+     ============================================================ */
+      @media (max-width: 900px) {
+        .install-grid {
+          grid-template-columns: 1fr;
+        }
+        .brand span {
+          display: none;
+        }
+      }
+      @media (max-width: 680px) {
+        .section {
+          padding: 88px 0;
+        }
+        .hero {
+          padding: 68px 0 72px;
+        }
+        .nav {
+          display: none;
+        }
+        .link-row {
+          gap: 16px;
+          padding: 26px 4px;
+        }
+        .link-row .num {
+          display: none;
+        }
+        .closing {
+          padding: 110px 0;
+        }
+        .foot {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .js .reveal {
+          opacity: 1;
+          transform: none;
+        }
+        .marquee-track {
+          animation: none;
+        }
+        .link-row,
+        .link-arrow,
+        .btn {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body id="top">
+    <a class="skip" href="#main">跳到主要内容</a>
+
+    <!-- ===================== 顶栏 ===================== -->
+    <header class="site-head" id="siteHead">
+      <div class="container head-inner">
+        <a class="brand" href="#top" aria-label="ZCodium 首页">
+          <img src="assets/logo-256.png" alt="ZCodium" width="24" height="24" />
+          <b>ZCodium</b>
+          <span>ZCode 的社区衍生仓库</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="#install">安装</a>
+          <a href="#work">我们做了什么</a>
+          <a href="https://github.com/axiom-desu/ZCodium" target="_blank" rel="noopener">GitHub</a>
+        </nav>
+        <a
+          class="btn btn-primary btn-sm"
+          href="https://github.com/axiom-desu/ZCodium"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            />
+          </svg>
+          GitHub
+        </a>
       </div>
-    </details>
-  </section>
+    </header>
 
-  <!-- ============ DELTA ============ -->
-  <section id="delta">
-    <h2>与官方包的能力差异 · 截至 3.14.1</h2>
+    <main id="main">
+      <!-- ===================== Hero：梁文锋那句话 ===================== -->
+      <section class="hero">
+        <div class="container">
+          <span class="label reveal">ZCodium</span>
+          <h1 class="reveal" style="--d: 0.06s">为什么我们这么坚持开源？</h1>
+          <blockquote class="reveal" style="--d: 0.12s">
+            因为这个愿景本身就要求开源。你没有这个愿景，你没法把人组织起来。比如说，智谱也开源，但是智谱的开源跟我们的开源不一样。<strong
+              ><em>智谱的开源有一种被迫的感觉</em></strong
+            >，他们觉得这不是本意，但是对我们来讲，这就是我们的本意。
+          </blockquote>
+          <cite class="reveal" style="--d: 0.18s">梁文锋 · 深度求索 CEO</cite>
 
-    <h3>已补全</h3>
-    <ul>
-      <li><b>内置插件与技能</b>——安装包只分发源码资源完整且明确注册的插件，范围见对应 spec。</li>
-      <li><b>Computer Use 的模型可见面</b>——<span style="font-family:var(--mono);font-size:13px">scripts/computer-use-client.mjs</span>、技能与文档。</li>
-    </ul>
+          <p class="hero-tag reveal" style="--d: 0.26s">
+            上游把一批功能留在了安装包里，我们把它们<b>补回源码</b> —— 不等待、不申请、不保留。
+          </p>
+          <div class="actions reveal" style="--d: 0.32s">
+            <a class="btn btn-primary" href="#install">开始安装</a>
+            <a
+              class="btn btn-ghost"
+              href="https://github.com/axiom-desu/ZCodium"
+              target="_blank"
+              rel="noopener"
+            >
+              在 GitHub 上查看
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 8h10M9 4l4 4-4 4" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </section>
 
-    <h3>尚未补全（按 i18n 键缺口定位）</h3>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr><th>领域</th><th>缺口</th><th>说明</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>bots</td><td>258 键</td><td>Telegram / 飞书 / Lark / 企业微信 机器人通知</td></tr>
-          <tr><td>webRemoteControl</td><td>104 键</td><td>手机远控桌面</td></tr>
-          <tr><td>manualClaimPlan</td><td>53 键</td><td>权益领取与验证码流程</td></tr>
-          <tr><td>mode</td><td>38 键</td><td>会话模式扩展</td></tr>
-          <tr><td>settings</td><td>24 键</td><td>Claude 模型槽位映射、多协议端点模板</td></tr>
-          <tr><td>其他</td><td>51 键</td><td>server、appHeader、rewards、onboarding 等</td></tr>
-        </tbody>
-        <tfoot>
-          <tr><td colspan="3"><b>528</b> 个键。安装包里有的，开源源码里没有——这就是差距。</td></tr>
-        </tfoot>
-      </table>
-    </div>
+      <!-- ===================== 跑马灯 ===================== -->
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee-track">
+          <p>
+            跟进上游 <span>·</span> 补全缺口 <span>·</span> 有据可查 <span>·</span> 不等待
+            <span>·</span> 不申请 <span>·</span> 不保留 <span>·</span> 源码与安装包对等
+            <span>·</span>
+          </p>
+          <p>
+            跟进上游 <span>·</span> 补全缺口 <span>·</span> 有据可查 <span>·</span> 不等待
+            <span>·</span> 不申请 <span>·</span> 不保留 <span>·</span> 源码与安装包对等
+            <span>·</span>
+          </p>
+        </div>
+      </div>
 
-    <h3>有意不补全</h3>
-    <ul>
-      <li><b>仓库快照上传。</b>打包 workspace、加密上传、服务端持钥——不实现，只留审计复现。</li>
-      <li><b>官方遥测采集与上报。</b>保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。</li>
-    </ul>
-  </section>
+      <!-- ===================== 安装 ===================== -->
+      <section class="section" id="install">
+        <div class="container">
+          <p class="label reveal">Install</p>
+          <h2 class="reveal" style="--d: 0.06s">怎么装</h2>
+          <p class="lede reveal" style="--d: 0.12s">
+            准备 Node.js <b>24.14.0</b> 与 pnpm <b>10.33.2</b>，在仓库根目录执行即可。
+          </p>
 
-  <!-- ============ ROADMAP ============ -->
-  <section id="roadmap">
-    <h2>已定的补全路线</h2>
-    <ul>
-      <li><b>bots 走 AstrBot 插件，不逐个平台重写。</b>四套平台适配交给开源的多平台机器人框架，ZCodium 只维护桥接契约——<span style="font-family:var(--mono);font-size:13px">astrbot-zcodium-plugin</span>。</li>
-      <li><b>Computer Use 通用化。</b>按 Actuator 接口分层实现，broker / bridge 基础设施已齐备且本来就是通用的。</li>
-      <li><b>image-search 默认指向本地。</b><span style="font-family:var(--mono);font-size:13px">http://127.0.0.1:8787</span>——仓库内暂无本地搜图后端，需要自行部署。</li>
-    </ul>
-  </section>
+          <div class="install-grid">
+            <div class="term reveal" style="--d: 0.16s">
+              <div class="term-bar">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="name">terminal</span>
+                <button
+                  class="copy"
+                  type="button"
+                  data-copy="pnpm bootstrap&#10;pnpm dev:desktop&#10;pnpm dev:web"
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    aria-hidden="true"
+                  >
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" />
+                    <path
+                      d="M10.5 5.5v-2A1.5 1.5 0 0 0 9 2H4a2 2 0 0 0-2 2v5a1.5 1.5 0 0 0 1.5 1.5h2"
+                    />
+                  </svg>
+                  <span class="copy-text">复制</span>
+                </button>
+              </div>
+              <div class="term-body">
+                <code>
+                  <span class="line"
+                    ><span class="p">$</span>pnpm bootstrap<span class="c"
+                      ># 安装依赖，准备运行资源</span
+                    ></span
+                  >
+                  <span class="line"
+                    ><span class="p">$</span>pnpm dev:desktop<span class="c"
+                      ># 启动桌面应用</span
+                    ></span
+                  >
+                  <span class="line"
+                    ><span class="p">$</span>pnpm dev:web<span class="c"
+                      ># 启动 Web 工作台</span
+                    ></span
+                  >
+                </code>
+              </div>
+            </div>
 
-  <!-- ============ RULE ============ -->
-  <section id="rule">
-    <h2>与上游的关系</h2>
-    <p>
-      本仓库跟踪上游 <b>zai-org/ZCode</b>。上游更新时先合并，再重新核对能力差异；补全内容按功能拆成独立提交，方便逐项审查与取舍。
-    </p>
-    <p style="color:var(--text);font-size:17px;line-height:1.9">
-      既定规则：上游发布新功能但不随开源仓库放出对应源码时，本仓库<span class="hl">自行补齐等价实现并开源——不等待、不申请、不保留。</span>
-    </p>
-  </section>
+            <div class="install-side reveal" style="--d: 0.22s">
+              <h3>不想自己构建？</h3>
+              <p>
+                直接在 GitHub Releases 下载对应平台的桌面安装包：macOS、Windows 与
+                Linux。安装包未签名，首次打开可能需要在系统中放行。
+              </p>
+              <a
+                class="btn btn-dark"
+                href="https://github.com/axiom-desu/ZCodium/releases"
+                target="_blank"
+                rel="noopener"
+              >
+                前往 Releases
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </div>
+          </div>
 
-  <!-- ============ ENTRY ============ -->
-  <section id="entry">
-    <h2>入口</h2>
-    <div class="code"><b>pnpm dev:desktop</b>            <span style="color:var(--faint)"># Electron 桌面应用</span>
-<b>pnpm dev:web</b>                 <span style="color:var(--faint)"># Web 客户端 + 后端</span>
-<b>pnpm --filter @zcode/cli dev</b>  <span style="color:var(--faint)"># Agent CLI 源码</span></div>
-    <p style="margin-top:18px">
-      Node <b>24.14.0</b> / pnpm <b>10.33.2</b>，版本以 mise.toml 为准；初始化执行 <b>pnpm bootstrap</b>。
-    </p>
-  </section>
+          <p class="fine reveal" style="--d: 0.26s">
+            命令行版：构建发行包后，<code>zcode</code> 进入终端界面，<code>zcode --web</code> 启动
+            Web。完整步骤见
+            <a
+              href="https://github.com/axiom-desu/ZCodium/blob/main/README.md#初始化"
+              target="_blank"
+              rel="noopener"
+              >README 的初始化一章</a
+            >。
+          </p>
+        </div>
+      </section>
 
-  <!-- ============ FOOTER ============ -->
-  <footer>
-    <span>ZCodium · 跟踪上游 zai-org/ZCode</span>
-    <nav class="links">
-      <a href="https://github.com/axiom-desu/ZCodium">GitHub</a>
-      <a href="https://github.com/axiom-desu/ZCodium/blob/main/README.md">README</a>
-      <a href="https://github.com/axiom-desu/ZCodium/blob/main/NOTICE.md">NOTICE</a>
-      <a href="https://github.com/axiom-desu/ZCodium/blob/main/LICENSE">LICENSE</a>
-    </nav>
-  </footer>
+      <!-- ===================== 我们做了什么：只给链接 ===================== -->
+      <section class="section" id="work">
+        <div class="container">
+          <p class="label reveal">What we did</p>
+          <h2 class="reveal" style="--d: 0.06s">我们做了什么</h2>
+          <p class="lede reveal" style="--d: 0.12s">
+            补了什么、还差什么、为什么这么补 —— 全部写在仓库里。这里只留入口，正文请看链接。
+          </p>
 
-</div>
+          <ul class="links">
+            <li class="reveal" style="--d: 0.14s">
+              <a
+                class="link-row"
+                href="https://github.com/axiom-desu/ZCodium/blob/main/README.md#与官方包的能力差异"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="num">01</span>
+                <span class="link-main">
+                  <span class="link-title">与官方包的能力差异</span>
+                  <span class="link-desc">已补全、尚未补全、有意不补全的完整清单。</span>
+                </span>
+                <svg
+                  class="link-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </li>
+            <li class="reveal" style="--d: 0.18s">
+              <a
+                class="link-row"
+                href="https://github.com/axiom-desu/ZCodium/blob/main/README.md#已定的补全路线"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="num">02</span>
+                <span class="link-main">
+                  <span class="link-title">已定的补全路线</span>
+                  <span class="link-desc"
+                    >bot 通知、Computer Use、本地搜图 —— 下一步做什么，怎么做。</span
+                  >
+                </span>
+                <svg
+                  class="link-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </li>
+            <li class="reveal" style="--d: 0.22s">
+              <a
+                class="link-row"
+                href="https://github.com/axiom-desu/ZCodium/tree/main/.agents/specs"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="num">03</span>
+                <span class="link-main">
+                  <span class="link-title">补全 spec</span>
+                  <span class="link-desc">每个补全项的范围、状态所有者、接口契约与验收场景。</span>
+                </span>
+                <svg
+                  class="link-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </li>
+            <li class="reveal" style="--d: 0.26s">
+              <a
+                class="link-row"
+                href="https://github.com/axiom-desu/ZCodium/blob/main/README.md#与上游的关系"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="num">04</span>
+                <span class="link-main">
+                  <span class="link-title">与上游的关系</span>
+                  <span class="link-desc">如何跟进上游、补全内容如何按功能拆分提交。</span>
+                </span>
+                <svg
+                  class="link-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </li>
+            <li class="reveal" style="--d: 0.3s">
+              <a
+                class="link-row"
+                href="https://github.com/axiom-desu/ZCodium/blob/main/DIAGNOSTICS.md"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="num">05</span>
+                <span class="link-main">
+                  <span class="link-title">诊断与遥测</span>
+                  <span class="link-desc">保留了什么、去掉了什么、为什么。</span>
+                </span>
+                <svg
+                  class="link-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </li>
+            <li class="reveal" style="--d: 0.34s">
+              <a
+                class="link-row"
+                href="https://github.com/axiom-desu/ZCodium/blob/main/README.en.md"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="num">06</span>
+                <span class="link-main">
+                  <span class="link-title">English README</span>
+                  <span class="link-desc">Read the same story in English.</span>
+                </span>
+                <svg
+                  class="link-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10M9 4l4 4-4 4" />
+                </svg>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </section>
 
-</body>
+      <!-- ===================== 收尾 ===================== -->
+      <section class="closing">
+        <div class="container">
+          <h2 class="reveal">让源码与安装包对等。</h2>
+          <p class="reveal" style="--d: 0.08s">
+            上游发布新功能却不放出对应源码时，我们补齐等价实现并开源 ——
+            判断依据是安装包里有没有，不是上游说了什么。
+          </p>
+          <div class="actions reveal" style="--d: 0.16s">
+            <a
+              class="btn btn-primary"
+              href="https://github.com/axiom-desu/ZCodium"
+              target="_blank"
+              rel="noopener"
+            >
+              在 GitHub 上查看
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 8h10M9 4l4 4-4 4" />
+              </svg>
+            </a>
+            <a
+              class="btn btn-ghost"
+              href="https://github.com/axiom-desu/ZCodium/blob/main/README.md"
+              target="_blank"
+              rel="noopener"
+              >阅读 README</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===================== Footer ===================== -->
+    <footer>
+      <div class="container">
+        <div class="foot">
+          <div class="foot-brand">
+            <img src="assets/logo-256.png" alt="" width="22" height="22" />
+            <div>
+              <b>ZCodium</b>
+              <span>ZCode 的社区衍生仓库</span>
+            </div>
+          </div>
+          <nav class="foot-links" aria-label="页脚导航">
+            <a href="https://github.com/axiom-desu/ZCodium" target="_blank" rel="noopener"
+              >GitHub</a
+            >
+            <a
+              href="https://github.com/axiom-desu/ZCodium/blob/main/README.md"
+              target="_blank"
+              rel="noopener"
+              >README</a
+            >
+            <a
+              href="https://github.com/axiom-desu/ZCodium/blob/main/README.en.md"
+              target="_blank"
+              rel="noopener"
+              >English</a
+            >
+            <a
+              href="https://github.com/axiom-desu/ZCodium/blob/main/NOTICE.md"
+              target="_blank"
+              rel="noopener"
+              >NOTICE</a
+            >
+            <a
+              href="https://github.com/axiom-desu/ZCodium/blob/main/LICENSE"
+              target="_blank"
+              rel="noopener"
+              >LICENSE</a
+            >
+          </nav>
+        </div>
+        <p class="foot-fine">
+          基于 Apache-2.0 许可。ZCodium 由社区维护，与上游官方无隶属关系；图形与商标归各自所有者。
+          功能补全记录见
+          <a
+            href="https://github.com/axiom-desu/ZCodium/tree/main/.agents/specs"
+            target="_blank"
+            rel="noopener"
+            >.agents/specs</a
+          >。
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        // 顶栏：滚动后出现分隔线
+        var head = document.getElementById("siteHead");
+        var onScroll = function () {
+          head.classList.toggle("is-scrolled", window.scrollY > 8);
+        };
+        onScroll();
+        window.addEventListener("scroll", onScroll, { passive: true });
+
+        // 进场动画
+        var reveals = document.querySelectorAll(".reveal");
+        if (!("IntersectionObserver" in window)) {
+          reveals.forEach(function (el) {
+            el.classList.add("in");
+          });
+        } else {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add("in");
+                  io.unobserve(entry.target);
+                }
+              });
+            },
+            { rootMargin: "0px 0px -12% 0px", threshold: 0.1 },
+          );
+          reveals.forEach(function (el) {
+            io.observe(el);
+          });
+        }
+
+        // 复制命令
+        document.querySelectorAll(".copy").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var text = btn.getAttribute("data-copy") || "";
+            var done = function () {
+              var old = btn.querySelector(".copy-text").textContent;
+              btn.classList.add("is-done");
+              btn.querySelector(".copy-text").textContent = "已复制";
+              setTimeout(function () {
+                btn.classList.remove("is-done");
+                btn.querySelector(".copy-text").textContent = old;
+              }, 1600);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(done, done);
+            } else {
+              var ta = document.createElement("textarea");
+              ta.value = text;
+              ta.style.position = "fixed";
+              ta.style.opacity = "0";
+              document.body.appendChild(ta);
+              ta.select();
+              try {
+                document.execCommand("copy");
+              } catch (e) {}
+              document.body.removeChild(ta);
+              done();
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
 </html>
