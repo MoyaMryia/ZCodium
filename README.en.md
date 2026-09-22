@@ -178,6 +178,14 @@ Runtime variables can be set explicitly in the environment of the startup comman
 
 ## Packaging
 
+### Automated builds and releases
+
+[Desktop CI](.github/workflows/desktop.yml) checks pull requests, pushes to main, and manual runs, then builds Linux x64 and Windows x64 on native runners. Linux artifacts include AppImage, deb, rpm, and pkg.tar.zst; Windows produces an exe. Download them from Actions within 14 days.
+
+Pushing `v<package.json.version>` creates a **draft Release** with both platforms and `SHA256SUMS` after all checks and builds pass. Prerelease versions such as `-rc.1` are accepted; build metadata is not. Maintainers test and publish the draft manually. Reruns can replace draft assets but cannot overwrite a published release. Manual workflow runs only produce artifacts.
+
+The workflow uses the built-in `GITHUB_TOKEN` and needs no additional service credentials or signing certificates. Installers are unsigned. In-app updates and standalone remote runtime assets are outside this workflow. See the [CI/CD spec](.agents/specs/desktop-ci-release.md).
+
 See [third-party/README.md](third-party/README.md) for notice generation, distribution checks, and where the notices are included in each distribution.
 
 ### Desktop
@@ -259,7 +267,7 @@ Added by ZCodium:
 | Path                                         | Responsibility                                                          |
 | -------------------------------------------- | ----------------------------------------------------------------------- |
 | `.agents/specs/`                             | Backfill specs: scope, state ownership, interface contracts, acceptance |
-| `apps/zcode-cli/packages/*-plugin`           | Built-in plugins (documents, pdf, cua, …)                               |
+| `apps/zcode-cli/packages/*-plugin`           | Built-in plugin and skill sources                                     |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | Localhost reproduction of the repo snapshot upload, for audit only      |
 
 ## Project Notice

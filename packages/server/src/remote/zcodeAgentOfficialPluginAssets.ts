@@ -9,10 +9,7 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
  * 契约见 .agents/specs/builtin-plugin-parity.md。
  */
 const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
-  "documents-plugin": ["agents/visual-judge.md", "skills/docx/SKILL.md"],
-  "pdf-plugin": ["agents/visual-judge.md", "skills/pdf/SKILL.md"],
   "presentations-plugin": ["agents/visual-judge.md", "skills/pptx/SKILL.md"],
-  "spreadsheets-plugin": ["agents/visual-judge.md", "skills/xlsx/SKILL.md"],
   "image-search-plugin": [".mcp.json"],
   "plugin-creator-plugin": [
     "skills/plugin-creator/SKILL.md",
@@ -40,10 +37,8 @@ const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_SEED_PATHS = {
 >;
 
 const REMOTE_AGENT_OFFICIAL_CONTENT_PLUGIN_PACKAGE_NAMES = [
-  "documents-plugin",
-  "pdf-plugin",
+  // 校验范围必须与发行清单一致，避免远端要求未发行的插件资源。
   "presentations-plugin",
-  "spreadsheets-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",

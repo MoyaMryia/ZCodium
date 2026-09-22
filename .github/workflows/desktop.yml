@@ -1,0 +1,121 @@
+name: Desktop CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  HUSKY: "0"
+  ZCODE_ENV: production
+  ZCODE_SKIP_REMOTE_ASSETS: "1"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Validate release version
+        run: node scripts/ci/desktop-release.mjs check-version
+      - uses: ./.github/actions/setup-workspace
+        id: setup
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm lint
+      - name: Architecture
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: pnpm architecture:check
+      - name: Release tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: node --test --test-isolation=none scripts/ci/*.test.mjs
+
+  build:
+    name: Build (${{ matrix.platform }} x64)
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+          - platform: win
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      ZCODE_TARGET_OS: ${{ matrix.platform }}
+      ZCODE_TARGET_ARCH: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm libarchive-tools zstd
+      - uses: ./.github/actions/setup-workspace
+      - name: Prepare desktop runtime
+        run: pnpm prepare:desktop-runtime
+      - name: Build workspace and desktop
+        run: pnpm build:bootstrap
+      - name: Package and verify desktop
+        run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch x64 --skip-prepare --skip-build
+      - name: Collect installers
+        run: node scripts/ci/desktop-release.mjs collect "$ZCODE_TARGET_OS"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: desktop-${{ matrix.platform }}-x64
+          path: dist/release-assets/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  release:
+    name: Draft release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [checks, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+        with:
+          install-dependencies: "false"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: desktop-linux-x64
+          path: dist/release-assets
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: desktop-win-x64
+          path: dist/release-assets
+      - name: Verify assets and create or update draft
+        run: node scripts/ci/desktop-release.mjs publish
+        env:
+          GH_TOKEN: ${{ github.token }}

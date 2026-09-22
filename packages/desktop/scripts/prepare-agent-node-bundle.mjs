@@ -91,10 +91,8 @@ const browserUseRequiredRuntimePaths = [
 // 纯内容内置插件：无 dist、无 workspace 依赖、无 runtime 构建。与
 // scripts/prepare-prebuilds.mjs 的 builtinContentPluginPackages 同源同序。
 const builtinContentPluginPackages = [
-  "documents-plugin",
-  "pdf-plugin",
+  // 清单只包含满足 seed 资源契约的插件，避免打包阶段要求不存在的资源。
   "presentations-plugin",
-  "spreadsheets-plugin",
   "skill-creator-plugin",
   "plugin-creator-plugin",
   "image-search-plugin",

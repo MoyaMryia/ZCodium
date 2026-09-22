@@ -446,6 +446,8 @@ importers:
         specifier: ^7.2.6
         version: 7.3.3(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.9.0)
 
+  apps/zcode-cli/packages/documents-plugin: {}
+
   apps/zcode-cli/packages/dynamic-workflow:
     dependencies:
       typescript:
@@ -471,6 +473,8 @@ importers:
       '@zcode/contracts':
         specifier: workspace:*
         version: link:../contracts
+
+  apps/zcode-cli/packages/image-search-plugin: {}
 
   apps/zcode-cli/packages/node-repl-host:
     dependencies:
@@ -506,11 +510,19 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  apps/zcode-cli/packages/plugin-creator-plugin: {}
+
+  apps/zcode-cli/packages/presentations-plugin: {}
+
+  apps/zcode-cli/packages/restore-legacy-sessions-plugin: {}
+
   apps/zcode-cli/packages/shared-types:
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
         version: 24.12.2
+
+  apps/zcode-cli/packages/skill-creator-plugin: {}
 
   apps/zcode-cli/packages/swift-bridge:
     dependencies:
@@ -592,7 +604,23 @@ importers:
         specifier: ^4.20.0
         version: 4.21.0
 
+  apps/zcode-cli/packages/zcode-cua-plugin: {}
+
+  apps/zcode-cli/packages/zcode-guide-plugin: {}
+
   apps/zcode-cli/tools/prompt-trajectory:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.2
+      tsx:
+        specifier: ^4.20.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+
+  apps/zcode-cli/tools/repo-snapshot-parody:
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
