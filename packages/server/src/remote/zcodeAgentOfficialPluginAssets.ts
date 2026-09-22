@@ -45,6 +45,20 @@ const DOCUMENTS_PLUGIN_SEED_PATHS = [
   "skills/docx/references/toc.md",
   "skills/docx/env_setup/setup.md",
   "skills/docx/env_setup/env_check.sh",
+  "skills/docx/scenes/academic.md",
+  "skills/docx/scenes/contract.md",
+  "skills/docx/scenes/copywriting.md",
+  "skills/docx/scenes/exam.md",
+  "skills/docx/scenes/official-doc.md",
+  "skills/docx/scenes/report.md",
+  "skills/docx/scenes/resume.md",
+  "skills/docx/references/chart-templates.md",
+  "skills/docx/references/common-rules.md",
+  "skills/docx/references/decorations.md",
+  "skills/docx/references/design-system.md",
+  "skills/docx/references/faq.md",
+  "skills/docx/references/math-formulas.md",
+  "skills/docx/references/xmleditor-api.md",
 ] as const;
 
 const PDF_PLUGIN_SEED_PATHS = [

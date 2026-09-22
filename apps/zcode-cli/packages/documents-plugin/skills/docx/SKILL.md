@@ -14,6 +14,8 @@ This skill edits and reviews `.docx` files that already exist as OOXML packages:
 
 It does **not** build a document from scratch (there is no generator here), does not validate against the OOXML schemas (`validate()` is a presence check), does not render or convert anything (no LibreOffice or PDF pipeline ships in this plugin), and does not auto-repair (`--fix` is accepted and fixes nothing).
 
+When the document has a recognisable type, read its brief under `scenes/` before touching the package: `academic.md`, `contract.md`, `copywriting.md`, `exam.md`, `official-doc.md`, `report.md`, `resume.md`. Each one fixes the page geometry, the heading and numbering conventions and the postcheck rules that type of document trips — a contract's clause numbering and continuous page numbering, a Chinese official document's fonts and margins, a resume's single-page budget. They are guidance, not API manuals; the calls are in `routes/`. The shared rules those briefs assume live under `references/`: `design-system.md` (type scale, spacing, colour, component specs), `common-rules.md` (naming, structure, maintainability), `math-formulas.md`, `chart-templates.md`, `decorations.md` and `faq.md`.
+
 ## 2. Working shape
 
 A `.docx` is a ZIP. The Python API works on an **unpacked directory**, never on the archive:

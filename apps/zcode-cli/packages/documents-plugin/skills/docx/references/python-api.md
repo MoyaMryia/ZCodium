@@ -191,60 +191,10 @@ Existing attributes are never overwritten, so a fragment that already carries it
 ids keeps them. The three `_ensure_*_namespace` helpers declare `w14`, `w16cex` and
 `w16du` on the part's root element when an injected attribute needs them.
 
-## 5. `XMLEditor` — `scripts/utilities.py`
+See [`xmleditor-api.md`](./xmleditor-api.md) for the `XMLEditor`
+base class in `scripts/utilities.py`.
 
-```python
-class XMLEditor:
-    def __init__(self, xml_path)
-    def get_node(
-        self,
-        tag: str,
-        attrs: Optional[dict[str, str]] = None,
-        line_number: Optional[Union[int, range]] = None,
-        contains: Optional[str] = None,
-    )
-    def replace_node(self, elem, new_content)
-    def insert_after(self, elem, xml_content)
-    def insert_before(self, elem, xml_content)
-    def append_to(self, elem, xml_content)
-    def get_next_rid(self)
-    def save(self)
-```
-
-`__init__` parses the file through a line-tracking SAX parser
-(`_create_line_tracking_parser`, module-private) that stamps every element with a
-`parse_position` of `(line, column)`, and detects the encoding from the first 200
-bytes of the header — `"ascii"` or `"utf-8"`, preserved by `save()`. Raises
-`ValueError: XML file not found: <path>` when the file is absent.
-
-`get_node` requires exactly one match and raises `ValueError` on zero or many, with a
-hint naming the filters used:
-
-- `tag` — the literal qualified name, e.g. `"w:del"`, matched via
-  `getElementsByTagName`;
-- `attrs` — attribute equalities, all of which must hold; values compare as strings;
-- `line_number` — an `int` or a `range`, 1-indexed against the file as parsed
-  (`range` is inclusive of `start`, exclusive of `stop`);
-- `contains` — a substring of the element's recursively gathered text,
-  `html.unescape`d before comparison so `"&#8220;x"` and `"“x"` match alike;
-  whitespace-only text nodes are skipped.
-
-`replace_node`, `insert_after`, `insert_before` and `append_to` all take a DOM
-element plus an XML string, parse the fragment inside a wrapper carrying the part's
-own namespace declarations, import the nodes, and return them. A fragment with no
-element raises `AssertionError: Fragment must contain at least one element` — text
-alone is not accepted.
-
-`get_next_rid` scans a `.rels` part for the highest `rIdN` and returns the next free
-one as `"rIdN"`.
-
-`save` serialises the DOM and writes it back to `xml_path` in the detected encoding.
-
-`_get_element_text` and `_parse_fragment` are private. `set_content_handler` is not
-a method of this class at all: it is a closure inside `_create_line_tracking_parser`
-that is assigned onto the parser instance.
-
-## 6. `TrackedChangeMixin` — `scripts/tracked_changes.py`
+## 5. `TrackedChangeMixin` — `scripts/tracked_changes.py`
 
 ```python
 class TrackedChangeMixin:
@@ -280,7 +230,7 @@ The mixin expects its host editor to provide `dom`, `rsid`,
   returns the `w:p`. Raises `ValueError` for any other tag, for a `w:r` that already
   contains `w:delText`, and for a `w:p` that already contains `w:ins` or `w:del`.
 
-## 7. `CommentMixin` — `scripts/comments.py`
+## 6. `CommentMixin` — `scripts/comments.py`
 
 ```python
 class CommentMixin:
@@ -306,7 +256,7 @@ reading: it inserts new elements at their schema-valid position through
 `_insert_settings_element` rather than appending, so the result stays valid whatever
 optional settings the source file carries.
 
-## 8. Module-level helpers — `packing.py` and `identifiers.py`
+## 7. Module-level helpers — `packing.py` and `identifiers.py`
 
 Private, and not a stable API — read them to understand behaviour.
 
@@ -342,7 +292,7 @@ spec requires `paraId < 0x80000000` and `durableId < 0x7FFFFFFF`.
 extension elements are skipped when scanning. The caller must ensure the element is
 not already present.
 
-## 9. The three command-line scripts
+## 8. The three command-line scripts
 
 ### `postcheck.py`
 
@@ -430,7 +380,7 @@ describes what each step does.
 `routes/format.md`, and `BARE_PAGE`, `ARABIC`, `ROMAN`, `EMPTY_PGNUM` and
 `ROMAN_FORMATS` are the patterns and switches that mapping feeds.
 
-## 10. What this API does not do
+## 9. What this API does not do
 
 - **No document generation.** No method here creates paragraphs from content. The
   package and the session come from `routes/create.md`; the words come from
