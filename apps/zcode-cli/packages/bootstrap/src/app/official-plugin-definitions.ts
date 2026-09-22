@@ -94,6 +94,11 @@ export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = [
   "skills/pdf/scripts/pdf_qa_text.py",
   "skills/pdf/scripts/pdf_qa_checks.py",
   "skills/pdf/scripts/pdf_qa_colors.py",
+  "skills/pdf/scripts/html2pdf.py",
+  "skills/pdf/scripts/html2pdf_render.py",
+  "skills/pdf/scripts/cover_render.py",
+  "skills/pdf/scripts/toc_validate.py",
+  "skills/pdf/scripts/toc_validate_document.py",
 ] as const;
 
 export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = [

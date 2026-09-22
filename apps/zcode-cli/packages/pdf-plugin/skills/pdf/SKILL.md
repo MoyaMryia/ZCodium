@@ -13,9 +13,9 @@ Two jobs, one artifact. The first is **producing** a PDF whose content is _types
 
 It does **not**:
 
-- convert between formats — no `.docx` → PDF exporter, no PDF → text extraction pipeline, no HTML or poster renderer;
-- redact or do page surgery — no script here removes content, splits or merges pages, or strips annotations; form filling adds fields and annotations, it does not rewrite page content;
-- ship a design engine, a template library or a LaTeX renderer of its own. The typesetting path runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it. The scripts under `skills/pdf/scripts/` are thin Python wrappers: the rendering and form-filling ones over `pdf2image` and `pypdf` (`pdf2image` in turn shells out to poppler), and the quality gate over the standard library plus the poppler command-line tools.
+- convert between Office formats — no `.docx` → PDF exporter, no PDF → text extraction pipeline, no poster renderer. The one exception is HTML → PDF (§6.6): a plain HTML page can be typeset through the local LibreOffice, because that path shares nothing with the LaTeX pipeline and needs no extra toolchain beyond what §3 already requires;
+- redact or do page surgery — no script here removes content, splits or merges pages, or strips annotations; form filling adds fields and annotations, it does not rewrite page content. Putting a rendered cover in front of a body PDF (§6.6) is concatenation of whole pages, not surgery on them;
+- ship a design engine, a template library or a LaTeX renderer of its own. The typesetting path runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it. The scripts under `skills/pdf/scripts/` are thin Python wrappers: the rendering and form-filling ones over `pdf2image` and `pypdf` (`pdf2image` in turn shells out to poppler), the HTML path over the LibreOffice HTML import, and the quality gate over the standard library plus the poppler command-line tools.
 
 Keep the `.tex` source next to the output. The build is reproducible, the reader will ask for changes, and a PDF whose source has been thrown away cannot be revised. A form you fill is different in kind: keep the `fields.json` and the field values beside the output so a correction is a re-run of the fill step, not a fresh analysis of the page.
 
@@ -49,6 +49,7 @@ The build is a TeX toolchain. Confirm what is installed before promising a PDF.
 | the packages the document loads   | from the distribution; `tlmgr install <pkg>` on TeX Live, MiKTeX installs on demand                        |
 | rasterization for the visual gate | `pdftoppm` / `pdftocairo` (poppler), `mutool draw` (mupdf), or `magick` / `gs` (ImageMagick / ghostscript) |
 | output inspection                 | `pdfinfo` and `pdffonts` (poppler) for page count, page size and font embedding                            |
+| the HTML path (§6.6)              | LibreOffice `soffice` — the only renderer `html2pdf.py` and `cover_render.py` use                          |
 
 Detect, do not assume:
 
@@ -185,7 +186,7 @@ Fix the source, rebuild, re-rasterize, re-gate. The loop is source → PDF → P
 
 ## 6. Rendering, inspection and form filling
 
-The scripts under `skills/pdf/scripts/` are thin Python wrappers. The rendering and form-filling ones wrap `pdf2image` and `pypdf`; the quality gate (`pdf_qa.py`, §6.5) imports nothing outside the standard library and shells out to the poppler tools instead. They are utilities, not a framework: each takes file paths on the command line, prints a short human-readable line, and exits. None of them touches the LaTeX path above, and none is required to typeset — they cover the two jobs §1 names: render a page for the judge, fill a form, and gate the artifact you built.
+The scripts under `skills/pdf/scripts/` are thin Python wrappers. The rendering and form-filling ones wrap `pdf2image` and `pypdf`; the HTML path (`html2pdf.py`, §6.6) shells out to LibreOffice; the quality gate (`pdf_qa.py`, §6.5) and the contents validator (`toc_validate.py`, §6.6) import nothing outside the standard library and shell out to the poppler tools instead. They are utilities, not a framework: each takes file paths on the command line, prints a short human-readable line, and exits. None of them touches the LaTeX path above, and none is required to typeset — they cover the jobs §1 names: render a page for the judge, fill a form, typeset a plain HTML page, put a cover in front of a body, and gate the artifact you built.
 
 ### 6.1 Dependencies are real, not assumed
 
@@ -193,9 +194,11 @@ The scripts under `skills/pdf/scripts/` are thin Python wrappers. The rendering 
 | ------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `pdf2image`        | `convert_pdf_to_images.py`                                                                                 | `import` fails — the script will not start                    |
 | poppler `pdftoppm` | the raster backend `pdf2image` shells out to                                                                | `convert_from_path` raises (`PDFInfoNotInstalledError`)        |
-| `pypdf`            | `check_fillable_fields.py`, `extract_form_field_info.py`, `fill_fillable_fields.py`, `fill_pdf_form_with_annotations.py` | `import` fails — the script will not start |
+| `pypdf`            | `check_fillable_fields.py`, `extract_form_field_info.py`, `fill_fillable_fields.py`, `fill_pdf_form_with_annotations.py`, `cover_render.py` | `import` fails — the script will not start |
 | `Pillow` (`PIL`)   | `create_validation_image.py`                                                                               | `import` fails — the script will not start                    |
 | poppler `pdftotext`, `pdfinfo`, `pdffonts`, `pdftoppm` | `pdf_qa.py` and its four modules (§6.5)                                              | a readable error naming the missing tool, and exit 1 — never a degraded run |
+| poppler `pdftotext`, `pdfinfo` | `toc_validate.py` and its module (§6.6)                                                             | a readable error naming the missing tool, and exit 1 — never a degraded run |
+| LibreOffice `soffice` | `html2pdf.py`, `html2pdf_render.py`, `cover_render.py` (§6.6)                                          | a readable error naming the tool and the install hint, and exit 1 — never a skipped render |
 
 Detect before promising a result:
 
@@ -204,7 +207,7 @@ python3 -c "import pdf2image, pypdf, PIL"   # the three Python packages
 which pdftoppm pdftotext pdfinfo pdffonts   # the poppler tools
 ```
 
-`check_bounding_boxes.py` and `check_bounding_boxes_test.py` are the exception: they import only the standard library and run anywhere. The `pdf_qa.py` family is the second exception in the other direction — it too imports only the standard library, but it *requires* the four poppler binaries on `PATH`, because they are the only source of page geometry, word boxes, fonts and ink. Do not describe any of the others as unconditionally available — a missing dependency is an `ImportError` at start (or, for poppler, a raised exception on first render), not a degraded run.
+`check_bounding_boxes.py` and `check_bounding_boxes_test.py` are the exception: they import only the standard library and run anywhere. The `pdf_qa.py` family is the second exception in the other direction — it too imports only the standard library, but it *requires* the four poppler binaries on `PATH`, because they are the only source of page geometry, word boxes, fonts and ink; `toc_validate.py` needs two of the same four. The HTML family is the third: it imports only the standard library but *requires* `soffice` on `PATH`, because LibreOffice's HTML import is the renderer. Do not describe any of the others as unconditionally available — a missing dependency is an `ImportError` at start (or, for poppler and LibreOffice, a raised exception on first use), not a degraded run.
 
 ### 6.2 Render a page to PNG — `convert_pdf_to_images.py`
 
@@ -330,6 +333,103 @@ The gate is five files, all standard library plus poppler, with no `pypdf` or `p
 
 Run them by path from the repository root, as above; they import each other by flat module name, so `python3 skills/pdf/scripts/pdf_qa.py …` works and `import pdf_qa` from elsewhere does not.
 
+### 6.6 Typeset from HTML, put a cover in front, validate the contents
+
+Three entry points cover the part of a document that is not LaTeX: a plain HTML page, a cover that is a special page rather than the body's first page, and the printed table of contents a reader navigates by. They are complementary to the rest of §6 — `convert_pdf_to_images.py` goes PDF → PNG, `html2pdf.py` goes HTML → PDF — and none of them replaces the LaTeX path for a document that should be typeset from source.
+
+#### `html2pdf.py` — HTML to PDF, with the html2pdf.js option model
+
+```bash
+python3 skills/pdf/scripts/html2pdf.py <file.html> [more.html ...] [--outdir DIR] [--margin SPEC]
+    [--filename NAME] [--image-type jpeg|png|webp] [--image-quality 0..1]
+    [--pagebreak-mode css|legacy|avoid-all[,...]] [--pagebreak-before SEL]
+    [--pagebreak-after SEL] [--pagebreak-avoid SEL] [--format a4|letter|...]
+    [--orientation portrait|landscape] [--js-pdf KEY=VALUE]
+    [--html2canvas KEY=VALUE] [--json] [--keep-html]
+```
+
+The option model is derived from `html2pdf.js` (MIT, eKoopmans/html2pdf.js) — `margin`, `filename`, `image.type`/`image.quality`, the `pagebreak` modes and the two passthrough objects — so a document authored against that interface renders here without rewriting its options. No upstream code is vendored: the browser library rasterises a DOM through `html2canvas` into `jsPDF`, both of which need a DOM and therefore do not run under Node, while this script delegates to the local LibreOffice HTML import and typesets real vector text (searchable, selectable, small). Positional arguments are glob patterns; the PDF is written next to its input unless `--outdir` says otherwise, and `--filename` renames it (single input only — two inputs mapping to one name is an error, reported before anything is rendered).
+
+| Option | Effect here |
+| ------ | ----------- |
+| `--margin` | a number, `v,h`, `t,l,b,r`, or a JSON object; unitless numbers are points, a unit suffix (`2cm`) or jsPDF's `unit` overrides. Injected as the `@page` margin, honoured on the left, right and bottom; the top sits one line-height lower because the first paragraph keeps its own leading |
+| `--filename` | name of the produced PDF; defaults to the input's stem |
+| `--format` / `--orientation` | page stock, from jsPDF's format names (`a3`, `a4`, `a5`, `b5`, `letter`, `legal`, `tabloid`) |
+| `--pagebreak-mode` | `css` (default) respects the document's own break rules; `legacy` breaks after elements carrying the class `html2pdf__page-break`; `avoid-all` asks the renderer to keep block elements whole |
+| `--pagebreak-before/after/avoid` | the same, for a selector you name — class (`.x`), id (`#x`) or element (`h1`) |
+| `--image-type` / `--image-quality` | accepted and echoed; they describe upstream's raster stage, and there is no raster stage here, so they change nothing |
+| `--js-pdf KEY=VALUE` | `unit`, `format` and `orientation` set the page geometry; any other key is echoed only |
+| `--html2canvas KEY=VALUE` | accepted and echoed; there is no canvas stage to configure |
+| `--keep-html` | keep the prepared HTML (the source plus the injected `@page` and break rules) beside the output |
+
+Measured boundaries of the renderer, all of them LibreOffice facts rather than assumptions — check them before promising a layout:
+
+- **The Writer HTML import filter is used explicitly.** The default filter drops the body's first block element and prepends a blank page; the script passes `--infilter="HTML (StarWriter)"` to avoid it.
+- **Page breaks work on real block elements and not on `div`.** `page-break-after` on a `<p>`, `<h1>`-`<h6>` or `<table>` paginates; on a `<div>` (empty or not) it is ignored. Put the break class on the last block element of the page, or use `--pagebreak-before` on the first element of the next one.
+- **Class selectors containing underscores are dropped by the import** (`.a_b` does nothing, `.a-b` works) — which is why class and id selectors are written onto the matching elements as inline styles instead of into the stylesheet, and why `html2pdf__page-break` still works in `legacy` mode.
+- **`page-break-inside` is ignored**, so `avoid-all` and `--pagebreak-avoid` are accepted with no observable effect.
+- **Only explicit page dimensions are honoured**: `size: 215.9mm 279.4mm` sets letter, while `size: letter` and `size: A3` are ignored (A4 and A4 landscape are the exceptions). The script emits explicit dimensions for every format name.
+- **The document's own `body { margin }` adds to the injected `@page` margin** rather than replacing it; control margins through the option, not through the body rule.
+
+Failure semantics: a missing `soffice` is an error naming the tool and the install hint, a non-zero converter exit is reported with its last stderr line, and both exit 1 — a render is never silently skipped. `--json` reports one record per input with the resolved options, the output path, or the error.
+
+The family is three files, all standard library plus `soffice`:
+
+| File | Role |
+| ---- | ---- |
+| `html2pdf.py` | CLI, option parsing and validation, glob expansion, report layout, exit status |
+| `html2pdf_render.py` | the render itself: option model, `@page` and break CSS, the prepared HTML, the LibreOffice call |
+| `cover_render.py` | the cover merge (imports `html2pdf_render`, plus `pypdf`) |
+
+Run them by path from the repository root; they import each other by flat module name, so `python3 skills/pdf/scripts/html2pdf.py …` works and `import html2pdf` from elsewhere does not.
+
+#### `cover_render.py` — the cover as page 1
+
+```bash
+python3 skills/pdf/scripts/cover_render.py --cover cover.html --body body.pdf -o final.pdf
+    [--cover-margin SPEC] [--cover-format a4|letter|...] [--cover-orientation portrait|landscape]
+    [--margin SPEC] [--format ...] [--orientation ...] [--json] [--keep-html]
+```
+
+A cover is a special page: no header or footer, different margins, sometimes another stock or landscape. The reliable way to honour that is to render it as its own one-page document and concatenate it in front of the body, which is what this does — so the cover and the body may disagree about size, orientation and margins, and the body's geometry is left untouched. `--body` takes a PDF (used as it is) or an HTML file (rendered here through the same LibreOffice path); `--margin`, `--format` and `--orientation` describe the body and apply only when the body is HTML, while the `--cover-*` trio describes the cover.
+
+- The cover must fit **one page**. A cover that overflows is a defect, not a two-page cover, so the script refuses to write anything and says so.
+- Merging is page concatenation through `pypdf` — no `qpdf` is involved or needed. Internal links and a PDF body's outline ride along as far as `pypdf` carries them.
+- The report prints page 1's size and the first line of its extracted text, so "the cover is page 1" is verifiable without opening a viewer; `--json` carries the same fields.
+
+#### `toc_validate.py` — the printed contents, checked against the document
+
+```bash
+python3 skills/pdf/scripts/toc_validate.py <file.pdf> [more.pdf ...] [--json] [--skip-page-check]
+```
+
+`pdf_qa.py` (§6.5) is the gate on the whole artifact; this script judges only the table of contents itself. It reads the *printed* contents — the text on the page carrying a contents heading in the first few pages — and compares it with the document behind it. PDF outline bookmarks are not consulted: viewers synthesise them, and they can disagree with the page.
+
+The six checks, with the same severities and exit status as `pdf_qa.py` (`ERROR` fails the gate, `WARN` is the author's call; exit 0 / 1 / 2):
+
+| Check | Reports |
+| ----- | ------- |
+| `toc_present` | no contents heading in the first pages — a warning, because a letter legitimately has none |
+| `entries_resolve` | an entry whose section does not exist as a heading in the body |
+| `headings_covered` | a heading in the body that the contents does not list |
+| `page_placeholder` | a page number left at a placeholder (`00`, `x`, empty) |
+| `page_agreement` | an entry pointing at the wrong page |
+| `level_sequence` | a hierarchy that skips a level |
+
+- Page agreement is judged against an offset derived from the entries themselves, so front matter in roman numerals and a body restarting at 1 both work; `--skip-page-check` turns the check off entirely.
+- Levels come from the numbering prefix (`1.2.` → 3, `第三章` → 1) when the contents carry no indentation, and from the entries' own indents when they do — calibrated per document.
+- Heading detection is a height heuristic: a line whose glyphs are about 15% taller than the lines around it, only a few words long, and reading as prose rather than as a display formula. It is conservative on purpose — a missed heading is reported as an unresolved entry, and a false heading is not invented.
+- Matching is whitespace- and case-insensitive and tolerates a numbering difference between the contents and the heading (`1 Introduction` vs `Introduction`).
+
+The family is two files, standard library plus `pdftotext` / `pdfinfo`:
+
+| File | Role |
+| ---- | ---- |
+| `toc_validate.py` | CLI, the six checks, report layout, exit status |
+| `toc_validate_document.py` | read-only facts: contents pages, entries, body pages, heading lines |
+
+Run them by path from the repository root, as above; they import each other by flat module name, so `python3 skills/pdf/scripts/toc_validate.py …` works and `import toc_validate` from elsewhere does not.
+
 ## 7. Defects and self-check
 
 These are the ones a reader notices and a clean compile log walks past. Read the log for them; do not wait for the visual gate.
@@ -354,7 +454,7 @@ Two log lines worth reading every time:
 - `Overfull \hbox (...pt too wide)` — real, visible, and almost always a reader-visible defect. A few points of overhang on a URL is tolerable; a line that runs off the paper is not.
 - `Underfull \hbox` — loose, gappy justification. Usually a long unbreakable token in a narrow column; `microtype` and `\emergencystretch` fix most of it.
 
-The mechanical half of this table is automated: `pdf_qa.py` (§6.5) reports blank pages, mixed page sizes, an unembedded font, a nearly empty last page, text off the paper and a formula past the column. Run it instead of re-reading the log by eye, then come back here for the causes it cannot see — a float deferred, a caption orphaned, a heading left alone at the foot of a page.
+The mechanical half of this table is automated: `pdf_qa.py` (§6.5) reports blank pages, mixed page sizes, an unembedded font, a nearly empty last page, text off the paper and a formula past the column, and `toc_validate.py` (§6.6) reports a contents entry whose section no longer exists, a placeholder page number and a hierarchy that skips a level. Run them instead of re-reading the log by eye, then come back here for the causes they cannot see — a float deferred, a caption orphaned, a heading left alone at the foot of a page.
 
 ## 8. Pitfalls
 
@@ -369,4 +469,5 @@ The mechanical half of this table is automated: `pdf_qa.py` (§6.5) reports blan
 - **The PDF is a build artifact.** Regenerate it; never edit it.
 - **The `scripts/` tools are not unconditional.** `pdf2image`, `pypdf` and `Pillow` each fail at import when absent, and `convert_pdf_to_images.py` also needs poppler's `pdftoppm` on `PATH`. Detect the dependencies (§6.1) before promising a render, a fill or a validation image.
 - **`pdf_qa.py` needs four poppler binaries, not Python packages.** It imports only the standard library, so a missing `pdftotext` / `pdfinfo` / `pdffonts` / `pdftoppm` shows up as a run-time error naming the tool and exit 1 — not as an `ImportError` at start, and never as a silently passing gate. It also renders every page at 40 dpi to judge ink, so on a very large document that render is the slow part.
+- **`html2pdf.py` and `cover_render.py` need `soffice`, and its HTML import has edges.** A missing converter is a named error and exit 1, never a skipped render. When it is present, remember what the import does and does not honour: breaks on real block elements but not on `div`, `page-break-inside` ignored, class names with underscores dropped (the script writes class and id break rules inline for exactly that reason), named page sizes other than A4 ignored, and the document's own `body` margin added to the injected `@page` margin (§6.6). A cover that renders to two pages is refused rather than merged.
 - **`fill_pdf_form_with_annotations.py` overlays text; it does not create a field.** The stamped text is a `FreeText` annotation a viewer shows but a recipient cannot edit as a form value. A PDF whose filled values must stay editable needs real AcroForm fields, which the non-fillable path does not add.
