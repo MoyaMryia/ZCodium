@@ -7,7 +7,7 @@
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 // 空态水印用珊瑚轮廓的单色 alpha 资产。应用图标是黑底 + 白珊瑚的双色设计，
 // 整体压到 14% 透明度时白珊瑚会先消失、只剩灰方块，因此这里只取轮廓并用
-// bg-current 着色，颜色跟随主题前景。与 RootStartupLoading / ZCodeAboutLogo
+// bg-current 着色，颜色跟随主题前景。与 ZCodeStartupLogoBadge / ZCodeAboutLogo
 // 共用同一枚 ZCodium 应用图标，但那个不适合低透明度水印。
 const zcodiumWatermarkUrl = new URL("../../../../public/logo/watermark.png", import.meta.url).href;
 import { cn } from "@/components/lib/utils.js";

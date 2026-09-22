@@ -78,8 +78,6 @@ import {
   markCodeCommentRemoved,
 } from "@/lib/codeCommentContext.js";
 import { useCodeCommentPreviewStore } from "@/store/codeCommentPreviewStore.js";
-
-import { RootStartupLoading } from "@/root/RootStartupLoading.js";
 import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailability.js";
 import { useProviderAvailabilityLoginEntryGuard } from "@/root/useProviderAvailabilityLoginEntryGuard.js";
 import { ensureProviderFamilyDomainMigration } from "@/lib/providerFamilyDomainMigration.js";
@@ -734,8 +732,8 @@ function RootInner({
       return;
     }
 
-    // macOS nativeTheme 会影响窗口 vibrancy。这里等 RootStartupLoading
-    // 真正退出并进入主界面/设置页后一轮再允许同步，避免启动壳背景被应用主题提前改写。
+    // macOS nativeTheme 会影响窗口 vibrancy。这里等启动门禁通过、真正进入主界面/设置页后
+    // 一轮再允许同步，避免启动壳背景被应用主题提前改写。
     setHasEnteredNativeThemeSyncSurface(true);
   }, [canEnterNativeThemeSyncSurface]);
 
@@ -937,16 +935,14 @@ function RootInner({
   };
 
   if (isStartupRenderBlocked) {
-    const loadingLabel = intl.formatMessage({ id: "common.loading" });
+    // 启动门禁期间不再渲染独立的 loading 页：HTML 启动壳已经展示同一枚 ZCodium 图标，
+    // React 接管后再弹一个全屏 logo 页只会让启动看起来在反复开窗。
+    // 这里只保留 RootShell 与对话框宿主，门禁通过后直接进入主界面。
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
-        {/* HTML 启动壳已经展示 ZCode SVG，但 React 接管 root 后旧壳会被整棵替换。
-            之前阻塞恢复 tab / 初始 workspace 注入时重新渲染纯文字“加载中...”，所以启动被拆成两套 loading。
-            这里复用同一套 SVG 启动画面，只把文案保留到 aria-label，保证视觉始终连续且不牺牲可访问性。 */}
-        <RootStartupLoading label={loadingLabel} />
       </RootShell>
     );
   }

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { logger } from "@/logger.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { resolveWorkspaceShellPanelRadiusPx } from "@/app-shell/workspaceShellWindowChrome.js";
-import { ZCodeStartupLogoBadge } from "@/root/RootStartupLoading.js";
+import { ZCodeStartupLogoBadge } from "@/root/ZCodeStartupLogoBadge.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { cn } from "@/components/lib/utils.js";
 import { useResolvedThemeHeroPalette } from "@/openWorkspacePageThemeHero.js";

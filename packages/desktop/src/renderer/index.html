@@ -49,10 +49,6 @@
         box-shadow:
           0 20px 25px -5px rgb(0 0 0 / 0.2),
           0 8px 10px -6px rgb(0 0 0 / 0.2);
-        transform: scale(0.72);
-        opacity: 0;
-        animation: startup-logo-pop 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        transform-origin: center;
       }
 
       .startup-logo-shell::before {
@@ -71,47 +67,6 @@
       .startup-logo {
         height: 48px;
         width: auto;
-      }
-
-      /* 关闭启动动画（设置项）时直接落到终态：初始样式是 opacity 0 + scale(0.72)，
-         只关动画会把标记留在隐藏态。 */
-      html[data-startup-animation="off"] .startup-logo-shell {
-        opacity: 1;
-        transform: scale(1);
-        animation: none;
-      }
-
-      @keyframes startup-logo-pop {
-        0% {
-          opacity: 0;
-          transform: scale(0.72);
-        }
-
-        38% {
-          opacity: 1;
-          transform: scale(1.045);
-        }
-
-        58% {
-          transform: scale(0.985);
-        }
-
-        76% {
-          transform: scale(1.008);
-        }
-
-        100% {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        .startup-logo-shell {
-          opacity: 1;
-          transform: scale(1);
-          animation: none;
-        }
       }
     </style>
   </head>
@@ -134,39 +89,26 @@
       </div>
     </div>
     <script type="module">
-      const startupLogoShell = document.querySelector(".startup-logo-shell");
       const startupLoading = document.getElementById("loading");
       const isUpdateStatusWindow =
         new URLSearchParams(window.location.search).get("windowKind") === "update-status";
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      // 启动动画偏好由 useSettingService 镜像到 localStorage（renderer 无法同步读 setting.json）。
-      // 关闭时与 reduceMotion 走同一条立即完成路径，避免出现"关了动画却还在等动画结束"的半禁用态。
-      const startupAnimationDisabled =
-        window.localStorage?.getItem("zcode-startup-animation") === "off";
-      if (startupAnimationDisabled) {
-        document.documentElement.dataset.startupAnimation = "off";
-      }
       let finished = false;
-      let animationDone = false;
       let reactReady = false;
 
       // 主入口不能依赖动画结束后的动态 import；一旦导入路径在 Electron/Vite 下失败，
-      // 页面会永久停在 HTML loading。这里让主入口静态加载，只把启动壳作为动画遮罩延迟移除。
-      const tryFinishStartupAnimation = () => {
-        if (finished || !animationDone || !reactReady) return;
-        finished = true;
-        document.body.classList.add("zcode-startup-ready");
-        window.setTimeout(() => startupLoading?.remove(), 500);
-      };
-
-      const markAnimationDone = () => {
-        animationDone = true;
-        tryFinishStartupAnimation();
-      };
-
+      // 页面会永久停在 HTML loading。这里让主入口静态加载，只把启动壳作为遮罩延迟移除。
+      // 启动壳不放任何动画（历史上有过 logo 弹出与呼吸，重复动效在启动阶段只会显得在反复开窗），
+      // 因此标记直接落终态，壳只等 React ready 后移除。
       const markReactReady = () => {
         reactReady = true;
         tryFinishStartupAnimation();
+      };
+
+      const tryFinishStartupAnimation = () => {
+        if (finished || !reactReady) return;
+        finished = true;
+        document.body.classList.add("zcode-startup-ready");
+        window.setTimeout(() => startupLoading?.remove(), 500);
       };
 
       if (isUpdateStatusWindow) {
@@ -177,16 +119,6 @@
         startupLoading?.remove();
       } else {
         window.addEventListener("zcode-react-startup-ready", markReactReady, { once: true });
-      }
-
-      if (isUpdateStatusWindow || reduceMotion || startupAnimationDisabled || !startupLogoShell) {
-        markAnimationDone();
-      } else {
-        startupLogoShell.addEventListener("animationend", markAnimationDone, { once: true });
-        window.setTimeout(markAnimationDone, 1000);
-      }
-
-      if (!isUpdateStatusWindow) {
         window.setTimeout(markReactReady, 3000);
       }
     </script>

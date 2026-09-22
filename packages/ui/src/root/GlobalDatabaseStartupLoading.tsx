@@ -1,8 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { canRetryDatabaseStartup, type DatabaseStartupState } from "@zcode/shared";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import { RootStartupLoading } from "@/root/RootStartupLoading.js";
+
+/**
+ * 数据库启动态容器。
+ *
+ * 历史实现复用 RootStartupLoading（同一枚 ZCodium 图标 + 全屏居中），启动阶段会先放
+ * HTML 启动壳的图标、再放这里的图标，看起来像在反复开窗。该组件已删除，这里只保留
+ * 状态容器本身：aria 语义与主题背景不变，去掉品牌图标。
+ */
+function DatabaseStartupSurface({
+  label,
+  busy,
+  children,
+}: {
+  label: string;
+  busy: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className="flex h-full min-h-dvh flex-col items-center justify-center gap-6 bg-background text-foreground"
+      role="status"
+      aria-busy={busy}
+      aria-label={label}
+      data-testid="database-startup-surface"
+    >
+      {children}
+    </div>
+  );
+}
 
 export function GlobalDatabaseStartupLoading({
   state,
@@ -46,17 +74,17 @@ export function GlobalDatabaseStartupLoading({
   };
   if (!visible)
     return (
-      <RootStartupLoading label={label}>
+      <DatabaseStartupSurface label={label} busy>
         <span
           hidden
           data-testid="database-startup-silent"
           data-phase={phase}
           data-database-phase={state?.databasePhase}
         />
-      </RootStartupLoading>
+      </DatabaseStartupSurface>
     );
   return (
-    <RootStartupLoading label={label} busy={!failed}>
+    <DatabaseStartupSurface label={label} busy={!failed}>
       <div
         className="flex w-full max-w-md flex-col items-center gap-3 px-6 text-center"
         data-testid="database-startup-status"
@@ -121,7 +149,7 @@ export function GlobalDatabaseStartupLoading({
           </p>
         ) : null}
       </div>
-    </RootStartupLoading>
+    </DatabaseStartupSurface>
   );
 }
 

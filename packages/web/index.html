@@ -18,9 +18,6 @@
         // JS bundle 执行前先按本地主题偏好决定首屏底色，避免 dark 用户在这一帧看到白底闪烁。
         const STORAGE_KEY = "zcode-theme";
         const DEFAULT_THEME = "zai-dark";
-        // 启动动画偏好由 useSettingService 镜像到 localStorage（renderer 无法同步读 setting.json）。
-        // 脚本运行在 head 里，此时 body 还不存在，只能像主题一样写到 documentElement。
-        const STARTUP_ANIMATION_STORAGE_KEY = "zcode-startup-animation";
         const BROWSER_THEME_COLORS = {
           dark: "#161616",
           light: "#f8f8f8",
@@ -61,14 +58,6 @@
           document.documentElement.setAttribute("data-zcode-bootstrap-theme", "dark");
           syncBrowserThemeSurface("dark");
           document.documentElement.classList.add("dark");
-        }
-
-        try {
-          if (localStorage.getItem(STARTUP_ANIMATION_STORAGE_KEY) === "off") {
-            document.documentElement.dataset.startupAnimation = "off";
-          }
-        } catch {
-          // localStorage 不可用（隐私模式等）时按开启处理，不阻塞首屏。
         }
       })();
     </script>
@@ -153,34 +142,10 @@
 
       /* 与桌面启动壳共用同一枚珊瑚轮廓资产（同一份 base64）：桌面窗口是透明 vibrancy、
          Web 壳底色随深浅主题，壳都自绘固定深色底，标记烘成白色。
-         呼吸动画对应原 SVG <animate> 的 opacity 1→0.3→1 / 1.5s；React 接管后的
-         ZCodeStartupLogoBadge 是静态标记，启动期间只放这一遍动画。 */
+         启动壳不放动画：重复的呼吸/弹动在启动阶段只会显得界面在反复重建。 */
       .zcode-boot-loading__logo {
         height: 48px;
         width: auto;
-        animation: zcode-boot-logo-breathe 1.5s ease-in-out infinite;
-      }
-
-      @keyframes zcode-boot-logo-breathe {
-        0%,
-        100% {
-          opacity: 1;
-        }
-
-        50% {
-          opacity: 0.3;
-        }
-      }
-
-      /* 关闭启动动画（设置项）与系统减少动效偏好都不再播放呼吸。 */
-      html[data-startup-animation="off"] .zcode-boot-loading__logo {
-        animation: none;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        .zcode-boot-loading__logo {
-          animation: none;
-        }
       }
     </style>
   </head>
