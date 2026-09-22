@@ -177,6 +177,38 @@
       .nav a:hover {
         color: var(--ink);
       }
+      .locale {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        margin-left: 4px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(23, 21, 15, 0.06);
+      }
+      .locale button {
+        font-family: inherit;
+        font-size: 12.5px;
+        line-height: 1;
+        padding: 6px 11px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--ink-2);
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+      }
+      .locale button:hover {
+        color: var(--ink);
+      }
+      .locale button.is-active {
+        background: var(--ink);
+        color: var(--paper);
+        font-weight: 600;
+      }
 
       /* ============================================================
      按钮
@@ -755,7 +787,7 @@
     </style>
   </head>
   <body id="top">
-    <a class="skip" href="#main">跳到主要内容</a>
+    <a class="skip" href="#main" data-i18n="skip">跳到主要内容</a>
 
     <!-- ===================== 顶栏 ===================== -->
     <header class="site-head" id="siteHead">
@@ -763,13 +795,19 @@
         <a class="brand" href="#top" aria-label="ZCodium 首页">
           <img src="assets/logo-256.png" alt="ZCodium" width="24" height="24" />
           <b>ZCodium</b>
-          <span>ZCode 的社区衍生仓库</span>
+          <span data-i18n="brand-tag">ZCode 的社区衍生仓库</span>
         </a>
         <nav class="nav" aria-label="主导航">
-          <a href="#install">安装</a>
-          <a href="#work">我们做了什么</a>
+          <a href="#install" data-i18n="nav-install">安装</a>
+          <a href="#work" data-i18n="nav-work">我们做了什么</a>
           <a href="https://github.com/axiom-desu/ZCodium" target="_blank" rel="noopener">GitHub</a>
         </nav>
+        <div class="locale" role="group" aria-label="Language / 语言">
+          <button type="button" data-lang-btn="zh" class="is-active" aria-pressed="true">
+            中文
+          </button>
+          <button type="button" data-lang-btn="en" aria-pressed="false">EN</button>
+        </div>
         <a
           class="btn btn-primary btn-sm"
           href="https://github.com/axiom-desu/ZCodium"
@@ -791,26 +829,26 @@
       <section class="hero">
         <div class="container">
           <span class="label reveal">ZCodium</span>
-          <h1 class="reveal" style="--d: 0.06s">为什么我们这么坚持开源？</h1>
-          <blockquote class="reveal" style="--d: 0.12s">
+          <h1 class="reveal" style="--d: 0.06s" data-i18n="hero-h1">为什么我们这么坚持开源？</h1>
+          <blockquote class="reveal" style="--d: 0.12s" data-i18n-html="hero-quote">
             因为这个愿景本身就要求开源。你没有这个愿景，你没法把人组织起来。比如说，智谱也开源，但是智谱的开源跟我们的开源不一样。<strong
               ><em>智谱的开源有一种被迫的感觉</em></strong
             >，他们觉得这不是本意，但是对我们来讲，这就是我们的本意。
           </blockquote>
-          <cite class="reveal" style="--d: 0.18s">梁文锋 · 深度求索 CEO</cite>
+          <cite class="reveal" style="--d: 0.18s" data-i18n="hero-cite">梁文锋 · 深度求索 CEO</cite>
 
-          <p class="hero-tag reveal" style="--d: 0.26s">
+          <p class="hero-tag reveal" style="--d: 0.26s" data-i18n-html="hero-tag">
             上游把一批功能留在了安装包里，我们把它们<b>补回源码</b> —— 不等待、不申请、不保留。
           </p>
           <div class="actions reveal" style="--d: 0.32s">
-            <a class="btn btn-primary" href="#install">开始安装</a>
+            <a class="btn btn-primary" href="#install" data-i18n="cta-start">开始安装</a>
             <a
               class="btn btn-ghost"
               href="https://github.com/axiom-desu/ZCodium"
               target="_blank"
               rel="noopener"
             >
-              在 GitHub 上查看
+              <span data-i18n="cta-github">在 GitHub 上查看</span>
               <svg
                 viewBox="0 0 16 16"
                 fill="none"
@@ -830,12 +868,12 @@
       <!-- ===================== 跑马灯 ===================== -->
       <div class="marquee" aria-hidden="true">
         <div class="marquee-track">
-          <p>
+          <p data-i18n-html="marquee">
             跟进上游 <span>·</span> 补全缺口 <span>·</span> 有据可查 <span>·</span> 不等待
             <span>·</span> 不申请 <span>·</span> 不保留 <span>·</span> 源码与安装包对等
             <span>·</span>
           </p>
-          <p>
+          <p data-i18n-html="marquee">
             跟进上游 <span>·</span> 补全缺口 <span>·</span> 有据可查 <span>·</span> 不等待
             <span>·</span> 不申请 <span>·</span> 不保留 <span>·</span> 源码与安装包对等
             <span>·</span>
@@ -847,8 +885,8 @@
       <section class="section" id="install">
         <div class="container">
           <p class="label reveal">Install</p>
-          <h2 class="reveal" style="--d: 0.06s">怎么装</h2>
-          <p class="lede reveal" style="--d: 0.12s">
+          <h2 class="reveal" style="--d: 0.06s" data-i18n="install-h2">怎么装</h2>
+          <p class="lede reveal" style="--d: 0.12s" data-i18n-html="install-lede">
             准备 Node.js <b>24.14.0</b> 与 pnpm <b>10.33.2</b>，在仓库根目录执行即可。
           </p>
 
@@ -874,7 +912,7 @@
                       d="M10.5 5.5v-2A1.5 1.5 0 0 0 9 2H4a2 2 0 0 0-2 2v5a1.5 1.5 0 0 0 1.5 1.5h2"
                     />
                   </svg>
-                  <span class="copy-text">复制</span>
+                  <span class="copy-text" data-i18n="copy">复制</span>
                 </button>
               </div>
               <div class="term-body">
@@ -899,8 +937,8 @@
             </div>
 
             <div class="install-side reveal" style="--d: 0.22s">
-              <h3>不想自己构建？</h3>
-              <p>
+              <h3 data-i18n="side-h3">不想自己构建？</h3>
+              <p data-i18n="side-p">
                 直接在 GitHub Releases 下载对应平台的桌面安装包：macOS、Windows 与
                 Linux。安装包未签名，首次打开可能需要在系统中放行。
               </p>
@@ -910,7 +948,7 @@
                 target="_blank"
                 rel="noopener"
               >
-                前往 Releases
+                <span data-i18n="cta-releases">前往 Releases</span>
                 <svg
                   viewBox="0 0 16 16"
                   fill="none"
@@ -926,7 +964,7 @@
             </div>
           </div>
 
-          <p class="fine reveal" style="--d: 0.26s">
+          <p class="fine reveal" style="--d: 0.26s" data-i18n-html="install-fine">
             命令行版：构建发行包后，<code>zcode</code> 进入终端界面，<code>zcode --web</code> 启动
             Web。完整步骤见
             <a
@@ -943,8 +981,8 @@
       <section class="section" id="work">
         <div class="container">
           <p class="label reveal">What we did</p>
-          <h2 class="reveal" style="--d: 0.06s">我们做了什么</h2>
-          <p class="lede reveal" style="--d: 0.12s">
+          <h2 class="reveal" style="--d: 0.06s" data-i18n="work-h2">我们做了什么</h2>
+          <p class="lede reveal" style="--d: 0.12s" data-i18n="work-lede">
             补了什么、还差什么、为什么这么补 —— 全部写在仓库里。这里只留入口，正文请看链接。
           </p>
 
@@ -958,8 +996,10 @@
               >
                 <span class="num">01</span>
                 <span class="link-main">
-                  <span class="link-title">与官方包的能力差异</span>
-                  <span class="link-desc">已补全、尚未补全、有意不补全的完整清单。</span>
+                  <span class="link-title" data-i18n="link1-title">与官方包的能力差异</span>
+                  <span class="link-desc" data-i18n="link1-desc"
+                    >已补全、尚未补全、有意不补全的完整清单。</span
+                  >
                 </span>
                 <svg
                   class="link-arrow"
@@ -984,8 +1024,8 @@
               >
                 <span class="num">02</span>
                 <span class="link-main">
-                  <span class="link-title">已定的补全路线</span>
-                  <span class="link-desc"
+                  <span class="link-title" data-i18n="link2-title">已定的补全路线</span>
+                  <span class="link-desc" data-i18n="link2-desc"
                     >bot 通知、Computer Use、本地搜图 —— 下一步做什么，怎么做。</span
                   >
                 </span>
@@ -1012,8 +1052,10 @@
               >
                 <span class="num">03</span>
                 <span class="link-main">
-                  <span class="link-title">补全 spec</span>
-                  <span class="link-desc">每个补全项的范围、状态所有者、接口契约与验收场景。</span>
+                  <span class="link-title" data-i18n="link3-title">补全 spec</span>
+                  <span class="link-desc" data-i18n="link3-desc"
+                    >每个补全项的范围、状态所有者、接口契约与验收场景。</span
+                  >
                 </span>
                 <svg
                   class="link-arrow"
@@ -1038,8 +1080,10 @@
               >
                 <span class="num">04</span>
                 <span class="link-main">
-                  <span class="link-title">与上游的关系</span>
-                  <span class="link-desc">如何跟进上游、补全内容如何按功能拆分提交。</span>
+                  <span class="link-title" data-i18n="link4-title">与上游的关系</span>
+                  <span class="link-desc" data-i18n="link4-desc"
+                    >如何跟进上游、补全内容如何按功能拆分提交。</span
+                  >
                 </span>
                 <svg
                   class="link-arrow"
@@ -1064,8 +1108,10 @@
               >
                 <span class="num">05</span>
                 <span class="link-main">
-                  <span class="link-title">诊断与遥测</span>
-                  <span class="link-desc">保留了什么、去掉了什么、为什么。</span>
+                  <span class="link-title" data-i18n="link5-title">诊断与遥测</span>
+                  <span class="link-desc" data-i18n="link5-desc"
+                    >保留了什么、去掉了什么、为什么。</span
+                  >
                 </span>
                 <svg
                   class="link-arrow"
@@ -1114,8 +1160,8 @@
       <!-- ===================== 收尾 ===================== -->
       <section class="closing">
         <div class="container">
-          <h2 class="reveal">让源码与安装包对等。</h2>
-          <p class="reveal" style="--d: 0.08s">
+          <h2 class="reveal" data-i18n="closing-h2">让源码与安装包对等。</h2>
+          <p class="reveal" style="--d: 0.08s" data-i18n="closing-p">
             上游发布新功能却不放出对应源码时，我们补齐等价实现并开源 ——
             判断依据是安装包里有没有，不是上游说了什么。
           </p>
@@ -1126,7 +1172,7 @@
               target="_blank"
               rel="noopener"
             >
-              在 GitHub 上查看
+              <span data-i18n="cta-github">在 GitHub 上查看</span>
               <svg
                 viewBox="0 0 16 16"
                 fill="none"
@@ -1144,6 +1190,7 @@
               href="https://github.com/axiom-desu/ZCodium/blob/main/README.md"
               target="_blank"
               rel="noopener"
+              data-i18n="cta-readme"
               >阅读 README</a
             >
           </div>
@@ -1159,7 +1206,7 @@
             <img src="assets/logo-256.png" alt="" width="22" height="22" />
             <div>
               <b>ZCodium</b>
-              <span>ZCode 的社区衍生仓库</span>
+              <span data-i18n="brand-tag">ZCode 的社区衍生仓库</span>
             </div>
           </div>
           <nav class="foot-links" aria-label="页脚导航">
@@ -1192,7 +1239,7 @@
             >
           </nav>
         </div>
-        <p class="foot-fine">
+        <p class="foot-fine" data-i18n-html="foot-fine">
           基于 Apache-2.0 许可。ZCodium 由社区维护，与上游官方无隶属关系；图形与商标归各自所有者。
           功能补全记录见
           <a
@@ -1214,6 +1261,132 @@
         };
         onScroll();
         window.addEventListener("scroll", onScroll, { passive: true });
+
+        // ===== 中英文切换 =====
+        var EN = {
+          skip: "Skip to content",
+          "brand-tag": "A community fork of ZCode",
+          "nav-install": "Install",
+          "nav-work": "What we did",
+          "hero-h1": "Why do we insist on open source?",
+          "hero-quote":
+            "Because this vision itself demands open source. Without that vision, you cannot organize people. Zhipu open-sources too, but Zhipu's open source is not the same as ours. <strong><em>Zhipu's open source feels forced</em></strong> \u2014 they feel it is not their intent, but as for us, it is exactly our intent.",
+          "hero-cite": "Liang Wenfeng \u00b7 CEO, DeepSeek",
+          "hero-tag":
+            "Upstream left a batch of features in the installer; we put them <b>back into the source</b> \u2014 no waiting, no asking, no withholding.",
+          marquee:
+            "Track upstream <span>\u00b7</span> Close the gaps <span>\u00b7</span> Documented <span>\u00b7</span> No waiting <span>\u00b7</span> No asking <span>\u00b7</span> No withholding <span>\u00b7</span> Source parity with the installer <span>\u00b7</span>",
+          "install-h2": "How to install",
+          "install-lede":
+            "Requires Node.js <b>24.14.0</b> and pnpm <b>10.33.2</b>. Run these in the repository root.",
+          copy: "Copy",
+          "term-c1": "# Install deps and prepare runtime assets",
+          "term-c2": "# Start the desktop app",
+          "term-c3": "# Start the web workspace",
+          "side-h3": "Don't want to build it yourself?",
+          "side-p":
+            "Download a desktop installer for your platform from GitHub Releases: macOS, Windows, and Linux. The builds are unsigned, so your system may need to allow them on first launch.",
+          "cta-releases": "Go to Releases",
+          "install-fine":
+            'CLI: after building the distribution, <code>zcode</code> opens the terminal UI and <code>zcode --web</code> starts the web app. Full steps are in <a href="https://github.com/axiom-desu/ZCodium/blob/main/README.md#\u521d\u59cb\u5316" target="_blank" rel="noopener">the README\u2019s initialization section</a>.',
+          "work-h2": "What we did",
+          "work-lede":
+            "What we added, what is still missing, and why \u2014 it is all in the repo. This page only links there; the details live in the README.",
+          "link1-title": "Feature parity with the official build",
+          "link1-desc": "The full list: shipped, still missing, and deliberately left out.",
+          "link2-title": "The roadmap",
+          "link2-desc":
+            "Bot notifications, Computer Use, local image search \u2014 what is next and how.",
+          "link3-title": "Parity specs",
+          "link3-desc":
+            "Scope, state owners, interface contracts, and acceptance scenarios for each item.",
+          "link4-title": "Relationship with upstream",
+          "link4-desc": "How we track upstream and split parity work into per-feature commits.",
+          "link5-title": "Diagnostics and telemetry",
+          "link5-desc": "What we kept, what we removed, and why.",
+          "closing-h2": "Bring the source and the installer to parity.",
+          "closing-p":
+            "When upstream ships a feature without releasing its source, we build an equivalent and open-source it. The test is whether it is in the installer, not what upstream says.",
+          "cta-github": "View on GitHub",
+          "cta-readme": "Read the README",
+          "cta-start": "Get started",
+          "foot-fine":
+            'Licensed under Apache-2.0. ZCodium is community-maintained and not affiliated with upstream; logos and trademarks belong to their respective owners. Parity records live in <a href="https://github.com/axiom-desu/ZCodium/tree/main/.agents/specs" target="_blank" rel="noopener">.agents/specs</a>.',
+        };
+        var EN_TITLE = "ZCodium \u2014 Putting installer-only features back into the source";
+        var EN_DESC =
+          "ZCodium is a community fork of ZCode: when upstream ships a feature without releasing its source, we build an equivalent and open-source it. No waiting, no asking, no withholding.";
+
+        var nodes = [];
+        var register = function (el, key, html) {
+          nodes.push({ el: el, key: key, html: html, zh: html ? el.innerHTML : el.textContent });
+        };
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+          register(el, el.getAttribute("data-i18n"), false);
+        });
+        document.querySelectorAll("[data-i18n-html]").forEach(function (el) {
+          register(el, el.getAttribute("data-i18n-html"), true);
+        });
+        // 终端注释含源码缩进，按顺序注册更干净
+        document.querySelectorAll(".term-body .c").forEach(function (el, i) {
+          register(el, "term-c" + (i + 1), false);
+        });
+
+        var metaDesc = document.querySelector('meta[name="description"]');
+        var ogDesc = document.querySelector('meta[property="og:description"]');
+        var zhTitle = document.title;
+        var zhDesc = metaDesc ? metaDesc.getAttribute("content") : "";
+        var zhOg = ogDesc ? ogDesc.getAttribute("content") : "";
+
+        var lang = "zh";
+        var applyLang = function (next) {
+          lang = next === "en" ? "en" : "zh";
+          var en = lang === "en";
+          document.documentElement.lang = en ? "en" : "zh-CN";
+          document.title = en ? EN_TITLE : zhTitle;
+          if (metaDesc) metaDesc.setAttribute("content", en ? EN_DESC : zhDesc);
+          if (ogDesc) ogDesc.setAttribute("content", en ? EN_DESC : zhOg);
+          nodes.forEach(function (n) {
+            if (n.html) {
+              n.el.innerHTML = en ? EN[n.key] : n.zh;
+            } else {
+              n.el.textContent = en ? EN[n.key] : n.zh;
+            }
+          });
+          document.querySelectorAll("[data-lang-btn]").forEach(function (b) {
+            var active = b.getAttribute("data-lang-btn") === lang;
+            b.classList.toggle("is-active", active);
+            b.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+          try {
+            localStorage.setItem("zcodium-lang", lang);
+          } catch (e) {}
+        };
+
+        document.querySelectorAll("[data-lang-btn]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            applyLang(b.getAttribute("data-lang-btn"));
+          });
+        });
+
+        // 初始语言：本地记录 > URL 参数 > 浏览器语言
+        var saved = null;
+        try {
+          saved = localStorage.getItem("zcodium-lang");
+        } catch (e) {}
+        var param = null;
+        try {
+          param = new URLSearchParams(location.search).get("lang");
+        } catch (e) {}
+        var detected = "zh";
+        if (saved === "en" || saved === "zh") {
+          detected = saved;
+        } else if (param === "en" || param === "zh") {
+          detected = param;
+        } else if ((navigator.language || "").toLowerCase().indexOf("zh") !== 0) {
+          detected = "en";
+        }
+        applyLang(detected);
 
         // 进场动画
         var reveals = document.querySelectorAll(".reveal");
@@ -1242,13 +1415,13 @@
         document.querySelectorAll(".copy").forEach(function (btn) {
           btn.addEventListener("click", function () {
             var text = btn.getAttribute("data-copy") || "";
+            var label = btn.querySelector(".copy-text");
             var done = function () {
-              var old = btn.querySelector(".copy-text").textContent;
               btn.classList.add("is-done");
-              btn.querySelector(".copy-text").textContent = "已复制";
+              label.textContent = lang === "en" ? "Copied" : "已复制";
               setTimeout(function () {
                 btn.classList.remove("is-done");
-                btn.querySelector(".copy-text").textContent = old;
+                label.textContent = lang === "en" ? EN.copy : "复制";
               }, 1600);
             };
             if (navigator.clipboard && navigator.clipboard.writeText) {
