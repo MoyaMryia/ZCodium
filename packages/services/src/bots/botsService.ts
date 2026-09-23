@@ -745,6 +745,8 @@ export function createBotsService(
     }),
     discord: null,
     wecom: null,
+    // AstrBot 走独立桥接服务（astrbotBridgeService），不经官方 BotProviderAdapter 出站。
+    astrbot: null,
   };
   let service: IBotsService & {
     disposeAll(): void;
