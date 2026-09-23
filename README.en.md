@@ -63,11 +63,9 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 
 **Standing rule**: when upstream ships a feature without releasing the corresponding source, this repository implements an equivalent version itself and open-sources it directly — no waiting, no asking, no holding back. The test is "is it in the installer", not "what upstream says". That work lands as per-feature commits, with the scope, the reasoning behind each decision, and anything left unverified recorded under [.agents/specs/](.agents/specs/).
 
-| Interface                    | Purpose                                                                                   | Development command            |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
-| Desktop                      | Electron desktop application                                                              | `pnpm dev:desktop`             |
-| Web / ZCode CLI distribution | Terminal and browser workspace; packages the TUI, Web client, backend, and Agent together | `pnpm dev:web`                 |
-| Agent CLI                    | The `zcode` terminal interface, which also provides the Agent runtime for Desktop and Web | `pnpm --filter @zcode/cli dev` |
+## Updates
+
+- 2026-9-23: Updated to ZCode v3.14.3.
 
 ## Setup
 
