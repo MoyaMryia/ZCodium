@@ -321,3 +321,70 @@ If the notification never arrives, the question is still discoverable: `GetWorkf
 
 - `${ZCODE_SKILL_DIR}/patterns.md` — the topology catalogue: fan-out/fan-in, review sweeps, planner–reviewer loops, judge panels, staged pipelines, bounded discovery, verifier loops. Read it once you know which shape you want and want it written correctly.
 - `${ZCODE_SKILL_DIR}/examples.md` — complete worked scripts. Read one when you want to follow a whole script's arc.
+
+## 14. Declared artifacts: turning report() into a deliverable
+
+`report(item)` alone produces a return value and a notification. `artifact.*`
+declarations turn the same stream of items into visual deliverables the user
+opens — the difference between a workflow that ran and a workflow that
+delivered. Declare once, feed with `report(item, id)`.
+
+The pattern: **declare the artifact before the run feeds it**, then tag every
+item that belongs to it:
+
+    artifact.chart("findings", { type: "bar", x: "region", y: "score" });
+    // ... later, inside the run:
+    report({ region: r.name, score: r.score }, "findings");
+
+### The five declarations
+
+| declaration | fed by | what the user sees |
+| --- | --- | --- |
+| `artifact.chart(id, spec)` | one point per item | a line, bar or scatter chart |
+| `artifact.table(id, spec)` | one row per item | a table, keyed or append-only |
+| `artifact.metrics(id, spec)` | newest value per field | a row of metric tiles |
+| `artifact.board(id, spec)` | one card per item | a kanban board by status |
+| `artifact.markdown(id, content)` | the script composing text | the long-form report |
+| `artifact.file(id, path)` | a workspace file, copied at publish time | the file itself as a deliverable |
+
+### Chart
+
+`{ type?: "line" | "bar" | "scatter", x, y, scale?: "linear" | "log", baseline? }`
+— `y` as an array is several series; `baseline` draws a horizontal rule from
+the first item that has the field. Choose the type from the claim: `bar` for
+magnitude across categories (starts at zero), `line` for trend over a temporal
+x, `scatter` for the relationship between two quantities.
+
+### Table
+
+`{ columns, key? }` — with a `key`, a later item with the same key **replaces**
+the row (the idiom for "latest state wins"); without one, items append. Use the
+key when the run revisits the same entity; append when each item is new.
+
+### Metrics
+
+`{ metrics }` — each tile shows the value from the latest item that has the
+field. One metric per tile; the row is the dashboard.
+
+### Board
+
+`{ key, status, columns, cardTitle?, detail? }` — a card per item, placed by its
+`status` field into the declared columns; items whose status is not listed land
+in a trailing "other" column. This is the deliverable shape for anything with a
+pipeline: review items moving through states, tasks by stage.
+
+### Two rules that decide whether artifacts are worth declaring
+
+1. **Declare before you feed.** A declaration after the items were reported
+   does not retroactively collect them — the artifact renders from the items
+   that arrive after it exists.
+2. **One artifact per claim.** A chart with two unrelated claims on it is two
+   charts; a board with three status vocabularies is three boards. If the
+   deliverable needs a legend to explain itself, it needs splitting.
+
+### Publishing a file the workspace already has
+
+`artifact.file(id, path)` copies the bytes **at publish time** — the file must
+exist when the call runs, and the copy is what ships, not a live reference. It
+rejects rather than publishing something empty, which is the same bargain as
+every other capped call: a visible failure beats a silent partial.
