@@ -1,6 +1,7 @@
 import {
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   ZCODE_VERSION,
+  ZCODIUM_UPDATE_ORIGIN,
   buildZCodeEndpointUrls,
   getForceUpdateMinimalVersionFromConfig,
   resolveForceUpdateRequirement,
@@ -44,7 +45,9 @@ interface ForceUpdateGuardOptions {
   onBlocked?: (requirement: ForceUpdateRequirement) => void;
 }
 
-function resolveForceUpdateClientConfigUrl(endpointOrigin = DEFAULT_ZCODE_ENDPOINT_ORIGIN): string {
+function resolveForceUpdateClientConfigUrl(
+  endpointOrigin = ZCODIUM_UPDATE_ORIGIN || DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+): string {
   const url = new URL(
     `${buildZCodeEndpointUrls(endpointOrigin).origin}${ZCODE_CLIENT_CONFIG_API_PATH}`,
   );
@@ -217,6 +220,15 @@ function formatForceUpdateDialogText(
 export async function maybeBlockStartupForForceUpdate(
   options: ForceUpdateGuardOptions,
 ): Promise<ForceUpdateGuardResult> {
+  // 强制升级门禁的 minimalVersion 来自上游 /api/v1/client/configs，属于上游对客户端的控制面。
+  // ZCodium 未配置自有更新源时不读上游配置：否则上游可以单方面阻止本仓库构建的客户端启动。
+  if (!ZCODIUM_UPDATE_ORIGIN) {
+    options.logger.info(
+      "[force-update] 未配置自有更新源（ZCODIUM_UPDATE_ORIGIN），跳过远端强制升级检查",
+    );
+    return { blocked: false };
+  }
+
   const requirement = await resolveDesktopForceUpdateRequirement({
     ...options,
     endpointOrigin: options.endpointOrigin,
