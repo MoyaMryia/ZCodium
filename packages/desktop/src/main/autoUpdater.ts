@@ -9,6 +9,7 @@ import {
   PlatformChannels,
   resolveRuntimeZCodeEndpointOrigin,
   ZCODE_VERSION,
+  ZCODIUM_UPDATE_ORIGIN,
   type ElectronReleaseChannel,
   type Locale,
   type PostUpdateReleaseNotesPayload,
@@ -756,12 +757,19 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
   autoUpdater.setFeedURL({
     provider: "custom",
     updateProvider: ManifestUpdateProvider,
-    endpointOrigin: DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+    // 上游 DEFAULT_ZCODE_ENDPOINT_ORIGIN 的 manifest 分发官方 ZCode 安装包（appId dev.zcode.app），
+    // 与本仓库构建的 ZCodium 不是同一个应用，沿用会把自己的客户端更新成上游版本。
+    // 默认 origin 必须是自有更新源；未配置时调用方不会走到这里（见 initAutoUpdater 的提前返回）。
+    endpointOrigin: ZCODIUM_UPDATE_ORIGIN || DEFAULT_ZCODE_ENDPOINT_ORIGIN,
     ...(manifestUrl ? { manifestUrl } : {}),
     releasePlatform: getElectronReleasePlatform(),
     deviceMid: options.deviceMid,
-    resolveEndpointOrigin:
-      options.resolveEndpointOrigin ?? (() => resolveRuntimeZCodeEndpointOrigin(process.env)),
+    // 自有更新源优先于调用方的端点解析：resolveCurrentZCodeEndpointOrigin 读的是
+    // ZCODE_BASE_URL / settings.zcodeEndpointOrigin，其缺省值是上游地址，不能让它决定更新源。
+    resolveEndpointOrigin: () =>
+      ZCODIUM_UPDATE_ORIGIN ||
+      options.resolveEndpointOrigin?.() ||
+      resolveRuntimeZCodeEndpointOrigin(process.env),
     resolveReleaseChannel: async () => {
       availableUpdateChannel = await resolveUpdateReleaseChannel(options.settingService);
       return availableUpdateChannel;
@@ -1471,6 +1479,18 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   }
   autoUpdaterDisabledForProductFlavor = false;
   if (!canUseAutoUpdaterInCurrentRuntime()) return;
+
+  // 自有更新源未配置时不做任何检查：上游源会分发官方 ZCode 安装包，不能作为兜底。
+  // 这里连 provider 都不配置，避免 electron-updater 回落到 app-update.yml 里的占位 feed。
+  if (!ZCODIUM_UPDATE_ORIGIN) {
+    autoUpdaterDisabledForProductFlavor = true;
+    if (autoUpdatePollTimer) {
+      clearInterval(autoUpdatePollTimer);
+      autoUpdatePollTimer = null;
+    }
+    logger.info("[auto-update] 未配置自有更新源（ZCODIUM_UPDATE_ORIGIN），跳过更新检查");
+    return;
+  }
 
   onBeforeQuitAndInstall = options.onBeforeQuitAndInstall;
   if (options.locale) {

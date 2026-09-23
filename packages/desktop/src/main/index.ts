@@ -79,6 +79,7 @@ import {
   PlatformChannels,
   ZCODE_ENV,
   ZCODE_PRODUCT_FLAVOR,
+  ZCODIUM_UPDATE_ORIGIN,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
   ZCODE_VERSION,
@@ -1823,6 +1824,7 @@ app.whenReady().then(async () => {
   // 不向 Preview 渠道提供更新。
   void initAutoUpdater({
     enabled: ZCODE_PRODUCT_FLAVOR === "production",
+    // 未配置自有更新源时 initAutoUpdater 内部提前返回，不读上游 manifest。
     onBeforeQuitAndInstall: async () => {
       await prepareAppQuit("auto-update quitAndInstall", "update-install");
       if (process.platform === "win32") {
@@ -1996,7 +1998,9 @@ app.whenReady().then(async () => {
       ? await maybeBlockStartupForForceUpdate({
           locale: currentApplicationLocale,
           logger,
-          endpointOrigin: await resolveCurrentZCodeEndpointOrigin(),
+          // 门禁只允许读自有更新源：上游地址下发的 minimalVersion 不是本仓库的控制面。
+          // maybeBlockStartupForForceUpdate 在未配置时直接放行，这里保持同一判定来源。
+          endpointOrigin: ZCODIUM_UPDATE_ORIGIN || (await resolveCurrentZCodeEndpointOrigin()),
           onBlocked: () => {
             forceUpdateMainWindowCreationBlocked = true;
           },

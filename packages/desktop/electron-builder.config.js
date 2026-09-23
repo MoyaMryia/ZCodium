@@ -753,5 +753,10 @@ export default {
     // 新客户端运行时使用服务端 manifest provider；这里仅保留 electron-builder 必需的
     // generic publish 占位，避免打包产物继续携带可配置的旧 stable feed。
     url: "http://localhost:8081",
+    // 更新缓存目录必须随应用身份隔离。留空时 electron-builder 写入默认名
+    // '@zcodedesktop-updater'，那是从上游继承的名字，与官方 ZCode 共用同一个
+    // ~/Library/Caches 目录，pending/ 下已下载的官方安装包会被本应用当成自己的更新。
+    // 详见 .agents/specs/update-cache-isolation.md。
+    updaterCacheDirName: desktopProductIdentity.appId,
   },
 };
