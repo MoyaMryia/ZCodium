@@ -14,6 +14,7 @@
  */
 
 import { COMPAT_INPUT_TOOLS } from "./compatible/executor.js";
+import { createSurfaceLayer, ZCODE_SURFACE_TOOLS } from "./surface.js";
 
 export const UNAVAILABLE_TEXT = "Computer Use is not available in this build.";
 
@@ -118,11 +119,27 @@ export function createCuaDriverRuntime(client, options = {}) {
   // 兼容层（老 GNOME）只接管输入类工具；观察/语义始终走 cua-driver（见 §8.1 路由）。
   const compat = options.compat;
 
+  // 胶水：ZCode 模型面（14 工具）走 surface 映射层；原生工具名直接透传。
+  const callDriver = (toolName, args, signal) => {
+    const argsJson = JSON.stringify(args ?? {});
+    return signal ? client.callTool(toolName, argsJson, { signal }) : client.callTool(toolName, argsJson);
+  };
+  const surface = createSurfaceLayer({
+    callDriver,
+    compat,
+    compatApplies: compat?.applies === true,
+    projectDriverResult: projectToolResult,
+    projectDriverError: projectDriverError,
+  });
+
   return {
     async execute(input) {
       const toolName = typeof input?.toolName === "string" ? input.toolName : "";
       if (!toolName) {
         return projectDriverError("<missing>", new Error("Computer Use tool name is missing"));
+      }
+      if (ZCODE_SURFACE_TOOLS.includes(toolName)) {
+        return surface.execute(input);
       }
       if (compat?.applies === true && COMPAT_INPUT_TOOLS.has(toolName)) {
         return compat.execute(input);

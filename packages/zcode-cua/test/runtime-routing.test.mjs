@@ -45,10 +45,10 @@ test("applies 时输入类工具走兼容层，driver 不被调用", async () =>
   assert.deepEqual(calls, [{ target: "compat", toolName: "type_text", args: { text: "hi" } }]);
 });
 
-test("applies 时观察/语义工具仍只走 driver", async () => {
+test("applies 时 cua-driver 原生观察/语义名仍只走 driver", async () => {
   const calls = [];
   const runtime = createCuaDriverRuntime(makeClient(calls), { compat: makeCompat(true, calls) });
-  for (const toolName of ["get_window_state", "list_windows", "set_value", "get_desktop_state"]) {
+  for (const toolName of ["get_window_state", "get_desktop_state", "zoom", "get_accessibility_tree"]) {
     await runtime.execute({ toolName, arguments: { pid: 1 }, context: CONTEXT });
   }
   assert.equal(calls.length, 4);
