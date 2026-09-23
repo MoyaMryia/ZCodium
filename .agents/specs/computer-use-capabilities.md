@@ -119,8 +119,8 @@ ZCode 模型面（`computer-use-client.mjs` 的 14 工具）→ cua-driver 工�
 | M0 | 本文件（决策 + 映射 + 缺口） | 本文件 |
 | M1 | 工具名/参数/结果映射 + 目标解析（§2、§3.1） | **已完成**（`packages/zcode-cua/surface.js`；86/86 单测；本机 ZCode 14 工具名驱动 `list_apps`/`list_windows`/`get_app_state`/`left_click`/`type`/`scroll` 全通） |
 | M2 | 前后台回退 + 未验证截图（§3.5、§3.6） | **部分**（截图已标 `screenshotUnverified`；driver 后台不可用→前台的自动重试待做） |
-| M3 | 观测缓存与 diffing（§3.2） | 待开始 |
-| M4 | `actionSent` 与冷启动（§3.3、§3.4） | 待开始 |
+| M3 | 观测缓存与 diffing（§3.2） | **已完成**（baseline 指纹 + `disable_diffing` + `tree_shown_to_model`；结果标 `_meta.diff`） |
+| M4 | `actionSent` 与冷启动（§3.3、§3.4） | **已完成**（成功/失败/possibly_sent 推导；not-ready 退避重试） |
 | M5 | `request_access` 全批准 + 停止（§2） | 已完成（全批准） |
 | M6 | 端到端：桌面 App 表单填写 / 文件管理器归档 | 待开始 |
 
