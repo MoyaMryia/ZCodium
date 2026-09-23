@@ -1,5 +1,13 @@
 /* eslint-disable max-lines -- Electron Builder config keeps related packaging hooks together so build order stays explicit. */
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -285,6 +293,36 @@ function resolvePackagedResourcesDir(context) {
   return resolve(context.appOutDir, "resources");
 }
 
+/**
+ * 把 app-update.yml 的 updaterCacheDirName 改写为按应用身份隔离的目录名。
+ *
+ * electron-builder 26 的 `AppInfo.updaterCacheDirName` 由 `metadata.name` 派生
+ * （appInfo.js: `this.sanitizedName.toLowerCase() + "-updater"`），而本仓库的 desktop
+ * package.json 名为 `@zcode/desktop`，因此默认值是从上游继承的 `@zcodedesktop-updater`——
+ * 与官方 ZCode 共用同一个 ~/Library/Caches 目录，pending/ 下已下载的官方安装包会被当成
+ * 本应用的更新。schema 里没有可覆盖该值的配置项，publish.updaterCacheDirName 会被忽略
+ * （PublishManager 始终写入 appInfo 的值），所以只能在 afterPack 里改文件。
+ *
+ * afterPack 的执行顺序：PublishManager 的 handler 注册为 system、用户的 afterPack 注册为
+ * user，AsyncEventEmitter 先跑 system 后跑 user，因此这里读到的是已写好的 app-update.yml。
+ * 详见 .agents/specs/update-cache-isolation.md。
+ */
+function rewriteUpdaterCacheDirName(context) {
+  const updateYmlPath = join(resolvePackagedResourcesDir(context), "app-update.yml");
+  if (!existsSync(updateYmlPath)) {
+    return;
+  }
+  const expected = `updaterCacheDirName: '${context.packager.appInfo.id}-updater'`;
+  const current = readFileSync(updateYmlPath, "utf8");
+  if (current.includes(expected)) {
+    return;
+  }
+  const next = /^updaterCacheDirName:.*$/m.test(current)
+    ? current.replace(/^updaterCacheDirName:.*$/m, expected)
+    : `${current.trimEnd()}\n${expected}\n`;
+  writeFileSync(updateYmlPath, next);
+}
+
 function normalizeAsarEntry(entry) {
   return entry.trim().replaceAll("\\", "/");
 }
@@ -550,6 +588,8 @@ export default {
     runTimedSync("afterPack:assertPackagedNodePtyPrebuild", () =>
       assertPackagedNodePtyPrebuild(context),
     );
+    // 必须在 electron-builder 写完 app-update.yml 之后执行，见函数注释。
+    runTimedSync("afterPack:rewriteUpdaterCacheDirName", () => rewriteUpdaterCacheDirName(context));
     if (actualWindowsTarget) {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>
         writeWindowsInstallManifest(context),
@@ -753,10 +793,5 @@ export default {
     // 新客户端运行时使用服务端 manifest provider；这里仅保留 electron-builder 必需的
     // generic publish 占位，避免打包产物继续携带可配置的旧 stable feed。
     url: "http://localhost:8081",
-    // 更新缓存目录必须随应用身份隔离。留空时 electron-builder 写入默认名
-    // '@zcodedesktop-updater'，那是从上游继承的名字，与官方 ZCode 共用同一个
-    // ~/Library/Caches 目录，pending/ 下已下载的官方安装包会被本应用当成自己的更新。
-    // 详见 .agents/specs/update-cache-isolation.md。
-    updaterCacheDirName: desktopProductIdentity.appId,
   },
 };
