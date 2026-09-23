@@ -83,6 +83,46 @@ test("get_app_state 记录快照并投影 state_id/elements", async () => {
   assert.equal(result.structuredContent.app.pid, 100);
 });
 
+test("观测 diffing：首次全量，未变化则空 diff，disable_diffing 强制全量", async () => {
+  let version = 0;
+  const callDriver = async (name) => {
+    if (name === "get_window_state") {
+      const elements = [{ element_index: 1, element_token: "s:1", role: "button", label: version === 0 ? "A" : "B", frame: { x: 0, y: 0, w: 1, h: 1 } }];
+      return { text: "t", structuredJson: JSON.stringify({ snapshot_id: `s${version}`, elements }), isError: false };
+    }
+    return { text: "", structuredJson: "{}", isError: false };
+  };
+  const surface = createSurfaceLayer({ callDriver, compat: null, compatApplies: false, projectDriverResult, projectDriverError });
+  const args = { app_ref: { pid: 1 }, window_id: 2 };
+  const first = await surface.execute({ toolName: "get_app_state", arguments: args });
+  assert.equal(first._meta.diff, false);
+  assert.equal(first.structuredContent.elements.length, 1);
+  const second = await surface.execute({ toolName: "get_app_state", arguments: args });
+  assert.equal(second._meta.diff, true);
+  assert.equal(second.structuredContent.elements.length, 0);
+  version = 1;
+  const third = await surface.execute({ toolName: "get_app_state", arguments: args });
+  assert.equal(third._meta.diff, true);
+  assert.equal(third.structuredContent.elements.length, 1);
+  const full = await surface.execute({ toolName: "get_app_state", arguments: { ...args, disable_diffing: true } });
+  assert.equal(full._meta.diff, false);
+  assert.equal(full.structuredContent.elements.length, 1);
+});
+
+test("tree_shown_to_model:false 不置 baseline，下一次仍全量", async () => {
+  const callDriver = async (name) => {
+    if (name === "get_window_state") return { text: "t", structuredJson: JSON.stringify({ snapshot_id: "s", elements: ELEMENTS }), isError: false };
+    return { text: "", structuredJson: "{}", isError: false };
+  };
+  const surface = createSurfaceLayer({ callDriver, compat: null, compatApplies: false, projectDriverResult, projectDriverError });
+  const args = { app_ref: { pid: 1 }, window_id: 2 };
+  const probe = await surface.execute({ toolName: "get_app_state", arguments: { ...args, tree_shown_to_model: false } });
+  assert.equal(probe._meta.diff, false);
+  const next = await surface.execute({ toolName: "get_app_state", arguments: args });
+  assert.equal(next._meta.diff, false);
+  assert.equal(next.structuredContent.elements.length, ELEMENTS.length);
+});
+
 test("left_click 把 element index 传给兼容层（token 会被重新观测而失效）", async () => {
   const compat = makeCompat();
   const { surface } = makeSurface({ get_window_state: windowStateHandler() }, compat);

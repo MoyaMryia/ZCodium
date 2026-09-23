@@ -49,6 +49,19 @@ function structured(raw) {
   return parseJson(raw?.structuredJson, undefined);
 }
 
+/** 元素指纹：用于观测 diff，只看语义与几何，不看 token。 */
+function elementFingerprint(element) {
+  return JSON.stringify([element.role, element.label, element.value, element.enabled, element.selected, element.actions, element.frame]);
+}
+
+function fingerprintIndex(elements) {
+  const map = new Map();
+  for (const element of elements) {
+    if (typeof element.element_index === "number") map.set(element.element_index, elementFingerprint(element));
+  }
+  return map;
+}
+
 /** 支持 `delivery_mode` 的输入类工具：后台拿不到就前台重试。 */
 const FOREGROUND_FALLBACK_TOOLS = new Set([
   "click",
@@ -107,6 +120,7 @@ export function createSurfaceLayer({
   projectDriverError,
 }) {
   const observations = new Map();
+  const baselines = new Map();
   const appCache = new Map();
 
   const keyFor = (pid, windowId) => `${pid ?? "?"}:${windowId ?? "?"}`;
@@ -233,6 +247,21 @@ export function createSurfaceLayer({
     const elements = Array.isArray(structured.elements) ? structured.elements : [];
     const stateId = structured.snapshot_id ?? structured.state_id ?? `s-${Date.now()}`;
     remember(pid, windowId, stateId, elements);
+
+    // 观测 diffing（§3.2）：绑定探测（tree_shown_to_model=false）不置 baseline；
+    // 模型看过之后只发相对 baseline 的变化；disable_diffing 强制全量。
+    const key = keyFor(pid, windowId);
+    const baseline = baselines.get(key);
+    const forceFull = args.disable_diffing === true || args.disableDiffing === true;
+    const treeShown = args.tree_shown_to_model !== false;
+    let emitted = elements;
+    let isDiff = false;
+    if (!forceFull && baseline?.shown) {
+      emitted = elements.filter((element) => baseline.byIndex.get(element.element_index) !== elementFingerprint(element));
+      isDiff = true;
+    }
+    if (treeShown) baselines.set(key, { byIndex: fingerprintIndex(elements), shown: true });
+
     const content = [];
     if (typeof raw?.text === "string" && raw.text.length > 0) content.push({ type: "text", text: raw.text });
     for (const image of Array.isArray(raw?.images) ? raw.images : []) {
@@ -244,7 +273,7 @@ export function createSurfaceLayer({
       structuredContent: {
         state_id: stateId,
         frame_id: structured.frame_id ?? stateId,
-        elements,
+        elements: emitted,
         app: { pid, name: structured.app_name ?? structured.appName, bundle_id: structured.bundle_id },
         window: {
           window_id: structured.window_id ?? windowId,
@@ -253,7 +282,7 @@ export function createSurfaceLayer({
         },
       },
       // 决策 2：先信未确认身份的截图。
-      _meta: { screenshotUnverified: true },
+      _meta: { screenshotUnverified: true, diff: isDiff },
     };
   }
 
