@@ -1,0 +1,55 @@
+name: macOS Desktop Build
+
+# 只做一件事：在 GitHub 托管的 macOS runner 上打出 arm64 的 .dmg / .zip 并上传为 artifact。
+# 不触碰 scripts/ci/desktop-release.mjs（它的产物白名单只认 linux/win），
+# 因此和上游同步不会冲突，也不会创建 Release。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: "0"
+  ZCODE_ENV: production
+  ZCODE_SKIP_REMOTE_ASSETS: "1"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+  ZCODE_TARGET_OS: mac
+  ZCODE_TARGET_ARCH: arm64
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+
+jobs:
+  build:
+    name: Build (mac arm64)
+    runs-on: macos-15
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - name: Prepare desktop runtime
+        run: pnpm prepare:desktop-runtime
+      - name: Build workspace and desktop
+        run: pnpm build:bootstrap
+      - name: Package desktop (macOS arm64)
+        run: pnpm bundle:desktop -- --os mac --arch arm64 --skip-prepare --skip-build
+      - name: List built artifacts
+        run: ls -lh packages/desktop/dist/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: zcodium-macos-arm64
+          path: |
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
