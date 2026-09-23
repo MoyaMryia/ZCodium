@@ -43,6 +43,7 @@ import {
   IZCodeTaskService,
   IZCodeSessionService,
   ICuaPipSessionService,
+  ICredentialService,
   createZCodeAgentConnectionScope,
   type ZCodeAgentV4ClientMode,
   collectServiceMemoryDiagnostics,
@@ -59,12 +60,19 @@ import {
   buildTaskChangeSummary,
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
+  BotsRepo,
+  BotsService,
+  getAppConfigDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
   type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
 } from "@zcode/services/node";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
+import { createBotsRuntimeAdapter } from "./botsRuntimeAdapter.js";
+import { startBotsBridgeServer, type BotsBridgeServerHandle } from "./botsBridgeServer.js";
 import {
   assertBoundSessionDispatchable,
   resolveOffPeakDispatchKind,
@@ -1840,6 +1848,70 @@ function disposeLocalResourceTelemetry(): void {
   }
 }
 
+const BOTS_BRIDGE_TOKEN_KEY = "bot:bridge:token";
+const BOTS_BRIDGE_RUNTIME_FILE = "bots-bridge.runtime.v2.json";
+
+let activeBotsBridge: {
+  service: BotsService;
+  adapter: ReturnType<typeof createBotsRuntimeAdapter>;
+  handle: BotsBridgeServerHandle;
+} | null = null;
+
+/**
+ * 启动 AstrBot 桥接：BotsService 持业务状态，adapter 接 IZCodeTaskService。
+ * token 存 credential store；url/port/token 另写 0600 运行时文件，方便插件配置。
+ */
+async function startBotsBridge(services: ServiceCollection): Promise<void> {
+  const zcodeTaskService = services.getOptional(IZCodeTaskService);
+  if (!zcodeTaskService) {
+    return;
+  }
+  const repo = new BotsRepo({ dir: getAppConfigDir(), logger: createServiceLogger("bots") });
+  const adapter = createBotsRuntimeAdapter({ zcodeTaskService, repo });
+  const service = new BotsService({ repo, runtime: adapter });
+  service.start();
+  const credentials = services.getOptional(ICredentialService);
+  let token = credentials ? await credentials.load(BOTS_BRIDGE_TOKEN_KEY) : null;
+  if (!token) {
+    token = `${randomUUID()}${randomUUID()}`.replace(/-/gu, "");
+    if (credentials) {
+      await credentials.save(BOTS_BRIDGE_TOKEN_KEY, token);
+    }
+  }
+  const handle = await startBotsBridgeServer({ service, token });
+  activeBotsBridge = { service, adapter, handle };
+  // 还没有任何绑定时生成一次性绑定码，写进运行时文件供用户在聊天里 /bind。
+  const bindCode =
+    (await service.listBindings()).length === 0 ? await service.createBindCode() : null;
+  const dir = getAppConfigDir();
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, BOTS_BRIDGE_RUNTIME_FILE),
+    `${JSON.stringify(
+      {
+        url: handle.url,
+        port: handle.port,
+        token,
+        ...(bindCode ? { bindCode: bindCode.code, bindCodeExpiresAt: bindCode.expiresAt } : {}),
+      },
+      null,
+      2,
+    )}\n`,
+    { encoding: "utf-8", mode: 0o600 },
+  );
+}
+
+async function disposeBotsBridge(): Promise<void> {
+  const current = activeBotsBridge;
+  activeBotsBridge = null;
+  if (!current) {
+    return;
+  }
+  current.service.dispose();
+  current.adapter.dispose();
+  await current.handle.close().catch(() => undefined);
+}
+
 type ExposedServicePortHandle = {
   server: IChannelServer & { ready(): void };
   dispose(): void;
@@ -2122,6 +2194,8 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
     }
     disposeOffPeakRuntime();
     offPeakTaskRepo.close();
+
+    await disposeBotsBridge();
 
     if (activeSessionRealtimePort) {
       activeSessionRealtimePort.dispose();
@@ -2852,6 +2926,9 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           services.register(IZCodeTaskService, reportingZCodeTaskService);
         }
         wireLocalResourceTelemetry(services);
+        await startBotsBridge(services).catch((error) => {
+          logger.warn("start bots bridge failed", error);
+        });
         hasDisposedHostResources = false;
         disposeHostResourcesInFlight = null;
         const agentWarmupTargets =
