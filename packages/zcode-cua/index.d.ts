@@ -24,6 +24,16 @@ export interface ComputerUseRuntime {
   dispose(): Promise<void>;
 }
 
+/**
+ * 兼容层执行器（老 GNOME / Wayland）。只接管输入类工具；
+ * 观察与语义仍由 cua-driver 处理。契约见 `computer-use-wayland-input.md` §8。
+ */
+export interface ComputerUseCompatExecutor {
+  applies: boolean;
+  execute(input: ComputerUseRuntimeExecuteInput): Promise<unknown>;
+  dispose?(): void | Promise<void>;
+}
+
 /** cua-driver 的图片块（TS SDK 用 base64 字符串）。 */
 export interface CuaDriverImageContent {
   mimeType: string;
@@ -66,6 +76,8 @@ export interface CuaDriverClient {
 export interface ComputerUseRuntimeOptions {
   /** 注入的 driver client。缺失时运行时 fail-closed。 */
   client?: CuaDriverClient;
+  /** 兼容层执行器（老 GNOME）。`applies` 为真且工具属输入类时接管。 */
+  compat?: ComputerUseCompatExecutor;
   /** client 缺失时展示给调用方的原因。 */
   unavailableReason?: string;
   /** 兼容旧装配点；本次改造后未使用。 */
@@ -81,7 +93,10 @@ export declare function assertCuaDriverClient(client: unknown): string | undefin
 
 export declare function createUnavailableRuntime(reason?: string): ComputerUseRuntime;
 
-export declare function createCuaDriverRuntime(client: CuaDriverClient): ComputerUseRuntime;
+export declare function createCuaDriverRuntime(
+  client: CuaDriverClient,
+  options?: ComputerUseRuntimeOptions,
+): ComputerUseRuntime;
 
 export declare function projectToolResult(result: CuaDriverToolResult): unknown;
 

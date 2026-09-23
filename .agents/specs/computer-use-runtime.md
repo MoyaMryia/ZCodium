@@ -64,6 +64,8 @@
   `click / type_text / hotkey / press_key / scroll / drag` 兜底到 
   **mutter 直连注入 + WinRects 扩展**；观察与语义（`get_window_state` / `list_windows` / `set_value`）仍只走 cua-driver。
   兼容层放 `packages/zcode-cua/compatible/`，默认不加载，仅在原生不可用时启用。
+路由已接入：`createComputerUseRuntime({ client, compat })`，`compat.applies` 为真且工具属输入类时
+走 `compatible/executor.js`；观察/语义始终走 cua-driver。
 完整接口、坐标公式、键盘/文本映射、helper 进程与验证记录见 `.agents/specs/computer-use-wayland-input.md`。
 全平台（Windows / macOS / Linux X11 / 各 Wayland 合成器）的机制与计划见 `.agents/specs/computer-use-platform-architecture.md`。
 

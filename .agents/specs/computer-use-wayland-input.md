@@ -333,7 +333,7 @@ interface WaylandInputBackend {
 | C1 | `compatible/evdev.js`、`geometry.js`（纯函数）+ 单测 | **已完成**（32 测试通过；真实点击命中 "5"，元素 frame 形状确认为 `{x,y,w,h}`、文本字段是 `label`） |
 | C2 | `compatible/helper/cua-wayland-input.js`（GJS，D-Bus 原语） | **已完成**（本机 smoke：ping/version/monitors/getCursor/listWindows/moveRel/button 全通，version=8） |
 | C3 | `compatible/backend.js` + `detect.js`（spawn/监督、路由） | **已完成**（`helper-client.js` + backend + detect；54 测试通过；真实 helper 端到端 click "5" 命中） |
-| C4 | 接 `createComputerUseRuntime` 兜底路由 | 待开始 |
+| C4 | 接 `createComputerUseRuntime` 兜底路由 | **已完成**（`runtime.js` 路由 + `compatible/executor.js`；真实链路：driver 观察 → compat `press_key`/`click` 命中 "5"；70 测试通过） |
 | C5 | 分级 type_text 测试（§6.4 表）+ 变 scale 验证 | 待开始 |
 
 ## 12. 待定

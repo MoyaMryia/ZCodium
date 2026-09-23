@@ -13,6 +13,8 @@
  *     原始字段经 `_meta` 透传，避免在适配层猜测 driver 的语义。
  */
 
+import { COMPAT_INPUT_TOOLS } from "./compatible/executor.js";
+
 export const UNAVAILABLE_TEXT = "Computer Use is not available in this build.";
 
 /** 适配器读取的 client 端口。cua-driver 的 TS SDK 与 MCP proxy 都满足它。 */
@@ -109,15 +111,21 @@ export function projectDriverError(toolName, error) {
  *
  * @param {object} client 满足 `callTool(name, argumentsJson, opts?)` 的 driver client
  */
-export function createCuaDriverRuntime(client) {
+export function createCuaDriverRuntime(client, options = {}) {
   const missing = assertCuaDriverClient(client);
   if (missing) return createUnavailableRuntime(missing);
+
+  // 兼容层（老 GNOME）只接管输入类工具；观察/语义始终走 cua-driver（见 §8.1 路由）。
+  const compat = options.compat;
 
   return {
     async execute(input) {
       const toolName = typeof input?.toolName === "string" ? input.toolName : "";
       if (!toolName) {
         return projectDriverError("<missing>", new Error("Computer Use tool name is missing"));
+      }
+      if (compat?.applies === true && COMPAT_INPUT_TOOLS.has(toolName)) {
+        return compat.execute(input);
       }
       const argsJson = JSON.stringify(input.arguments ?? {});
       try {
@@ -142,6 +150,13 @@ export function createCuaDriverRuntime(client) {
       }
     },
     async dispose() {
+      if (typeof compat?.dispose === "function") {
+        try {
+          await compat.dispose();
+        } catch {
+          // 兼容层收尾失败不应阻断 driver 回收。
+        }
+      }
       if (typeof client.dispose !== "function") return;
       await client.dispose();
     },
