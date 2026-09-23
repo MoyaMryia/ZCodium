@@ -633,6 +633,11 @@ export default {
             from: "build/icons/512x512.png",
             to: "icon_512x512.png",
           },
+          {
+            // Linux 窗口/任务栏图标保持满幅，不复用 macOS 已按 1024/824 补留白的 icon.png。
+            from: "build/icon_linux.png",
+            to: "icon_linux.png",
+          },
         ]
       : []),
     {

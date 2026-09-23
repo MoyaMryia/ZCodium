@@ -34,14 +34,19 @@ Dock 图标有两条独立来源，同一张源图喂给两边：
 - 留白只加在**打包与运行时图标**上；`public/logo/icons/*` 是界面内 logo，
   缩小显示不加留白，不在本规则范围内。
 - `icon_windows.png`、`icon.ico` 面向 Windows，不套 macOS 网格。
+- 网格只作用于 macOS：Linux 窗口/任务栏图标用独立的 `build/icon_linux.png`（满幅 1024），
+  不补留白，避免 Linux 上再出现“比同排应用小一圈”。
 
 ## 所有者与接口
 
-- 素材所有者：`packages/desktop/build/icon.png`（源）与 `build/icon.icns`（派生）。
+- 素材所有者：`packages/desktop/build/icon.png`（macOS 源）与 `build/icon.icns`（派生）；
+  Linux 另用 `packages/desktop/build/icon_linux.png`（满幅）。
 - 分发方：`packages/desktop/electron-builder.config.js` 的 `extraResources`
-  把 `build/icon.png` 拷为 `Contents/Resources/icon.png`（第 626-627 行）。
-- 运行时消费方：`iconPath` → `applyAppIcon()`；`icon.icns` 由 `Info.plist` 的
-  `CFBundleIconFile` 消费，两者不做二次缩放，因此留白必须在源图上一次性做好。
+  把 `build/icon.png` 拷为 `Contents/Resources/icon.png`；Linux 构建额外把
+  `build/icon_linux.png` 拷为 `icon_linux.png`。
+- 运行时消费方：`iconPath`（macOS → `icon.png`，Linux → `icon_linux.png`）→ `applyAppIcon()`；
+  `icon.icns` 由 `Info.plist` 的 `CFBundleIconFile` 消费，两者不做二次缩放，
+  因此留白必须在源图上一次性做好。
 - `dmg.icon`（`build/icon_installer.icns`）尺寸由 DMG 布局坐标控制，不套应用图标网格。
 
 ## 验收场景
@@ -53,6 +58,8 @@ Dock 图标有两条独立来源，同一张源图喂给两边：
    Dock 中可见尺寸与官方 ZCode 相差不超过 1 pt（tilesize 51 时约 41 pt）。
 4. 替换已安装 app 的图标后，`codesign -dv` 仍报 `adhoc` / `Sealed Resources=none`，
    应用可正常启动。
+5. Linux 构建的 `resources/icon_linux.png` 满幅可见 1024；`iconPath` 在 Linux 指向它，
+   不再复用已补留白的 `icon.png`。
 
 ## 非目标
 

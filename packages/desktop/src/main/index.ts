@@ -235,14 +235,21 @@ process.on("unhandledRejection", (reason) => {
   logger.error("unhandledRejection:", reason);
 });
 
+// icon.png 已按 macOS 1024/824 网格补留白（见 .agents/specs/desktop-app-icon-grid.md）；
+// 该网格只服务 macOS。Linux 的窗口图标不做留白，继续用满幅的 icon_linux.png，
+// 否则任务栏/窗口图标会比同排应用小一圈。
 const iconPath =
   process.platform === "win32"
     ? app.isPackaged
       ? join(process.resourcesPath, "icon_windows.png")
       : join(import.meta.dirname, "../../build/icon_windows.png")
-    : app.isPackaged
-      ? join(process.resourcesPath, "icon.png")
-      : join(import.meta.dirname, "../../build/icon.png");
+    : process.platform === "linux"
+      ? app.isPackaged
+        ? join(process.resourcesPath, "icon_linux.png")
+        : join(import.meta.dirname, "../../build/icon_linux.png")
+      : app.isPackaged
+        ? join(process.resourcesPath, "icon.png")
+        : join(import.meta.dirname, "../../build/icon.png");
 const linuxDesktopIntegrationIconPath =
   process.platform === "linux"
     ? app.isPackaged
