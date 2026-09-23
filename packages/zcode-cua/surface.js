@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- ZCode 14 工具映射、目标解析、观测缓存与失败语义集中一处，拆分会割裂模型面契约。 */
 /**
  * ZCode 模型面（14 工具）↔ cua-driver 的映射层。
  *
@@ -83,6 +84,51 @@ function isBackgroundUnavailable(value) {
   return /background[_ ]?unavailable/i.test(String(value?.message ?? value?.text ?? ""));
 }
 
+/** cua-driver / daemon 冷启动未就绪（§3.4）。 */
+const NOT_READY = /cua_not_ready|not[ _-]?ready/i;
+function isNotReady(value) {
+  const code = value?.errorCode ?? value?.code;
+  if (typeof code === "string" && NOT_READY.test(code)) return true;
+  return NOT_READY.test(String(value?.message ?? value?.text ?? ""));
+}
+
+/** 投递可能已发生但无法确认（§3.3）→ 禁止盲重试。 */
+function isPossiblySent(value) {
+  if (!value) return false;
+  const status = value.dispatch_status ?? value.dispatchStatus;
+  if (typeof status === "string" && /possibly_sent/i.test(status)) return true;
+  const haystack = [value.message, value.text, value.rawJson, value.structuredJson]
+    .filter((part) => typeof part === "string")
+    .join(" ");
+  return /possibly[ _-]?sent/i.test(haystack);
+}
+
+/** 工具是否产生副作用（用于 actionSent 语义）。 */
+const ACTION_TOOLS = new Set([
+  "click",
+  "double_click",
+  "right_click",
+  "drag",
+  "scroll",
+  "type_text",
+  "press_key",
+  "hotkey",
+  "set_value",
+  "clipboard_write",
+  "mouse_button_down",
+  "mouse_button_up",
+  "mouse_drag",
+  "move_cursor",
+  "invoke_menu",
+  "bring_to_front",
+  "launch_app",
+  "kill_app",
+  "set_window_frame",
+  "end_session",
+]);
+
+const COLD_START_DELAYS = [250, 500, 750, 1000, 1500];
+
 function markForeground(result, fallback) {
   const meta = { ...result?._meta, deliveryMode: "foreground" };
   if (fallback) meta.foregroundFallback = true;
@@ -118,6 +164,7 @@ export function createSurfaceLayer({
   compatApplies = Boolean(compat?.applies),
   projectDriverResult,
   projectDriverError,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
   const observations = new Map();
   const baselines = new Map();
@@ -189,19 +236,47 @@ export function createSurfaceLayer({
     return { pid, windowId };
   }
 
+  async function callDriverWithColdStart(tool, args, signal) {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await callDriver(tool, args, signal);
+      } catch (error) {
+        if (!isNotReady(error) || attempt >= COLD_START_DELAYS.length) throw error;
+        await sleep(COLD_START_DELAYS[attempt]);
+      }
+    }
+  }
+
+  /** actionSent（§3.3）：成功→true；不确定投递→true+possiblySent；其余错误→false。 */
+  function decorateAction(result, raw) {
+    const meta = { ...result?._meta };
+    const errored = result?.isError === true || raw?.isError === true;
+    if (errored) {
+      const possibly = isPossiblySent(raw);
+      meta.actionSent = possibly;
+      if (possibly) meta.possiblySent = true;
+    } else {
+      meta.actionSent = true;
+    }
+    return { ...result, _meta: meta };
+  }
+
   async function forwardToDriver(driverTool, args, input) {
     const canFallback = FOREGROUND_FALLBACK_TOOLS.has(driverTool) && args.delivery_mode !== "foreground";
+    const isAction = ACTION_TOOLS.has(driverTool);
+    const invoke = (nextArgs) => callDriverWithColdStart(driverTool, nextArgs, input.signal);
+    const finish = (result, raw) => (isAction ? decorateAction(result, raw) : result);
     try {
-      const raw = await callDriver(driverTool, args, input.signal);
+      const raw = await invoke(args);
       if (canFallback && raw?.isError && isBackgroundUnavailable(raw)) {
-        const retry = await callDriver(driverTool, { ...args, delivery_mode: "foreground" }, input.signal);
-        return markForeground(projectDriverResult(retry), true);
+        const retry = await invoke({ ...args, delivery_mode: "foreground" });
+        return finish(markForeground(projectDriverResult(retry), true), retry);
       }
-      return projectDriverResult(raw);
+      return finish(projectDriverResult(raw), raw);
     } catch (error) {
       if (canFallback && isBackgroundUnavailable(error)) {
-        const retry = await callDriver(driverTool, { ...args, delivery_mode: "foreground" }, input.signal);
-        return markForeground(projectDriverResult(retry), true);
+        const retry = await invoke({ ...args, delivery_mode: "foreground" });
+        return finish(markForeground(projectDriverResult(retry), true), retry);
       }
       throw error;
     }
@@ -433,7 +508,12 @@ export function createSurfaceLayer({
           _meta: { actionSent: false, errorCode: error.code },
         };
       }
-      return projectDriverError(toolName, error);
+      const projected = projectDriverError(toolName, error);
+      const possibly = isPossiblySent(error);
+      return {
+        ...projected,
+        _meta: { ...projected._meta, actionSent: possibly, ...(possibly ? { possiblySent: true } : {}) },
+      };
     }
   }
 

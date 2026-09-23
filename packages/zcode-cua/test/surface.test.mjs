@@ -214,6 +214,57 @@ test("兼容层结果标记前台", async () => {
   assert.equal(result._meta.deliveryMode, "foreground");
 });
 
+test("冷启动未就绪自动重试，成功标 actionSent:true", async () => {
+  let attempts = 0;
+  const callDriver = async (name) => {
+    if (name === "get_window_state") return { text: "t", structuredJson: JSON.stringify({ snapshot_id: "s1", elements: ELEMENTS }), isError: false };
+    if (name === "click") {
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error("runtime not ready");
+        error.code = "CUA_NOT_READY";
+        throw error;
+      }
+      return { text: "clicked", isError: false };
+    }
+    return { text: "", structuredJson: "{}", isError: false };
+  };
+  const surface = createSurfaceLayer({ callDriver, compat: null, compatApplies: false, projectDriverResult, projectDriverError, sleep: async () => {} });
+  await surface.execute({ toolName: "get_app_state", arguments: { app_ref: { pid: 100 }, window_id: 58 } });
+  const result = await surface.execute({ toolName: "left_click", arguments: { app_ref: { pid: 100 }, window_id: 58, target: 202 } });
+  assert.equal(result.isError, false);
+  assert.equal(result._meta.actionSent, true);
+  assert.equal(attempts, 2);
+});
+
+test("动作失败标 actionSent:false；不确定投递标 true+possiblySent", async () => {
+  const errorDriver = async (name) => {
+    if (name === "get_window_state") return { text: "t", structuredJson: JSON.stringify({ snapshot_id: "s1", elements: ELEMENTS }), isError: false };
+    if (name === "click") {
+      const error = new Error("bad target");
+      error.errorCode = "invalid_request";
+      throw error;
+    }
+    return { text: "", structuredJson: "{}", isError: false };
+  };
+  const failed = createSurfaceLayer({ callDriver: errorDriver, compat: null, compatApplies: false, projectDriverResult, projectDriverError, sleep: async () => {} });
+  await failed.execute({ toolName: "get_app_state", arguments: { app_ref: { pid: 100 }, window_id: 58 } });
+  const failedResult = await failed.execute({ toolName: "left_click", arguments: { app_ref: { pid: 100 }, window_id: 58, target: 202 } });
+  assert.equal(failedResult.isError, true);
+  assert.equal(failedResult._meta.actionSent, false);
+
+  const sentDriver = async (name) => {
+    if (name === "get_window_state") return { text: "t", structuredJson: JSON.stringify({ snapshot_id: "s1", elements: ELEMENTS }), isError: false };
+    if (name === "click") return { isError: true, text: "possibly sent", rawJson: JSON.stringify({ dispatch_status: "possibly_sent" }), structuredJson: "{}" };
+    return { text: "", structuredJson: "{}", isError: false };
+  };
+  const sent = createSurfaceLayer({ callDriver: sentDriver, compat: null, compatApplies: false, projectDriverResult, projectDriverError, sleep: async () => {} });
+  await sent.execute({ toolName: "get_app_state", arguments: { app_ref: { pid: 100 }, window_id: 58 } });
+  const sentResult = await sent.execute({ toolName: "left_click", arguments: { app_ref: { pid: 100 }, window_id: 58, target: 202 } });
+  assert.equal(sentResult._meta.actionSent, true);
+  assert.equal(sentResult._meta.possiblySent, true);
+});
+
 test("runtime 识别 ZCode 工具名并走 surface", async () => {
   const client = {
     async callTool(name) {
