@@ -167,3 +167,89 @@ nodes — follows the conventions of:
 
 The knowledge above is restated in this repository's own words and in `.docx` terms;
 no upstream file is distributed with this plugin.
+
+## 9. The element library
+
+Concrete patterns built from the three primitives. Each is a named, reusable
+specification — not a one-off arrangement. An element that is not in this
+library is an element that has not been specified.
+
+### `Rule_Hairline`
+
+A 0.5 pt single rule, full text width, in the `rule` colour. Separates sections
+where a heading is not wanted. Spacing: 6 pt above, 6 pt below — set once, in
+the paragraph's `w:spacing`, not with empty paragraphs.
+
+### `Rule_Accent_Short`
+
+A 2–3 pt rule, 1.5–3 cm wide, in the accent colour, sitting under a title or
+a section heading. The width is fixed in the spec, not "whatever looks right".
+This is the only element allowed to use the accent.
+
+### `Panel_Tint`
+
+A paragraph (or table cell) with a `w:shd` fill at `tint10` and no border, or
+a left border only (3 pt, accent) with no fill. Carries a callout, a quote, or
+a summary block. Padding comes from the paragraph's indent, not from spaces.
+
+### `Frame_Box`
+
+A full box: 0.5 pt border in the `rule` colour, no fill. For a candidate
+information block, a seal-line frame, a form field group. Never for body text —
+a boxed paragraph is unreadable at length.
+
+### `Corner_Brackets`
+
+Two L-shaped borders (top+left, bottom+right) framing a title or a figure.
+Built from four border specifications on one paragraph. The bracket thickness
+matches `Rule_Accent_Short`; the gap from the text is a fixed indent.
+
+### `Table_Header_Band`
+
+A table's header row with a `tint10` fill and a bottom border at 1 pt in the
+`rule` colour, no vertical rules anywhere in the table (`common-rules.md`
+§2.3). The band is what makes a table scannable; vertical lines are what make
+it a grid of cells nobody reads.
+
+### `Number_Badge`
+
+A number or short label set in a small tinted cell (a 1×1 table), used to
+number sections in a document whose heading style must stay unnumbered. The
+badge's size is fixed; the number comes from the numbering definition, never
+typed.
+
+## 10. Usage scenarios
+
+Which element, where — the mapping is the design system's second half.
+
+| scenario | elements | notes |
+| --- | --- | --- |
+| report / paper title block | `Rule_Accent_Short` | one short rule under the title; nothing else |
+| section separation | `Rule_Hairline` | only where the heading style does not already separate |
+| callout / warning | `Panel_Tint` | the tint is the only signal; no border, no icon font |
+| candidate info block (exam) | `Frame_Box` | full box; the only framed element in the document |
+| letterhead | `Rule_Hairline` + logo | the rule separates the lockup from the body |
+| contract clause group | none | a contract has no decorations; the numbering is the structure |
+| official document | none beyond the 版头 | GB/T 9704 defines the furniture; nothing is added |
+| table of contents | `Rule_Hairline` between groups | dot leaders are a tab stop, not a decoration |
+
+**The default is none.** A document whose decorations are all default has no
+decoration defects; a document that adds elements because they exist has a
+design problem. Each element above must earn its place in a specific scenario,
+and the scenario table is where that place is recorded.
+
+## 11. Decoration budget
+
+Per document, the ceiling:
+
+| element | max per document |
+| --- | --- |
+| `Rule_Accent_Short` | one per section heading, or one for the whole document |
+| `Rule_Hairline` | one per section boundary |
+| `Panel_Tint` | as many as there are callouts — but a callout that is not one of the defined kinds is body text |
+| `Frame_Box` | one, or one per form-field group |
+| `Corner_Brackets` | one (a title or a cover) |
+| `Number_Badge` | as many as there are unnumbered sections |
+
+A document that exceeds the budget is not "richly decorated" — it is a document
+whose hierarchy is being asked to do a job the styles should be doing.

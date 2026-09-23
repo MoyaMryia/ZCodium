@@ -100,3 +100,36 @@ rule reads only `@w:firstLine`.
 - Any Chinese body paragraph of twenty or more characters either centred, a list
   item, under twenty characters, or carrying a `w:ind/@w:firstLine` in 200–800 twips.
 - `postcheck.py copy.docx --only blank-pages,line-spacing,cjk-indent,heading-continuity,font-fallback,image-overflow`
+
+## 9. Palette for copy
+
+Copywriting is the one scene where the palette is allowed to be warm, and the
+rules still hold:
+
+- The Warm recipe from `references/design-system.md` §9 (`field #FAF7F2`,
+  `ink #2C2C2C`, `support #D9CBB8`, `accent #C15937`) is the default; Muted is
+  the internal-note variant.
+- The accent appears on the headline's key word and nowhere else. One accent,
+  fewer than five accented elements per page.
+- A tinted field (`tint10`) behind the opening paragraph is the only panel a
+  copy document needs.
+- Greyscale must work: photocopy the page, or convert it, and check the
+  hierarchy survives without the hue.
+
+## 10. Scene-specific quality checks
+
+Beyond the shared checklist in `common-rules.md`:
+
+- [ ] One idea per page, and the idea is stated in the first line.
+- [ ] The word budget from the routing held: no page needed cutting to fit.
+- [ ] The title hierarchy has exactly three levels, and no fourth level
+      appears anywhere.
+- [ ] Every paragraph is at most four lines; a fifth line means the paragraph
+      is two paragraphs.
+- [ ] Chinese copy uses the indent rule (§5) consistently — no mixed
+      first-line-indent and space-between styles.
+- [ ] The palette is one of the two copy recipes, and the accent count on the
+      busiest page is under five.
+- [ ] Nothing is centred that is not a title or a short label — centred body
+      copy is the defect that makes copy look generated.
+- [ ] The document still reads correctly in greyscale.

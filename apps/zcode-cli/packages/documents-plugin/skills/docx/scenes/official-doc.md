@@ -157,3 +157,91 @@ list at levels 3 and 4 — where `w:numPr` renumbers correctly. A typed `1.` at 
 - Page numbers as `— N —`, odd right and even left, continuous, none on page 1.
 - No empty `<w:pgNumType/>`; `fix_footer_fields.py` run and clean.
 - `postcheck.py notice.docx --only line-spacing,cjk-indent,heading-continuity,numbering-continuity,font-fallback,blank-pages,image-overflow`
+
+## 11. Document type routing
+
+Four types, each a different template. The type decides the 版头, the closing
+formula, and whether a 主送机关 line exists at all.
+
+| type | 版头 | closing | 主送 |
+| --- | --- | --- | --- |
+| **Notice (通知)** | full red header | 特此通知 | yes |
+| **Official letter (函)** | red header, no 发文机关标志 beyond the letterhead | 特此函复 / 盼复 | yes |
+| **Reply (批复)** | red header | 此复 | yes |
+| **Meeting minutes (纪要)** | header without the red rule | none (the minutes end with the record) | no |
+
+Routing on the wrong template produces a document that a 机关 reader rejects
+on sight — the closing formula is the fastest tell.
+
+## 12. Template structures
+
+### Notice
+
+```
+标题（发文机关 + 事由 + 文种）
+主送机关：
+正文……（缘由 → 事项 → 要求）
+特此通知。
+发文机关署名
+成文日期
+（附件说明）
+```
+
+### Official letter
+
+```
+标题（发文机关 + 事由 + 函）
+主送机关：
+正文……（缘由 → 商洽/询问/答复事项 → 结尾语）
+特此函复 / 盼复。
+发文机关署名
+成文日期
+```
+
+### Reply
+
+```
+标题（发文机关 + 事由 + 批复）
+主送机关：
+正文……（引叙来文 → 批复意见 → 执行要求）
+此复。
+发文机关署名
+成文日期
+```
+
+### Meeting minutes
+
+```
+标题（会议名称 + 纪要）
+时间、地点、主持人、出席人员、记录人
+正文……（会议概况 → 议定事项 → 执行分工）
+（无结束语）
+```
+
+## 13. Input recognition and completion
+
+- **The 发文机关 is the one that issues, not the one that drafts.** A document
+  drafted by an office on behalf of a bureau carries the bureau's name.
+- **成文日期 is the date of signature or issuance**, not the date of drafting.
+  When only a drafting date is supplied, the field renders as an explicit gap
+  rather than a guess.
+- **主送机关 is a list, comma-separated, ending in a full-width colon.** The
+  order follows the document's own convention (主管部门 first), never
+  alphabetical.
+- **Attachments are listed after the body, before the signature**, in the
+  `附件：1. XXX 2. XXX` form, and the attachments themselves follow the 版记
+  on their own pages.
+
+## 14. Title drafting rules
+
+The title is `发文机关 + 事由 + 文种`, and each part has rules:
+
+- **事由 states the matter, not the intent**: `关于加强汛期值班值守的通知`,
+  not `关于做好防汛工作的通知` when the matter is 值班值守.
+- **The 文种 matches the routing** (§11): a 函 is not a 通知, and a document
+  that asks a question of another organ is a 函.
+- **No punctuation inside the title** except the书名号 for a cited document.
+- **The title wraps at the phrase boundary**, centred, and never splits a
+  word. A two-line title breaks after 事由, not mid-word.
+- **The 发文机关 prefix is omitted** when the letterhead already carries it —
+  repeating it is the defect a reviewer flags first.

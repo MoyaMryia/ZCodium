@@ -134,3 +134,76 @@ conventions of:
 
 The knowledge above is restated in this repository's own words and in `.docx` terms;
 no upstream file is distributed with this plugin.
+
+## 4. Heading numbering
+
+Numbered headings are mandatory in a submission unless the venue's own style is
+unnumbered — reviewers refer to sections by number.
+
+**Format**: `1`, `1.1`, `1.1.1` — arabic, dot-separated, no trailing period.
+The number is part of the heading text, produced by the numbering definition,
+not typed by hand.
+
+**Mandatory rules**:
+
+- One numbering sequence per document, shared by all levels through a single
+  multi-level list bound to the heading styles. Two sequences produce the
+  classic "section 1 appears twice" defect.
+- No skipped levels: a `1.1` never appears before a `1`, and a third-level
+  heading never sits directly under a first-level one.
+- The abstract, the references and the appendix are **non-body headings**: they
+  are unnumbered, set in the heading style, and excluded from the sequence. An
+  appendix numbered "7" because it followed section 6 is a defect.
+- Cross-references use the number the numbering produces (`REF` fields), never
+  typed digits — a typed number is wrong after the first insertion.
+
+## 5. Palette and typography
+
+Academic documents are read for content, so the palette is nearly absent:
+
+- ink for body text (near-black, never pure black on paper);
+- one accent, used only for the title rule and hyperlinks;
+- no coloured headings, no tinted panels, no decorative rules.
+
+Typography follows Profile A in `references/common-rules.md` §6: serif body,
+sans or matching-serif headings, 10.5–11 pt Latin or 12 pt (小四) Chinese,
+justified with hyphenation. Two families, no more. Equations from a real math
+construct, never as images of equations — an image cannot be searched,
+copy-pasted, or re-used by the reviewer.
+
+## 6. Multi-section architecture
+
+A paper is a stack of sections, and the section breaks are where numbering and
+page furniture change:
+
+| section | page numbering | headers/footers |
+| --- | --- | --- |
+| title page | none | none |
+| front matter (abstract, TOC) | roman, starting at i | none or minimal |
+| body | arabic, restarting at 1 | running head + folio |
+| references | continues arabic | continues |
+| appendix | continues arabic | continues |
+
+Each row is one OOXML section with its own footer reference. The restart is a
+property of the section's `pgNumType`, not a manual edit of the first page's
+number — the manual edit is what breaks when a page is inserted later.
+
+## 7. Figure and table placement
+
+- Figures and tables are numbered in separate sequences, referenced from the
+  text by their number, and placed near their first reference.
+- A table that must not split across pages gets `cantSplit` on its rows; a
+  table longer than a page gets a repeating header row instead.
+- Captions below figures, above tables — the convention a reviewer reads
+  without noticing, and notices when it is broken.
+
+## 8. Submission hygiene
+
+- **Anonymised build**: author names, affiliations and self-identifying
+  citations removed; the PDF metadata checked as well as the body.
+- **Compile and read the PDF**, not the source: float placement, orphaned
+  headings, tables split without headers, equations past the margin.
+- **Every claim cited, every citation listed**: the two lists are checked
+  against each other before submission, not after the reviewer does it.
+- **Source tree complete**: the `.tex`/`.docx` source, the bibliography and
+  the figures, and nothing that is not needed to rebuild the document.

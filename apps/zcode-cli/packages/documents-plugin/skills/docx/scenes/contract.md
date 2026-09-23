@@ -132,3 +132,111 @@ from parts.
 - No typed underscores used as a rule.
 - Cross-references re-checked after any clause insertion or deletion.
 - `postcheck.py contract.docx --only line-spacing,cjk-indent,numbering-continuity,heading-continuity,table-pagination,table-margins,font-fallback,blank-pages`
+
+## 9. Contract type routing
+
+Five families, each with its own spine. Route on the first read — the type
+decides which sections exist and in what order.
+
+| type | spine | signature |
+| --- | --- | --- |
+| **Bilateral commercial** | parties → recitals → definitions → subject & price → delivery & acceptance → payment → breach → dispute → misc | both parties, side by side |
+| **Rights transfer** | grant scope → territory & term → fees & royalty → moral rights → warranty → termination | grantor and grantee |
+| **NDA** | definition of confidential info → exclusions → permitted use → term → return/destruction → remedies | both parties |
+| **Framework / cooperation** | principles → scope of cooperation → each party's obligations → IP & data → term & exit → dispute | both parties |
+| **Unilateral terms / platform rules** | acceptance → service description → user obligations → fees → liability → changes & termination | one party (the user accepts by use) |
+
+The routing matters because a missing spine section is a legal gap, not a
+formatting one. An NDA without an exclusions clause is unenforceable in
+practice; a framework agreement without an exit clause traps both parties.
+
+## 10. Template structures
+
+The section lists below are the minimum for each type. Sections are numbered
+per §2, and every cross-reference points at a number, never at a title.
+
+### Bilateral commercial contract
+
+1. Parties (full legal names, registration numbers, addresses)
+2. Recitals (background, in "whereas" form)
+3. Definitions (every capitalised term)
+4. Subject matter and price
+5. Delivery and acceptance
+6. Payment terms and invoicing
+7. Intellectual property
+8. Confidentiality
+9. Breach and remedies
+10. Force majeure
+11. Dispute resolution and governing law
+12. Miscellaneous (notices, assignment, entire agreement, severability)
+
+### Rights transfer agreement
+
+1. Grant of rights (what, exclusively or not)
+2. Territory
+3. Term
+4. Fees and royalty
+5. Moral rights and attribution
+6. Warranty of title
+7. Termination and reversion
+8. Dispute resolution and governing law
+
+### Non-disclosure agreement
+
+1. Definition of confidential information
+2. Exclusions (public domain, prior possession, independent development,
+   compelled disclosure)
+3. Permitted purpose and permitted recipients
+4. Term of confidentiality
+5. Return or destruction on termination
+6. Remedies (injunctive relief stated)
+7. Governing law
+
+### Framework / cooperation agreement
+
+1. Principles and scope
+2. Each party's obligations
+3. Intellectual property and data
+4. Commercial terms (or the mechanism that sets them)
+5. Term, renewal and exit
+6. Dispute resolution
+
+### Unilateral terms / platform rules
+
+1. Acceptance mechanism
+2. Service description
+3. User obligations and prohibited conduct
+4. Fees and payment
+5. Liability and warranty disclaimers
+6. Changes to the terms
+7. Termination and suspension
+
+## 11. Input recognition and completion
+
+- **Every party's full legal name** appears in the parties clause and in the
+  signature block, character for character. A mismatch between the two is the
+  most common defect in generated contracts.
+- **Monetary amounts** carry the currency and whether tax is included.
+  `¥1,000,000` and `¥1,000,000 (tax inclusive)` are different contracts.
+- **Dates are unambiguous**: `2024年3月1日`, never `3/1` in a document that
+  crosses locales.
+- **Defined terms are used consistently**: if the definitions clause says
+  "the Licensor", the body does not say "the Company". §3's consistency rule
+  is enforced by reading, and the read is not optional.
+
+## 12. Legal writing standards
+
+- **"Shall" for obligations, "may" for permissions, "will" for statements of
+  fact.** The three are not interchangeable, and mixing them is what ambiguity
+  clauses are made of.
+- **One clause, one obligation.** A clause with two "and"-joined obligations
+  is two clauses; splitting them is what makes breach provable.
+- **No adverbs of degree in obligations**: "promptly", "reasonable", "best
+  efforts" each need a definition or a number elsewhere in the document. An
+  undefined "promptly" is a dispute with a head start.
+- **Cross-references point at numbers** (§2), and every referenced section
+  exists — a contract that references a deleted clause is worse than one that
+  never referenced it.
+- **The miscellaneous section is not optional**: notices, assignment, entire
+  agreement, severability, counterparts. Omitting them does not simplify the
+  contract; it removes the parties' agreed answers to predictable questions.

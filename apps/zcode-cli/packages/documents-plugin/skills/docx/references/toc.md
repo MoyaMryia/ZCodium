@@ -192,3 +192,51 @@ through a `Document` session already satisfies step 4, and
 writers agree on the element and its value; they differ only in placement, because
 `Document` uses the full `CT_Settings` order table from `identifiers.py` while the
 script places after `defaultTabStop` / `hyphenationZone` when either exists.
+
+## 6. Multi-section page numbering
+
+A document with front matter in roman numerals and a body in arabic needs the
+TOC to show both, correctly:
+
+- The TOC field collects entries from **all sections**, and each entry carries
+  the page number as the section's own numbering renders it — roman for front
+  matter, arabic for the body.
+- The switch is a property of each section's `pgNumType` (`w:fmt="lowerRoman"`
+  vs `w:fmt="decimal"`, and `w:start` for the restart). Editing the first
+  page's number by hand is what breaks when a page is inserted later.
+- `add_toc_placeholders.py` writes the placeholders; the **page numbers are
+  filled by Word/WPS on open**, which is why the refresh hint (§7) is
+  mandatory and not optional.
+- A TOC that shows arabic numbers in the front matter, or roman in the body,
+  is a numbering-scheme bug, not a TOC bug — check the section properties
+  first.
+
+## 7. The refresh hint is mandatory
+
+The TOC's page numbers are computed by the consumer, not by us. Every document
+that ships with a TOC must tell the reader to refresh it:
+
+- The hint is a short line after the TOC (or in the delivery note), naming the
+  action: in Word/WPS, select the TOC and press F9, or right-click → Update
+  Field → Update entire table.
+- Without the hint, the reader sees the placeholder page numbers — or stale
+  ones from before an edit — and concludes the document is broken.
+- The hint is also the honest statement of what we did: we placed the entries;
+  the consumer computed the pages.
+
+## 8. The five common TOC bugs
+
+1. **Empty TOC**: the field was inserted but never refreshed, and no
+   placeholder text was written — the reader sees nothing. `add_toc_placeholders.py`
+   exists to prevent exactly this.
+2. **Placeholder numbers shipped as final**: the document was delivered
+   without the refresh hint, so `1`, `2`, `3` read as real page numbers.
+3. **Entries missing**: the heading style was applied as direct formatting
+   instead of a real style, so the field has nothing to collect. The TOC is
+   only as complete as the style usage.
+4. **Wrong levels**: the field's `\o "1-3"` switch does not match the
+   document's actual heading depth — too many levels produces a TOC longer
+   than its chapters, too few hides the structure.
+5. **Page numbers off by one**: the section's `pgNumType` start is wrong (a
+   restart that should not be, or a missing one that should) — check §6 before
+   blaming the field.

@@ -152,3 +152,66 @@ declaration with signature and date lines — follows the conventions of:
 
 The knowledge above is restated in this repository's own words and in `.docx` terms;
 no upstream file is distributed with this plugin.
+
+## 11. Report type routing
+
+Three kinds of report, and the routing changes the chapter list:
+
+| type | chapters | what changes |
+| --- | --- | --- |
+| **Progress report** | background → this period → next period → risks | dated, forward-looking; the risk section is mandatory |
+| **Technical report** | summary → introduction → method → results → conclusion | the method chapter is the document's centre of gravity |
+| **Feasibility / proposal** | background → options → comparison → recommendation | options are compared on stated criteria, and the recommendation names them |
+
+Routing on the wrong template produces a document a reader rejects on the
+second page: a progress report that buries "next period" on page 9, or a
+feasibility study with no comparison table.
+
+## 12. Chapter content requirements
+
+Each chapter has a job, and the job is checkable:
+
+- **Summary / abstract**: the whole report in one page — problem, what was
+  done, the headline finding, what is recommended. Written last.
+- **Introduction**: field → gap → what this report does → what it shows. The
+  contribution list sits at its end.
+- **Method / approach**: enough detail that a competent reader could redo it.
+  Parameter choices stated, not implied.
+- **Results**: what happened, without arguing. The argument lives in the
+  discussion.
+- **Conclusion**: what is now known that was not, and what remains open. Not a
+  chapter-by-chapter summary.
+
+A chapter that cannot state its job in one sentence is two chapters or none.
+
+## 13. Chart placeholder convention
+
+A chart that does not exist yet still needs its place reserved:
+
+- The placeholder is a **real paragraph with a fixed height** (an empty
+  paragraph with a tall `w:spacing/@w:line`), not a run of underscores and not
+  an image of a box.
+- It carries the figure number and the caption's first sentence, so the text
+  references something that will exist.
+- When the chart arrives, the placeholder is **replaced**, not appended to —
+  the classic failure is the placeholder still sitting below the finished
+  figure.
+- The gate's `image-overflow` check applies to the finished figure; the
+  placeholder's height is what keeps the pagination honest before it arrives.
+
+## 14. Content-to-word mapping
+
+A report's length is a budget, and the budget is per chapter:
+
+| chapter | share of the document |
+| --- | --- |
+| summary | 5% (one page) |
+| introduction | 15% |
+| method | 25% |
+| results | 30% |
+| conclusion | 10% |
+| references and appendices | 15% |
+
+A chapter running at double its share is either the report's real centre (say
+so, and re-balance the others) or padding (cut it). Either way the mapping
+makes the decision visible instead of emergent.

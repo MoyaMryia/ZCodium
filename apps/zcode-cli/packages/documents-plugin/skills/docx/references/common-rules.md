@@ -156,3 +156,94 @@ appends is a script that can only be run once.
 4. Every step is safe to run twice.
 5. Keep the source next to the output.
 6. Gate last, and record every scope.
+
+## 6. Font profiles
+
+Two profiles, chosen per scene. The scene file's own rules override these when
+they are more specific.
+
+### Profile A — Formal (report, academic, contract, official-doc, exam)
+
+| role | Chinese | Latin |
+| --- | --- | --- |
+| body | 宋体 / Noto Serif CJK SC | Times New Roman / TeX Gyre Termes |
+| heading | 黑体 / Noto Sans CJK SC | Arial / Helvetica |
+| mono | 等线 / Courier New | Courier New |
+
+Body 12 pt (小四) for Chinese formal documents, 10.5–11 pt for Latin. Line
+spacing 1.5 for drafts, 1.15–1.3 for final. Headings one step per level, no
+skipped levels.
+
+### Profile B — Visual (resume, copywriting)
+
+| role | Chinese | Latin |
+| --- | --- | --- |
+| body | 思源宋体 / Noto Serif CJK | Source Serif / Georgia |
+| display | 思源黑体 / Noto Sans CJK | a display sans at the ladder's top |
+
+The display face carries the hierarchy; the body face stays quiet. Two
+families, no more.
+
+### Official-doc override (GB/T 9704)
+
+Chinese official documents follow the national standard: 标题 2 号小标宋,
+正文 3 号仿宋, 一级标题黑体, 二级标题楷体, 三级/四级标题仿宋加粗. The standard
+beats both profiles — a document that claims GB/T 9704 compliance and uses
+Profile A is wrong.
+
+### Chinese font size reference
+
+| 字号 | pt | typical use |
+| --- | --- | --- |
+| 初号 | 42 | poster titles |
+| 小初 | 36 | cover titles |
+| 二号 | 22 | document titles |
+| 小二 | 18 | section titles |
+| 三号 | 16 | sub-section titles |
+| 小四 | 12 | body (formal) |
+| 五号 | 10.5 | body (dense) |
+| 小五 | 9 | captions, footnotes |
+
+## 7. Title orphan prevention (all scenes)
+
+A heading alone at the bottom of a page is the most common layout defect in
+generated documents. The rule, in order of preference:
+
+1. **`keepNext` on the heading style** — the heading stays with the paragraph
+   that follows. Set it once in the style, not per paragraph.
+2. **`keepLines` on body paragraphs** — a paragraph is not split across pages.
+3. **`pageBreakBefore` on part/chapter headings** — structural breaks, not
+   spacing hacks.
+
+A `\pageBreakBefore` inserted to fix one orphan is wrong after the next edit;
+the style-level rule survives edits.
+
+## 8. Undefined / null value prevention (mandatory)
+
+Generated documents fail visibly on missing data. The rules:
+
+- **No placeholder text survives**: a field that could not be filled renders
+  as an explicit, styled `[未提供: <field>]`, never as an empty paragraph, a
+  lone dash, or last month's value carried forward.
+- **No invented values**: the generator does not guess a date, a name, a
+  number or a unit. An absent fact is reported as absent.
+- **Null ≠ zero ≠ empty string**: a count of zero is data; a missing count is
+  a gap. The three render differently and must not collapse into one.
+- **Every table row is real**: a row that exists only to fill the table is
+  removed, and the table's caption says the row count is n.
+
+## 9. WPS / Office Word compatibility (mandatory)
+
+Documents are read in Word, WPS and LibreOffice. What survives all three:
+
+- **Styles, not direct formatting**: a paragraph styled through the style
+  hierarchy re-renders correctly everywhere; direct formatting is the thing
+  that drifts.
+- **Standard fonts with fallbacks**: name the font, and accept the
+  metric-compatible substitute (`configs/fonts.md`). A font that exists only
+  on the build machine is a defect, not a portability detail.
+- **No exotic XML**: features outside the ECMA-376 baseline (some content
+  controls, some smart-art constructs) render as blanks in older readers.
+- **Test by converting**: export to PDF with LibreOffice headless and read the
+  result — a document that "opens fine" but converts wrong has a compatibility
+  defect.

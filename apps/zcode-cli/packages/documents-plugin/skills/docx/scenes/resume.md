@@ -136,3 +136,70 @@ the conventions of:
 
 The knowledge above is restated in this repository's own words and in `.docx` terms;
 no upstream file is distributed with this plugin.
+
+## 10. Resume type routing
+
+Not every resume is the same document. Route on the first read, because the
+type changes the page budget, the section order, and what counts as evidence.
+
+| type | who | what changes |
+| --- | --- | --- |
+| **General** (default) | any professional role | experience-first; sections in reverse-chronological order |
+| **New graduate** | ≤ 2 years, no full-time history | education moves above experience; projects and coursework carry the weight a work history cannot |
+| **Technical role** | engineering, data, infra | a skills block near the top, named tools with the level of use stated; projects over duties |
+| **Academic CV** | research, faculty positions | publications and grants first, in a full list; no page budget; teaching and service included |
+
+The routing is a decision, not a discovery: if the input does not say which,
+ask once. A new-graduate resume built on the general template buries the only
+evidence the candidate has.
+
+## 11. Input processing rules
+
+- **Never invent.** A date range, a title, a metric or a tool that is not in
+  the input does not appear. A missing field renders as an explicit gap to
+  fill, never as a plausible guess.
+- **Dates are ranges or single points, consistently.** `2021.03–2023.07` or
+  `Mar 2021 – Jul 2023`; mixing formats within one document is the defect a
+  reviewer notices first.
+- **One entry per role**, not per task: the role carries the title, the
+  organisation, the dates; the bullets carry what was done.
+- **Quantify only what was given.** "Reduced load time by 40%" is input;
+  "significantly improved performance" is padding; "improved performance"
+  without a number is what the input said, and stays as it was.
+- **Contact block is verified, not assumed**: the email and phone in the
+  document are the ones the candidate supplied, character for character.
+
+## 12. Content quality constraints
+
+### Core principles
+
+- **Every bullet is an achievement or a responsibility, never a duty
+  statement.** "Responsible for the build system" says nothing; "migrated the
+  build from Make to Bazel, cutting CI time from 22 to 9 minutes" is a bullet.
+- **Verb first, past tense, active voice.** Led, built, migrated, shipped —
+  not "was responsible for", not "helped with".
+- **One claim per bullet.** A bullet with two claims reads as two half-claims.
+- **No first person.** "I led" → "Led". The pronoun costs space and buys
+  nothing.
+- **Tail tense**: current roles in the present tense, past roles in the past.
+
+### Experience writing standards
+
+- **Scope, then action, then result**: what you owned, what you did, what
+  changed. Three clauses, one bullet.
+- **Tools appear where they were used**, not in a separate list unless the
+  type routing put a skills block at the top.
+- **Promotions and role changes inside one organisation** are separate entries
+  with their own dates — the progression is the evidence.
+- **Gaps are not hidden and not explained in the document.** A date range that
+  ends is a date range that ends; the interview is where the conversation
+  happens.
+
+### Profile summary / self-assessment
+
+- Three lines maximum, at the top, below the header block.
+- It states the role being sought, the years of relevant experience, and the
+  one thing the candidate is known for — nothing else.
+- No adjectives that cannot be checked: "results-driven", "team player",
+  "passionate" are all deleted on sight. The summary that survives is the one
+  a reviewer could verify from the bullets below it.

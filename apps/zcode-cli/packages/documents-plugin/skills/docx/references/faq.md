@@ -253,3 +253,65 @@ its blocks with blank lines.
 This plugin has no renderer. Convert the pages to images yourself and hand them to
 the `visual-judge` agent, which reports one JSON line per page and fixes nothing.
 Act on what it returns, fix the source, and re-gate.
+
+## The specific-bug catalogue
+
+Recurring defects, each with its cause and fix. These are the ones a reader
+notices; the gate catches the mechanical subset.
+
+### Table text touching the cell borders
+
+**Cause**: cell margins (`w:tcMar`) at zero — the default some generators emit
+— so text starts at the border. **Fix**: set `w:tcMar` on every cell (left and
+right ~108 twips, top and bottom ~57). The gate's `table-margins` check names
+the cells.
+
+### Numbered list doesn't restart
+
+**Cause**: two lists sharing one `numId`, or a list continuing the previous
+list's sequence. **Fix**: each list gets its own `numId` from
+`word/numbering.xml`; a restart is a new `numId`, not a manual "1." typed over
+the automatic number.
+
+### Cover and content on the same page
+
+**Cause**: no section break after the cover — the cover is the first page of
+the body section instead of its own section. **Fix**: a section break
+(`w:sectPr`) after the cover, with the body section carrying its own page
+numbering. `add_toc_placeholders.py` and the scene briefs both assume the
+break exists.
+
+### Three-line table shows all borders
+
+**Cause**: a full grid applied where a `booktabs`-style three-line table was
+intended. **Fix**: top and bottom borders on the outer edges plus a rule under
+the header row, and no vertical borders anywhere — `common-rules.md` §2's
+table style.
+
+### Chinese font size name requested but the output is wrong
+
+**Cause**: a Chinese size name (五号, 小四) mapped to the wrong point value —
+the mapping is not uniform across locales and tools. **Fix**: convert through
+the table in `common-rules.md` §6 (小四 = 12 pt, 五号 = 10.5 pt) and set the
+half-point value directly, never the name.
+
+### Black table cells
+
+**Cause**: a `w:shd` with a fill but no `w:val`, or a theme colour resolved
+against the wrong palette — an omitted shading value paints black. **Fix**:
+always set `w:val="clear"` with the fill; the gate's `shading-type` check
+names the cells.
+
+### Chinese characters garbled in matplotlib charts
+
+**Cause**: the font family named in the plotting script does not cover CJK, or
+`axes.unicode_minus` is on. **Fix**: name a CJK face in `rcParams`
+(`Noto Sans CJK SC` / `WenQuanYi`), set `axes.unicode_minus = False`, and check
+the PNG — not the terminal — for tofu.
+
+### Image stretched or squashed
+
+**Cause**: both width and height set on the image extent, ignoring the
+intrinsic aspect. **Fix**: set one dimension and let the other follow, or
+compute both from the intrinsic ratio. The gate's `image-overflow` check names
+the images that exceed the text block.
