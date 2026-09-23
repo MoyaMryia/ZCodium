@@ -52,12 +52,6 @@ modules:
   - id: formal-proof
     roots: [packages/formal-proof/src]
     managed: false
-  - id: desk-pilot
-    roots: [packages/desk-pilot/src]
-    managed: true
-    requires: []
-    publicEntrypoints: [packages/desk-pilot/src/contract.ts]
-    owner: desktop
   - id: zcode-cli
     roots: [apps/zcode-cli]
     managed: false
