@@ -267,7 +267,7 @@ export {
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
 } from "./session/offPeakRuntimeModel.js";
-export { createServiceLogger } from "./logger/serviceLogger.js";
+export { createServiceLogger, type ServiceLogger } from "./logger/serviceLogger.js";
 export {
   buildOfficialMcpAuthHeaders,
   createOfficialMcpAuthHeadersResolver,
@@ -2681,3 +2681,18 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     ?.disposeAndWait()
     .catch(() => {});
 }
+
+// 机器人（AstrBot 桥接）实现依赖 node:crypto / node:fs，只能从 @zcode/services/node 引入。
+export { BotsService } from "./bots/botsService.js";
+export type { BotsBindCode, BotsServiceOptions } from "./bots/botsService.js";
+export type { BotsRuntimePort, BotsWorkspaceRef } from "./bots/botsRuntimePort.js";
+export { projectTaskStreamEvent } from "./bots/botsEventProjector.js";
+export type {
+  BotsProjectedEvent,
+  BotsStreamTerminal,
+} from "./bots/botsEventProjector.js";
+export { BotsRepo } from "./bots/botsRepo.js";
+export type { BotsRepoOptions } from "./bots/botsRepo.js";
+export { BotsDeliveryLog, BOTS_DELIVERY_WINDOW } from "./bots/botsDeliveryLog.js";
+export type { BotsDeliveryRecord, BotsDeliveryReplay } from "./bots/botsDeliveryLog.js";
+export * from "./bots/domain.js";

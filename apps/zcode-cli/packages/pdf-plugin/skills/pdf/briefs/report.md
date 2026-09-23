@@ -105,3 +105,121 @@ bibliography parts of this brief.
   the cover.
 - No figure or table stranded from the text that references it; no blank page.
 - Every figure and table cross-referenced; no orphan bibliography entries.
+
+## Production workflow
+
+The sections above are the specification; this is the order to produce it in.
+
+1. **BRIEF** — one paragraph each: audience, reading context (screen/print/
+   bound), page budget, figure budget, and the document's single claim. A
+   report without a written claim becomes a data dump with headings.
+2. **DESIGN** — the palette and font plan, decided before the first section is
+   written (below).
+3. **EDIT** — transform the source material into typographic roles before
+   typesetting anything (below).
+4. **BUILD** — the pipeline in SKILL.md §5, against the geometry set in step 1.
+5. **PREFLIGHT** — render every page, run `pdf_qa.py`, read the log.
+6. **DELIVER** — the final PDF plus the source tree; check the page count
+   against the budget one last time.
+
+## Step 2 — DESIGN: palette and font plan
+
+### Generate the palette before writing
+
+Three to five colours in fixed roles, chosen from the subject rather than from
+habit (`typesetting/palette.md` carries the method):
+
+| role | job |
+| --- | --- |
+| ink | body text — near-black, never pure black on paper |
+| field | the page background |
+| support | table rules, panel fills, secondary surfaces |
+| accent | the one thing that means "look here" |
+
+Write the palette into the preamble as named `\definecolor` entries; a hex
+literal in the body is a decision that escaped the plan.
+
+### Colour application rules
+
+- Section headings and rules carry the accent; body text is ink; panels and
+  rules are support tones.
+- One accent per document. A second accent colour halves the emphasis of both.
+- Tables: `booktabs` rules in a support tone, header row on a panel fill, no
+  vertical lines.
+- Charts inherit the palette: one series in the accent, the rest in greys.
+
+### Forbidden
+
+- Rainbow section headings, one hue per chapter.
+- Accent on more than a handful of elements per page.
+- Colour as the only signal ("the red rows are late").
+- Tinted full pages without checking the print bleed.
+
+## Step 3 — EDIT: content transformation
+
+### Typographic role extraction
+
+Before typesetting, mark each block of source material with its role: claim,
+evidence, context, or detail. Blocks that cannot be classified are the ones to
+cut — they are the reason reports run long.
+
+### Section pacing
+
+- One idea per section, and the section's first sentence states it.
+- Alternate dense and open pages; a document where every page carries the same
+  weight reads as a wall.
+- A section that fits on one page stays on one page (`needspace` before its
+  heading); a section that spans pages repeats its context in the running head.
+
+## Character safety rule
+
+Typeset documents break on characters the font does not cover:
+
+- Non-Latin text (CJK, Cyrillic, Greek) forces the engine choice — XeLaTeX or
+  LuaLaTeX with the faces named explicitly (`configs/fonts.md`).
+- Symbols from `amssymb`/`unicode-math`, never from a font's private-use area.
+- A build that succeeds but prints tofu boxes is a font-coverage failure, not a
+  success; `pdffonts` on the output is the check.
+
+## Font setup
+
+### Allowed fonts only
+
+Fonts that exist on the build machine, declared in the preamble, with the
+fallback chain spelled out (`configs/fonts.md` and `env_setup/font_list.txt`
+list the safe families). A font named but not installed is a substitution, and
+the substituted metrics re-wrap every line — the classic "it looked fine on my
+machine" defect.
+
+### Registration template (XeLaTeX/LuaLaTeX)
+
+    \setmainfont{TeX Gyre Pagella}
+    \IfFontExistsTF{Noto Serif CJK SC}{%
+      \newfontfamily\cjkfont{Noto Serif CJK SC}%
+    }{%
+      \newfontfamily\cjkfont{WenQuanYi Micro Hei}%
+    }
+
+### Font configuration by document type
+
+| document | body | headings |
+| --- | --- | --- |
+| technical report | serif (Pagella, Libertinus) | matching sans or same family |
+| thesis | serif, per the institution's template | as the template dictates |
+| screen-first document | sans throughout | same family, heavier weight |
+| CJK document | the named CJK face + Latin companion | same |
+
+## Chinese plot PNG method
+
+Matplotlib figures with Chinese labels need the face named in the plotting
+script, not in the document:
+
+```python
+import matplotlib
+matplotlib.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "WenQuanYi Micro Hei"]
+matplotlib.rcParams["axes.unicode_minus"] = False
+```
+
+Without `axes.unicode_minus = False` the minus sign renders as tofu. Export at
+300 dpi at the final placed size, and check the PNG — not the terminal — for
+missing glyphs.

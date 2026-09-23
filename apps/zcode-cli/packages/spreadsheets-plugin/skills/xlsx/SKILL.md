@@ -59,7 +59,7 @@ When modifying a workbook that already has conventions, study them and match the
 
 ### Financial-model conventions
 
-Unless the workbook's own conventions or the user say otherwise:
+Unless the workbook's own conventions or the user say otherwise (full working detail in `engines/design.md` and `scenes/finance.md`):
 
 - **Blue** text (RGB `0,0,255`, openpyxl `FF0000FF`) — hardcoded inputs and scenario drivers;
 - **Black** text (RGB `0,0,0`, openpyxl `FF000000`) — every formula and calculation;
@@ -243,7 +243,7 @@ Two properties of the scanner itself, so its output is read correctly:
 5. Format: number formats, column widths, freeze panes (§5.1).
 6. `wb.save(...)`, then `python3 …/skills/xlsx/scripts/recalc.py <file>` (§6).
 7. Read `status`; act on `error_summary` until `status` is `success`; run the §7 checks against anything still doubtful.
-8. Re-run the script once more on the final file, then hand it over.
+8. Run the delivery gate in `quality/pipeline.md` — recalculate, zero errors, structural, convention and spot-checks — then hand the file over.
 
 ## 9. Optional: data analysis with pandas
 

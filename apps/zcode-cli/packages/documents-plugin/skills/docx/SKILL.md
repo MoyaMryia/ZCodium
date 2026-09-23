@@ -203,3 +203,87 @@ The repair:
 ## 11. Environment
 
 Python 3.10 with `defusedxml` installed; every XML parse goes through it, and it is the only third-party dependency.
+
+## 12. Script path setup (mandatory before any script call)
+
+Every script in this plugin is invoked by path, and the path is derived once:
+
+```bash
+# From the plugin root (where .zcodium-plugin/plugin.json lives):
+DOCX_SKILL_DIR="$(pwd)/skills/docx"
+python3 "$DOCX_SKILL_DIR/scripts/document.py" ...
+```
+
+- The path is absolute or derived from the plugin root — a bare
+  `python3 scripts/document.py` from an arbitrary cwd fails, and the failure
+  looks like a missing script rather than a wrong cwd.
+- `DOCX_SKILL_DIR` is the same variable the scripts' own messages use; set it
+  once per shell.
+- The scripts resolve the skill directory from their own location
+  (`__filedirname`), so a script invoked by absolute path works regardless of
+  cwd — but a script invoked through a relative path from the wrong directory
+  resolves its siblings wrong.
+
+## 13. Task router
+
+| the request is… | start at |
+| --- | --- |
+| create a document from nothing | §3 `document.py`, then the scene brief |
+| edit an existing document | §2 working shape, then the scene brief |
+| fix page numbers in the footer (WPS) | §7 `fix_footer_fields.py` |
+| add a table of contents | §8 `add_toc_placeholders.py` |
+| check a finished document | §6 `postcheck.py` |
+| a specific document type (resume, contract, exam, official-doc, academic) | the scene brief, after §12 |
+
+## 14. Scene router (load after the route)
+
+The scene briefs carry the document-type conventions. Load one after the task
+route is settled — never instead of it:
+
+| document type | brief |
+| --- | --- |
+| report | `scenes/report.md` |
+| academic paper / thesis | `scenes/academic.md` |
+| resume / CV | `scenes/resume.md` |
+| contract | `scenes/contract.md` |
+| exam paper | `scenes/exam.md` |
+| official document (公文) | `scenes/official-doc.md` |
+| copywriting | `scenes/copywriting.md` |
+
+Shared conventions that apply regardless of scene:
+`references/design-system.md` (the design system),
+`references/common-rules.md` (naming, structure, font profiles, orphan and null
+prevention, WPS compatibility), `references/chart-templates.md` (charts).
+
+## 15. Unit quick reference
+
+OOXML's units are the source of most "my text is the wrong size" defects:
+
+| unit | value | used for |
+| --- | --- | --- |
+| half-point | 1/2 pt | font sizes (`w:sz` — 18 pt is `w:sz="36"`) |
+| twip | 1/20 pt (1/1440 in) | indents, spacing, table widths |
+| EMU | 1/914400 in | image extents, shape positions |
+| eighth of a point | 1/8 pt | border widths (`w:sz` on borders) |
+
+The two that bite: **font size is half-points** (`w:sz="24"` is 12 pt), and
+**border size is eighths of a point** (`w:sz="4"` is 0.5 pt). Mixing the two
+conventions — or assuming they are the same — is the classic "my border is
+enormous" bug.
+
+## 16. Two-layer verification
+
+**Layer 1 — the manual checklist, during generation.** Every scene brief ends
+with one. It runs while the document is being built, because the defects it
+catches (an orphaned heading, a null field, a missing unit) are cheaper to fix
+in the source than in the output.
+
+**Layer 2 — `postcheck.py`, after generation.** The automated gate (§6): it
+checks what a human misses at scale — the numbering continuity, the blank-page
+count, the table pagination, the image overflow, the shading that paints black.
+Run it on every document, read its output, and fix what it names. A document
+that has not been through both layers is a draft.
+
+The two layers are not interchangeable: the checklist catches intent (is this
+the document that was asked for), the gate catches mechanics (is this document
+well-formed). A document can pass the gate and still be the wrong document.

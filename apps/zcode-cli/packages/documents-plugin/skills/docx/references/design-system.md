@@ -262,3 +262,76 @@ that fails one is definitely not.
 - Cover in its own section, front matter roman, body arabic.
 - `postcheck.py out.docx --json` clean, or the failures explained and scoped with
   `--only`.
+
+## 9. Mood recipes
+
+A palette is not chosen from taste alone; it is chosen from the document's job.
+Six recipes, each a coherent set of (field, ink, support, accent). Adapt within
+a recipe; never mix across two.
+
+| recipe | field | ink | support | accent | use for |
+| --- | --- | --- | --- | --- | --- |
+| Formal | `FFFFFF` | `1A1A1A` | `BFBFBF` | `1F4E79` | reports, contracts, official docs |
+| Academic | `FFFFFF` | `262626` | `A6A6A6` | `8B0000` | papers, theses |
+| Warm | `FAF7F2` | `2C2C2C` | `D9CBB8` | `C15937` | copywriting, invitations |
+| Cool | `F4F6F6` | `1C2833` | `AAB7B8` | `277884` | technical briefs, specs |
+| High-contrast | `FFFFFF` | `000000` | `595959` | `C00000` | forms, exams, anything photocopied |
+| Muted | `F4F1DE` | `3A3A3A` | `CBD18F` | `87A96B` | internal notes, drafts |
+
+**High-contrast is not optional where the document will be photocopied** — an
+exam, a form, a contract that gets faxed. Tints below 10 % disappear in a copy.
+
+## 10. Scene → mood mapping
+
+| scene | recipe | notes |
+| --- | --- | --- |
+| report | Formal | accent on section rules and the title rule only |
+| academic | Academic | accent almost absent; hyperlinks carry it |
+| contract | Formal | no colour beyond ink and rule; every coloured clause is a negotiation |
+| official-doc | Formal + GB/T 9704 override | the national standard beats the recipe |
+| exam | High-contrast | the seal line and student-info area are ink on field |
+| resume | Cool or Warm | one accent, on the name and section rules |
+| copywriting | Warm | tints carry the hierarchy the accent would in a formal document |
+| report (internal) | Muted | a draft that does not look like a deliverable |
+
+## 11. Colour token system
+
+Every colour in the document is a named token, defined once:
+
+```json
+{
+  "text":   { "hex": "1A1A1A", "role": "body text" },
+  "rule":   { "hex": "BFBFBF", "role": "table rules, dividers" },
+  "tint10": { "hex": "F2F2F2", "role": "panel fill, table header" },
+  "tint15": { "hex": "E8E8E8", "role": "nested panel" },
+  "accent": { "hex": "1F4E79", "role": "links, one highlighted series" }
+}
+```
+
+Rules for the tokens:
+
+- **No hex literal outside the token file.** A literal in a component spec is a
+  decision that escaped the system; the next re-theme misses it.
+- **Tokens are few.** Five to seven tokens is a system; twenty is a palette
+  nobody can apply consistently.
+- **Tints are arithmetic**, not taste: one hue at fixed lightness steps (§5).
+- **The greyscale test is a token test**: convert the palette to greyscale; if
+  two tokens collapse, one of them was carrying meaning by colour alone.
+
+## 12. Custom colour generation
+
+When no recipe fits, generate a palette from one anchor:
+
+1. **Pick the anchor from the subject**, not from a default. Ask what the
+   document is about and what mood it needs before opening a colour picker.
+2. **Derive the field and ink**: a near-white or a deep tone for the field, and
+   the ink that clears the contrast floor on it (4.5:1 for body text, 3:1 for
+   large text).
+3. **Derive two tints** of the anchor at 10 % and 15 % lightness steps.
+4. **Set the accent**: the anchor itself, or a complement. One accent, used on
+   fewer than five elements per page.
+5. **Run the three tests**: contrast (every text/background pair), greyscale
+   (no meaning by colour alone), and photocopy (the 10 % tint survives).
+
+A generated palette that fails any of the three is not done — fix it, do not
+ship it and hope.

@@ -163,3 +163,79 @@ as a tint — follows the conventions of:
 
 The knowledge above is restated in this repository's own words and in `.docx` terms;
 no upstream file is distributed with this plugin.
+
+## 10. The six chart types
+
+The parts above are shared; each type adds its own rules. Choose from the
+claim, not from habit.
+
+### Bar chart
+
+- **Use for**: magnitude comparison across categories.
+- **Rules**: bars start at zero, always. Horizontal bars when category labels
+  are long; vertical when they are short. One series in the accent, the rest
+  grey. Data labels on the marks; a legend only when the marks cannot be
+  labelled. Sorted descending unless the order carries meaning.
+- **Grouped bars** (this vs last): the current period takes the accent, the
+  comparison period is grey. Growth numbers go in the caption, never as a
+  third series.
+
+### Line chart
+
+- **Use for**: trend over time.
+- **Rules**: a temporal axis with calendar-aware ticks (equal time spacing even
+  when a period is missing). Markers only when the individual points matter;
+  a smooth line without markers hides gaps. Truncated axes are allowed here —
+  the claim is change — and the truncation must be visible in the axis labels.
+- **Many series**: small multiples (one panel per series) beat ten lines on one
+  plot.
+
+### Pie chart
+
+- **Use for**: part-to-whole at a single moment, with few parts.
+- **Rules**: ≤ 5 slices, or the chart becomes unreadable. Slices sorted from
+  twelve o'clock clockwise, largest first. Direct labels with values, never a
+  legend alone. Never a 3-D pie: the perspective distorts the areas the chart
+  exists to compare.
+
+### Box plot
+
+- **Use for**: distribution comparison across groups.
+- **Rules**: the box spans Q1–Q3, the median is marked distinctly from the
+  mean, whiskers to 1.5 × IQR with outliers as individual points. State the
+  n per group — a box plot without the n hides a group of three.
+- Boxes in greys with the group of interest in the accent.
+
+### Radar chart
+
+- **Use for**: multivariate profile comparison across few axes (3–8).
+- **Rules**: axes share one scale, labelled with units, and the same direction
+  of "better" on every axis. Two or three overlaid polygons maximum; more and
+  the plot becomes spaghetti. Radar charts flatter differences — use only when
+  the profile shape is the claim.
+
+### Heatmap
+
+- **Use for**: a matrix of values where the pattern is the claim (cohorts,
+  correlations, calendars).
+- **Rules**: a perceptually uniform sequential palette; the colour scale legend
+  states the range and the direction. Cell values printed when the matrix is
+  small enough. Row and column order chosen to reveal the pattern (clustered,
+  chronological), never alphabetical by default.
+
+## 11. Embedding rules (mandatory)
+
+- **Preserve the aspect ratio**: set the width, never both width and height —
+  a chart with both set is stretched, and a stretched chart misreports its own
+  data.
+- **Size from the text block**: `\linewidth` at the point of insertion (inside
+  a list or table cell the width is the cell's, not the page's).
+- **Anchor, do not float blindly**: charts referenced from the text belong near
+  their first reference; a float that drifts three pages away is a defect.
+- **Caption below the chart**, first sentence = the claim, then source and
+  method. The caption is the most-read text in the figure.
+- **Vector first**: EMF/SVG for charts that will be printed; PNG at 300 dpi
+  when the chart must be a bitmap. A screenshot of a chart is not a chart.
+- **The greyscale test**: print the page in greyscale. If two series become
+  indistinguishable, colour was carrying meaning alone — fix it before
+  delivery.

@@ -40,6 +40,12 @@ const includedTopLevelPaths = new Set([
   ".mcp.json",
   ".zcodium-plugin",
   "README.md",
+  // MIT/BSD 派生内容的署名义务：NOTICE.md 记录来源、许可与 delta，必须随插件
+  // 一起 seed 到 cache，否则分发物里只有派生内容而没有归属声明。
+  "NOTICE.md",
+  // 同理，vendor 进插件的第三方 LICENSE 文本（如 superpowers 的 MIT 全文）必须
+  // 随包分发——MIT 的义务就是版权声明与许可声明跟内容一起走。
+  "LICENSE",
   // 官方内容插件新增 agents 后，filesystem seed 的顶层白名单未同步，目录被静默裁掉。
   "agents",
   "commands",

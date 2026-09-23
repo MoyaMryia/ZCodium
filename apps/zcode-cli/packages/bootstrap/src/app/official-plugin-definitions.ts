@@ -55,6 +55,8 @@ export interface OfficialPluginDefinition {
 }
 
 const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
+// superpowers 内容版权归上游作者，listing 的 author 必须写真名而不是 Z.ai。
+const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obra" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
 const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
@@ -467,6 +469,28 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 这里的 version 追踪上游 zcode-cua runtime 版本，使插件 UI 展示、缓存路径、
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
     version: "0.6.3",
+  },
+  {
+    // Superpowers 方法论技能集（brainstorming / planning / TDD / debugging / review）。
+    // 上游 obra/superpowers 为 MIT，内容随插件 vendor 并在 NOTICE.md 署名；
+    // 不默认启用：这是一套完整方法论，由用户显式选择进入。
+    listing: {
+      author: SUPERPOWERS_AUTHOR,
+      category: "developer-tools",
+      displayName: "Superpowers",
+      description_i18n: {
+        "zh-CN":
+          "Superpowers 方法论：头脑风暴、计划、测试驱动开发、系统化调试与代码评审。",
+      },
+    },
+    name: "superpowers",
+    rootCandidates: [
+      "packages/superpowers-plugin",
+      "../superpowers-plugin",
+      "../../superpowers-plugin",
+      "../../../superpowers-plugin",
+    ],
+    version: "0.1.0",
   },
 ];
 

@@ -69,3 +69,6 @@ packages/desktop/.e2e-artifacts/
 packages/desktop/.e2e-cache/
 packages/desktop/.e2e-network-capture/
 .zcode-runtime/
+
+# 本地克隆的 AstrBot 插件仓库，仅作参考，不随主仓库入库。
+/astrbot-zcodium-plugin/

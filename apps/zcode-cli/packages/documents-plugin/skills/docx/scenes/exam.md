@@ -157,3 +157,34 @@ preference for fitting content — follows the conventions of:
 
 The knowledge above is restated in this repository's own words and in `.docx` terms;
 no upstream file is distributed with this plugin.
+
+## 9. Photocopy survival
+
+An exam is copied — sometimes three generations deep — and read under bad light.
+Test for it explicitly, because a paper that is legible on screen can be
+unreadable as a copy:
+
+- **Minimum body size 10.5 pt (五号)** for a conventional exam. A 小五 (9 pt)
+  reference sheet survives a screen and dies in a copier.
+- **Greyscale legibility**: convert the page to greyscale and read it. Anything
+  that carried meaning by colour alone is now gone — §4's hierarchy rule is
+  what makes the greyscale copy work.
+- **Tint survival**: a tint below 10 % disappears in the first copy. Shaded
+  question blocks use 10–15 % or a rule.
+- **Figures at 300 dpi**, and checked at the size they will print, not the size
+  they were generated. A screenshot-quality figure becomes mush after one
+  photocopy generation.
+- **Barcodes and QR codes** tested at final print size with a phone camera
+  pointed at a photocopy, not at the screen.
+- **The staple zone**: on a bound paper, the first column of the binding edge
+  must survive being stapled — §2's wider binding margin is what buys it.
+
+## 10. Delivery
+
+- The paper ships as PDF, print-ready: fonts embedded, page size exact, and the
+  page count checked against the announced count.
+- A source copy (the `.docx`) is archived alongside, because the revision that
+  comes back from review is a diff against it.
+- The answer key and the marking scheme are separate files, never annotated
+  into the paper's source — a key that lives in the same document is one
+  careless export away from being distributed.

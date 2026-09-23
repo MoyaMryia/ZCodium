@@ -1,0 +1,10 @@
+{
+  "name": "superpowers",
+  "version": "0.1.0",
+  "description": "The Superpowers methodology skills: brainstorming, planning, TDD, systematic debugging, code review, and branch discipline.",
+  "author": {
+    "name": "Jesse Vincent"
+  },
+  "license": "MIT",
+  "skills": "skills"
+}

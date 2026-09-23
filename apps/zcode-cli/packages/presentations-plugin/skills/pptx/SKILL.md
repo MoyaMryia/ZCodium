@@ -1,6 +1,6 @@
 ---
 name: pptx
-description: Use whenever a .pptx / PowerPoint deck is the artifact being produced, edited, or reviewed. Covers the OOXML package structure of a deck (presentation part, slide parts, layouts, masters, theme, media, chart parts, embedded workbooks), how to unpack and repack one without breaking content types or relationships, how placeholder inheritance and autofit decide whether text survives a projector, and the defects that make a deck fail in front of an audience — text overflowing its shape, body copy too small to read from the back, charts whose labels vanish, stretched images, letterboxing from a slide size that changed, fonts missing on the presenting machine, and titles drifting between slides. Use it when the user asks to build a deck, add or restructure slides, restyle an existing one, fix a broken file, or review deck quality; and when the reported symptoms are text spilling outside a text box, a chart that renders blank, images that look squashed, a font that fell back on someone else's machine, a table taller than the slide, or a PDF export that lost the design.
+description: Use whenever a .pptx / PowerPoint deck is the artifact being produced, edited, or reviewed. Covers the OOXML package structure of a deck (presentation, slides, layouts, masters, theme, media, charts, embedded workbooks), how to unpack and repack one without breaking content types or relationships, how placeholder inheritance and autofit decide whether text survives a projector, and the defects that make a deck fail in front of an audience — text overflowing its shape, body copy too small to read from the back, charts whose labels vanish, stretched images, letterboxing from a changed slide size, fonts missing on the presenting machine, drifting titles. Use it when the user asks to build a deck, add or restructure slides, restyle an existing one, fix a broken file, or review quality; and when the reported symptoms are text spilling outside a text box, a chart that renders blank, squashed images, a font that fell back on another machine, a table taller than the slide, or a PDF export that lost the design.
 ---
 
 # PPTX Production
@@ -65,7 +65,7 @@ Pick the build path the task already implies and stay with it:
 - **Generated from scratch (PptxGenJS and friends)**: you own layout, so decide the grid first — margins, title band, content area, footer — and place every slide against it. Ad-hoc coordinates per slide are what produce the drift the reviewer will flag.
 - **Hand-edited XML**: only for surgical fixes on a deck that already exists, and only after §3.
 
-Whatever the path, decide these before writing the first slide: slide size, the type scale (title, subtitle, body, caption — in points, on the slide, not in the file's internal units), the palette, and how many ideas one slide carries.
+Whatever the path, decide these before writing the first slide: slide size, the type scale (title, subtitle, body, caption — in points, on the slide, not in the file's internal units), the palette, and how many ideas one slide carries. The working detail for each decision — palette roles and reference palettes, emphasis devices, chart styling rules, the two-column default, the consistency pass — is in `references/design.md`; read it before designing a deck from scratch.
 
 ## 6. Production workflow
 
@@ -110,3 +110,66 @@ Grouped by what the viewer notices:
 ## 10. Environment
 
 Content-only skill: no scripts, no bundled assets, no third-party dependencies. Whatever the build path needs (a generator library, LibreOffice for rendering) is expected on the machine, not in this plugin.
+
+## 11. Generator depth
+
+The skill is deliberately generator-agnostic (§5), but two paths cover almost
+every task. What each is good at, and where it bites.
+
+### python-pptx (template-driven and surgical edits)
+
+- **Good at**: opening an existing deck and writing into its placeholders —
+  the design comes from the template's master and layouts, so the deck stays
+  consistent by construction.
+- **Shapes**: `slide.shapes.add_textbox`, `add_picture`, `add_table`,
+  `add_shape` — positions in EMU (914400 per inch; `Inches()`/`Pt()` convert).
+- **Text**: `text_frame.paragraphs[0].runs` — a run is the smallest unit that
+  carries formatting. Setting `font.size` on a paragraph is not the same as
+  setting it on a run.
+- **Bites**: autofit is a stored preference, not a guarantee — the text does
+  not shrink until PowerPoint lays it out. Never assume overflow was handled.
+- **Bites**: `add_table` produces a table with a default style; the deck's own
+  table style is not applied automatically.
+
+### PptxGenJS (generated from scratch)
+
+- **Good at**: owning the layout. Define the slide size, then place every
+  element against a grid you chose.
+- **Text**: `addText(text, { x, y, w, h, fontSize, bold, color, align })` —
+  inches or percentages; `valign` for vertical placement.
+- **Shapes**: `addShape(pptx.ShapeType.rect, {...})`, `addImage`,
+  `addTable`, `addChart`.
+- **Charts**: `addChart(pptx.ChartType.bar, data, options)` — the data is a
+  JS array of `{ name, labels, values }`; the chart inherits the palette you
+  pass.
+- **Bites**: every coordinate is yours, which means every coordinate is a
+  place to drift. One grid, defined once, referenced everywhere.
+- **Bites**: gradients and icons rasterise; export them as PNGs first and
+  place the PNGs.
+
+### The shared rules
+
+- **Slide size first**: 16:9 is 13.333 × 7.5 in; 4:3 is 10 × 7.5 in. Changing
+  it after content exists rescales nothing.
+- **Type in points on the slide**, not in the generator's internal units.
+- **Placeholders are not free**: a placeholder inherits from the layout, which
+  inherits from the master. Writing into one is a decision to accept that
+  chain; overriding it per slide is how decks end up inconsistent.
+- **Render before claiming**: both paths produce a file whose overflow,
+  autofit and font substitution are invisible until rendered (§7).
+
+## 12. Editing an existing deck
+
+Two modes, chosen by how much changes:
+
+- **Few changes, structure intact**: open with python-pptx, edit the text in
+  place, save. Read §3 first — a deck is an OOXML package, and the reason a
+  "simple" text edit corrupts a file is usually a relationship or content-type
+  mistake made outside the library.
+- **Many changes, structure intact**: unpack, transform the XML, repack (§3).
+  Scriptable and reviewable; the only mode that survives a 50-slide deck.
+- **Structure changes** (slide size, master, layouts): rebuild from the
+  outline and migrate the content. There is no safe in-place structural edit.
+
+Whichever mode: re-render and re-gate after the edit. An edit that was not
+rendered is not verified.

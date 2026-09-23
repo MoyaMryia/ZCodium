@@ -175,3 +175,60 @@ three rules, and behaves accordingly.
 - Every referenced equation carrying a `eq:` bookmark and a `REF` field in the text.
 - No run of five or more consecutive display equations without intervening text, or
   `blank-pages` scoped and the reason recorded.
+
+## 10. The LaTeX → OOXML conversion table
+
+Formulas arrive from LaTeX sources more often than they are typed. The mapping
+below is the one that matters — everything else follows from it:
+
+| LaTeX | OOXML / this plugin | note |
+| --- | --- | --- |
+| `$...$` | inline run, no special markup | the equation is text with italic variables |
+| `\[...\]` / `equation` | display paragraph, centred, own spacing | never a paragraph that merely looks centred |
+| `\frac{a}{b}` | `<m:f><m:num><m:r>a</m:r></m:num><m:den>…</m:den></m:f>` | numerator/denominator, not a slash |
+| `x^{2}` | `<m:sSup><m:e><m:r>x</m:r></m:e><m:sup>…</m:sup></m:sSup>` | superscript, not a caret |
+| `x_{i}` | `<m:sSub>` … `</m:sSub>` | subscript, same shape as superscript |
+| `\sqrt{x}` | `<m:rad><m:deg/><m:e>…</m:e></m:rad>` | the radical's degree is empty for a square root |
+| `\sum_{i=1}^{n}` | `<m:nary><m:sub>…</m:sub><m:sup>…</m:sup>` | n-ary with both limits |
+| `\int`, `\prod`, `\lim` | the same `<m:nary>` shape | one construct covers the class |
+| `\left(...\right)` | `<m:d>` with the delimiter as an attribute | the fence grows with its content |
+| `\begin{aligned}...\end{aligned}` | one display equation with aligned rows | alignment points are `&`, as in LaTeX |
+| `\begin{matrix}` | `<m:m>` with `<m:mr>` rows | matrix rows, not a table |
+| `\alpha`, `\to`, `\in` | the Unicode character (α, →, ∈) | never a picture of a symbol |
+| `\text{...}` | a plain run inside the math | the only way to get spaces inside a formula |
+
+The rule underneath the table: **OMML is a tree of function applications**,
+and LaTeX's commands map onto its elements one-for-one. A conversion that
+flattens a fraction into `a/b` has not converted the formula; it has destroyed
+it.
+
+## 11. Worked examples
+
+The three shapes that cover most of what arrives:
+
+    inline:      E = mc^2
+    display:     ∫_0^∞ e^{-x^2} dx = √π / 2
+    aligned:     f(x) = (x+1)^2
+                       = x^2 + 2x + 1
+
+In OMML the third is one `<m:oMathPara>` containing one `<m:oMath>` per row,
+with the alignment point marked. The numbering (§3) is a property of the
+paragraph, and the cross-reference (§6) points at it.
+
+## 12. Complexity fallback
+
+Some formulas are not worth converting — a multi-case definition with
+conditionals, a commutative diagram, a proof tree. The fallback strategy:
+
+1. **Try the conversion.** The table above covers more than it appears.
+2. **If the formula exceeds ~3 levels of nesting or needs a construct the
+   table does not have**, render it as a **vector image** (from LaTeX via
+   `dvisvgm`/`pdfcrop`, or matplotlib's mathtext) at 300 dpi at final size.
+3. **The image carries a text alternative** — the LaTeX source in the
+   document's comments or an adjacent caption line — because an image of a
+   formula cannot be searched, copied, or read by a screen reader.
+4. **Record the choice** in the delivery note: which formulas are images and
+   why. A reader who finds an image-formula without an explanation assumes the
+   generator was lazy.
+
+The fallback is a decision with a record, not a silent degradation.
