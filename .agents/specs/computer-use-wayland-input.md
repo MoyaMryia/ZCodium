@@ -61,6 +61,7 @@ cua-driver 在本机能**观察**（截图、AT-SPI 树、语义 `set_value`）�
 | --- | --- | --- | --- |
 | 检测 | `compatible/detect.js` | 判断是否启用兼容层（GNOME 版本 / portal / WinRects 可用性） | Node |
 | 后端 | `compatible/backend.js` | 组合高层操作（click / hotkey / typeText / scroll） | Node |
+| 客户端 | `compatible/helper-client.js` | spawn / 监督 GJS helper，JSON-lines 请求响应 | Node |
 | 坐标 | `compatible/geometry.js` | 元素→屏幕、屏幕→相对位移、per-output scale | Node 纯函数 |
 | 键位表 | `compatible/evdev.js` | evdev 码、修饰键、字符→键位 | Node 纯函数 |
 | helper | `compatible/helper/cua-wayland-input.js` | **长驻**，建 mutter session，D-Bus 读写，JSON-lines over stdio | **GJS**（GNOME 自带，无 npm D-Bus 依赖） |
@@ -330,8 +331,8 @@ interface WaylandInputBackend {
 | --- | --- | --- |
 | D0 | spec 定稿（分层 / 放置 / helper C / 变 scale / 文本分级） | 本文件 |
 | C1 | `compatible/evdev.js`、`geometry.js`（纯函数）+ 单测 | **已完成**（32 测试通过；真实点击命中 "5"，元素 frame 形状确认为 `{x,y,w,h}`、文本字段是 `label`） |
-| C2 | `compatible/helper/cua-wayland-input.js`（GJS，D-Bus 原语） | 待开始 |
-| C3 | `compatible/backend.js` + `detect.js`（spawn/监督、路由） | 待开始 |
+| C2 | `compatible/helper/cua-wayland-input.js`（GJS，D-Bus 原语） | **已完成**（本机 smoke：ping/version/monitors/getCursor/listWindows/moveRel/button 全通，version=8） |
+| C3 | `compatible/backend.js` + `detect.js`（spawn/监督、路由） | **已完成**（`helper-client.js` + backend + detect；54 测试通过；真实 helper 端到端 click "5" 命中） |
 | C4 | 接 `createComputerUseRuntime` 兜底路由 | 待开始 |
 | C5 | 分级 type_text 测试（§6.4 表）+ 变 scale 验证 | 待开始 |
 
