@@ -2687,10 +2687,7 @@ export { BotsService } from "./bots/botsService.js";
 export type { BotsBindCode, BotsServiceOptions } from "./bots/botsService.js";
 export type { BotsRuntimePort, BotsWorkspaceRef } from "./bots/botsRuntimePort.js";
 export { projectTaskStreamEvent } from "./bots/botsEventProjector.js";
-export type {
-  BotsProjectedEvent,
-  BotsStreamTerminal,
-} from "./bots/botsEventProjector.js";
+export type { BotsProjectedEvent, BotsStreamTerminal } from "./bots/botsEventProjector.js";
 export { BotsRepo } from "./bots/botsRepo.js";
 export type { BotsRepoOptions } from "./bots/botsRepo.js";
 export { BotsDeliveryLog, BOTS_DELIVERY_WINDOW } from "./bots/botsDeliveryLog.js";

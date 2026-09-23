@@ -6,11 +6,11 @@
 
 ## 三个基座
 
-| 插件 | 基座 | 许可 | 用法 |
-| --- | --- | --- | --- |
-| superpowers | `obra/superpowers`（★290k，231 文件，15 个 SKILL.md） | MIT | 技能内容派生，NOTICE.md 署名；覆盖 `builtinSkillI18n.ts` 里 13 条中的 14 个 |
-| android-emulator | `martingeidobler/android-mcp-server`（★71，src/adb.ts + src/index.ts + 测试） | MIT | ADB 封装层的事实源；MCP server 按公开 ADB 命令行自写 |
-| ios-simulator | 无对口宽松许可 MCP 基座（`AlexGlkov/claude-in-mobile` ★373 无许可；`BariBariGood/manzanas` Apache-2.0 ★21 是 fleet 编排非单机驱动） | — | MCP server 按 Apple 公开 `xcrun simctl` CLI 自写 |
+| 插件             | 基座                                                                                                                                | 许可 | 用法                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---- | --------------------------------------------------------------------------- |
+| superpowers      | `obra/superpowers`（★290k，231 文件，15 个 SKILL.md）                                                                               | MIT  | 技能内容派生，NOTICE.md 署名；覆盖 `builtinSkillI18n.ts` 里 13 条中的 14 个 |
+| android-emulator | `martingeidobler/android-mcp-server`（★71，src/adb.ts + src/index.ts + 测试）                                                       | MIT  | ADB 封装层的事实源；MCP server 按公开 ADB 命令行自写                        |
+| ios-simulator    | 无对口宽松许可 MCP 基座（`AlexGlkov/claude-in-mobile` ★373 无许可；`BariBariGood/manzanas` Apache-2.0 ★21 是 fleet 编排非单机驱动） | —    | MCP server 按 Apple 公开 `xcrun simctl` CLI 自写                            |
 
 **明确排除**：`AlexGlkov/claude-in-mobile`（NO-LICENSE）、
 `CarolaneLFBV/mcp-xcode-simulator`（NO-LICENSE）、`Reezxy/simctl-mcp`（MIT 但 ★0
@@ -28,11 +28,11 @@ tools/list / tools/call / ping）。
 
 三个插件均已补齐并通过验证：
 
-| 插件 | 结构 | MCP server | 许可记录 |
-| --- | --- | --- | --- |
-| superpowers | 15 个技能（含各自 references/scripts/prompts 共 78 文件）+ 双 manifest + LICENSE | 无（纯技能） | MIT 原文保留 + 每文件署名 footer + NOTICE.md 全量表 |
-| android-emulator | skills/android-dev（SKILL + INSTALL_ENVIRONMENT）、commands、hooks、templates/compose-app、README、.mcp.json、双 manifest | `scripts/mcp/server.mjs`：18 个 ADB 工具，实测握手/tools/list/错误路径 | NOTICE.md（原创，公开 CLI 事实源） |
-| ios-simulator | skills/ios-dev、commands、hooks、templates/swiftui-app、README、.mcp.json、双 manifest | `scripts/mcp/server.mjs`：15 个 simctl 工具，实测握手/错误路径 | NOTICE.md（原创，公开 CLI 事实源） |
+| 插件             | 结构                                                                                                                      | MCP server                                                             | 许可记录                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| superpowers      | 15 个技能（含各自 references/scripts/prompts 共 78 文件）+ 双 manifest + LICENSE                                          | 无（纯技能）                                                           | MIT 原文保留 + 每文件署名 footer + NOTICE.md 全量表 |
+| android-emulator | skills/android-dev（SKILL + INSTALL_ENVIRONMENT）、commands、hooks、templates/compose-app、README、.mcp.json、双 manifest | `scripts/mcp/server.mjs`：18 个 ADB 工具，实测握手/tools/list/错误路径 | NOTICE.md（原创，公开 CLI 事实源）                  |
+| ios-simulator    | skills/ios-dev、commands、hooks、templates/swiftui-app、README、.mcp.json、双 manifest                                    | `scripts/mcp/server.mjs`：15 个 simctl 工具，实测握手/错误路径         | NOTICE.md（原创，公开 CLI 事实源）                  |
 
 接线改动：
 
