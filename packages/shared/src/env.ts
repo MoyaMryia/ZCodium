@@ -5,6 +5,7 @@ export type ZCodeProductFlavor = "production" | "preview";
 // 非构建环境（如 e2e 测试的 mocha）下 define 不存在，用 typeof 检查 + fallback 避免 ReferenceError
 declare const __ZCODE_ENV__: string;
 declare const __ZCODE_PRODUCT_FLAVOR__: string;
+declare const __ZCODIUM_UPDATE_ORIGIN__: string | undefined;
 
 export function normalizeZCodeEnv(value: string | undefined): ZCodeEnv {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
@@ -34,6 +35,17 @@ export const ZCODE_PRODUCT_FLAVOR = normalizeZCodeProductFlavor(
   typeof __ZCODE_PRODUCT_FLAVOR__ !== "undefined" ? __ZCODE_PRODUCT_FLAVOR__ : undefined,
   ZCODE_ENV,
 );
+/**
+ * ZCodium 自有更新源 origin（构建期注入，`ZCODIUM_UPDATE_ORIGIN`）。
+ *
+ * 上游 `DEFAULT_ZCODE_ENDPOINT_ORIGIN` 指向 zcode.z.ai，它的 manifest 分发的是官方 ZCode
+ * 安装包（appId `dev.zcode.app`），与本仓库构建的 `dev.zcodium.app` 不是同一个应用。
+ * 因此自有构建不能沿用该地址：未配置时返回空串，调用方据此跳过更新检查与强制升级门禁，
+ * 而不是回退到上游。详见 `.agents/specs/update-source-ownership.md`。
+ */
+export const ZCODIUM_UPDATE_ORIGIN =
+  typeof __ZCODIUM_UPDATE_ORIGIN__ !== "undefined" ? __ZCODIUM_UPDATE_ORIGIN__.trim() : "";
+
 export const ZCODE_APP_VERSION_ENV = "ZCODE_APP_VERSION" as const;
 export const ZCODE_BUILD_COMMIT_ID_ENV = "ZCODE_BUILD_COMMIT_ID" as const;
 
