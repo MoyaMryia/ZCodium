@@ -1,0 +1,8 @@
+{
+  "name": "@zcode/superpowers-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Superpowers agentic skills framework, published as an official ZCode plugin.",
+  "license": "MIT",
+  "skills": "./skills"
+}
