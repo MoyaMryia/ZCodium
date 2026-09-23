@@ -26,14 +26,14 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 ### 与官方包的能力差异
 
-以下为截至 3.14.1 的核对结果。
+以下为截至 3.14.1 的核对结果。上游 `328c1a0 feat: update v3.14.3` 已把此前只在安装包里的 `bots`（Telegram / 飞书 / Lark / 企业微信四套 adapter 与平台选择 GUI）和手机远控等并入开源仓库；本仓库已合并 3.14.3，下表部分“缺口”因此由上游直接补齐，完整差异需按 3.14.3 重新核对。
 
 **已补全**（见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)）：
 
 - 内置插件与技能。安装包只分发源码资源完整且明确注册的插件，范围见对应 spec。
 - Computer Use 的模型可见面：`scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
-**尚未补全**（按 i18n 键缺口定位，共 528 个键）：
+**尚未补全**（3.14.1 时按 i18n 键缺口定位，共 528 个键；3.14.3 合并后待重新核对）：
 
 | 领域               | 缺口   | 说明                                                           |
 | ------------------ | ------ | -------------------------------------------------------------- |
@@ -44,6 +44,8 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 | `settings`         | 24 键  | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 多协议端点模板 |
 | 其他               | 51 键  | `server`、`appHeader`、`rewards`、`onboarding` 等              |
 
+其中 `bots`、`webRemoteControl` 已随 3.14.3 由上游开源并并入本仓库。
+
 **有意不补全**：
 
 - 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
@@ -53,12 +55,12 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 以下方向已确定，尚未动工，细节后续单独讨论：
 
-- **`bots` 走 AstrBot 插件，不逐个平台重写。** 闭源的 258 个 `bots` 键对应
-  Telegram / 飞书 / Lark / 企业微信四套机器人通知链路。逐平台重写意味着四份
-  平台适配、四套凭证管理和四套消息格式。改为接入 [AstrBot](https://github.com/AstrBotDevs/AstrBot)
-  ——它本身是开源的多平台 LLM 聊天机器人框架，已支持这些平台——由 ZCodium 侧
-  写一个 AstrBot 插件作为桥接层，把 Agent 的事件推到用户自己的 Bot。 [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin)
-  这样平台适配由 AstrBot 承担，本仓库只维护桥接契约。
+- **`bots`：官方实现 + AstrBot 桥接并存。** 上游 3.14.3 已开源官方 `bots`
+  （四套平台 adapter 与“接哪个平台”的设置 GUI），本仓库已并入。自研的
+  [AstrBot](https://github.com/AstrBotDevs/AstrBot) 桥接继续保留，并在官方 GUI 里
+  作为独立 provider 选项接入；平台适配由 AstrBot 承担，本仓库只维护桥接契约。
+  [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin)，
+  见 [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md)。
 - **Computer Use 通用化**：见 [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md)，
   按 Actuator 接口分层实现，当前基础设施（broker/bridge）已齐备且本来就是通用的。
 - **image-search 默认指向本地**：已改为 `http://127.0.0.1:8787`，见
@@ -76,6 +78,10 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 | Desktop              | Electron 桌面应用                                              | `pnpm dev:desktop`             |
 | Web / ZCode 命令行版 | 终端与浏览器工作台；将 TUI、Web、后端和 Agent 组装为独立运行包 | `pnpm dev:web`                 |
 | Agent CLI            | 在终端中使用 `zcode`，也为 Desktop 和 Web 提供 Agent 运行时    | `pnpm --filter @zcode/cli dev` |
+
+## 更新
+
+- 2026-09-24：合并上游 3.14.3（`328c1a0`），纳入官方 bots 与手机远控等新开源内容；继续保留 `.zcodium` 数据命名空间与自研 AstrBot 桥接。
 
 ## 初始化
 
