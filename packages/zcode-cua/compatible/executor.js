@@ -11,8 +11,6 @@
  * 观察类与语义类工具**不经过这里**，仍只走 cua-driver（见 `runtime.js` 路由）。
  */
 
-import { spawnSync } from "node:child_process";
-
 import { isAscii } from "./evdev.js";
 import { elementToScreen } from "./geometry.js";
 
@@ -40,12 +38,6 @@ class CompatError extends Error {
   }
 }
 
-function defaultClipboardWrite(text) {
-  const result = spawnSync("wl-copy", [], { input: text });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`wl-copy exited with code ${result.status}`);
-}
-
 function ok(text, level) {
   return {
     content: [{ type: "text", text }],
@@ -68,9 +60,8 @@ function fail(error) {
  * @param {object} options
  * @param {object} options.backend `createWaylandInputBackend` 的产物
  * @param {object} [options.client] cua-driver client（取元素框 / 语义 set_value）
- * @param {Function} [options.clipboardWrite] 写剪贴板（默认 `wl-copy`）
  */
-export function createCompatExecutor({ backend, client, clipboardWrite = defaultClipboardWrite } = {}) {
+export function createCompatExecutor({ backend, client } = {}) {
   if (!backend || typeof backend.click !== "function") {
     throw new TypeError("compat executor requires a wayland input backend");
   }
@@ -170,9 +161,8 @@ export function createCompatExecutor({ backend, client, clipboardWrite = default
       await backend.typeAscii(text);
       return ok("compat type_text via keycodes", "keycode");
     }
-    await clipboardWrite(text);
-    await backend.hotkey(["ctrl"], "v");
-    return ok("compat type_text via clipboard", "clipboard");
+    await backend.typeUnicode(text);
+    return ok("compat type_text via UTF-8 codepoints", "codepoint");
   }
 
   async function moveCursor(args) {

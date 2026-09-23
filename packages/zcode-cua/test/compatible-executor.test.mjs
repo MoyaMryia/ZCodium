@@ -46,6 +46,9 @@ function makeBackend({ windows, monitors } = {}) {
     async typeAscii(text) {
       calls.push({ method: "typeAscii", text });
     },
+    async typeUnicode(text) {
+      calls.push({ method: "typeUnicode", text });
+    },
     async dispose() {
       calls.push({ method: "dispose" });
     },
@@ -126,14 +129,9 @@ test("press_key 无修饰键走 pressKey，有则走 hotkey", async () => {
   assert.deepEqual(backend.calls.at(-1), { method: "hotkey", mods: ["ctrl"], key: "c" });
 });
 
-test("type_text 分级：set_value → keycode → 剪贴板", async () => {
-  const clipboard = [];
+test("type_text 分级：set_value → keycode → UTF-8 码点", async () => {
   const backend = makeBackend();
-  const executor = createCompatExecutor({
-    backend,
-    client: makeClient({ setValueSucceeds: true }),
-    clipboardWrite: (text) => clipboard.push(text),
-  });
+  const executor = createCompatExecutor({ backend, client: makeClient({ setValueSucceeds: true }) });
 
   const viaSet = await executor.execute({
     toolName: "type_text",
@@ -146,10 +144,9 @@ test("type_text 分级：set_value → keycode → 剪贴板", async () => {
   assert.equal(viaKeys._meta.textLevel, "keycode");
   assert.deepEqual(backend.calls.at(-1), { method: "typeAscii", text: "hi" });
 
-  const viaClip = await executor.execute({ toolName: "type_text", arguments: { window_id: 31, text: "你好 π" } });
-  assert.equal(viaClip._meta.textLevel, "clipboard");
-  assert.deepEqual(clipboard, ["你好 π"]);
-  assert.deepEqual(backend.calls.at(-1), { method: "hotkey", mods: ["ctrl"], key: "v" });
+  const viaCode = await executor.execute({ toolName: "type_text", arguments: { window_id: 31, text: "你好 π" } });
+  assert.equal(viaCode._meta.textLevel, "codepoint");
+  assert.deepEqual(backend.calls.at(-1), { method: "typeUnicode", text: "你好 π" });
 });
 
 test("scroll/drag 等未验证原语返回 ACTION_UNAVAILABLE", async () => {

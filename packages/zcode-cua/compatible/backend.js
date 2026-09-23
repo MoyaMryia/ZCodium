@@ -7,10 +7,13 @@
  * 元素框/AT-SPI 归 cua-driver。本后端**不缓存**这些状态，每次现取。
  */
 
-import { hotkeySequence, isAscii, keySequence, mouseButtonCode, typedKeys } from "./evdev.js";
+import { charToKey, hotkeySequence, isAscii, keySequence, mouseButtonCode, typedKeys } from "./evdev.js";
 import { scaleAt, screenToRelativeMotion } from "./geometry.js";
 
 const LEFT_SHIFT = 42;
+const LEFT_CTRL = 29;
+const KEY_U = 22;
+const KEY_ENTER = 28;
 const DEFAULT_KEY_HOLD_MS = 15;
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -108,10 +111,38 @@ export function createWaylandInputBackend({ helper, sleep = defaultSleep, keyHol
   }
 
   /**
-   * type_text 分级（§6.4）：AT-SPI set_value → ASCII keycode → 剪贴板。
-   * `trySetValue` / `pasteText` 由上层注入（分别走 cua-driver 与剪贴板端口）。
+   * Unicode / UTF-8 码点输入：Linux/GTK 标准的 `Ctrl+Shift+U` + 十六进制 + Enter。
+   * 不依赖剪贴板，也不依赖 mutter 听不懂的 Unicode keysym（§6.1）。
    */
-  async function typeText(text, { trySetValue, pasteText } = {}) {
+  async function typeUnicode(text) {
+    for (const char of text) {
+      if (char.codePointAt(0) <= 0x7f) {
+        await typeAscii(char);
+        continue;
+      }
+      await keycode(LEFT_CTRL, true);
+      await keycode(LEFT_SHIFT, true);
+      await keycode(KEY_U, true);
+      await keycode(KEY_U, false);
+      await keycode(LEFT_SHIFT, false);
+      await keycode(LEFT_CTRL, false);
+      await sleep(keyHoldMs);
+      for (const digit of char.codePointAt(0).toString(16)) {
+        const spec = charToKey(digit);
+        await keycode(spec.code, true);
+        await keycode(spec.code, false);
+        await sleep(keyHoldMs);
+      }
+      await keycode(KEY_ENTER, true);
+      await keycode(KEY_ENTER, false);
+      await sleep(keyHoldMs);
+    }
+  }
+
+  /**
+   * type_text 分级（§6.4）：AT-SPI set_value → ASCII keycode → UTF-8 码点。
+   */
+  async function typeText(text, { trySetValue } = {}) {
     if (typeof trySetValue === "function" && (await trySetValue(text)) === true) {
       return { level: "set_value" };
     }
@@ -119,11 +150,8 @@ export function createWaylandInputBackend({ helper, sleep = defaultSleep, keyHol
       await typeAscii(text);
       return { level: "keycode" };
     }
-    if (typeof pasteText === "function") {
-      await pasteText(text);
-      return { level: "clipboard" };
-    }
-    throw new Error("non-ASCII text needs a clipboard fallback or an editable AT-SPI element");
+    await typeUnicode(text);
+    return { level: "codepoint" };
   }
 
   return {
@@ -140,6 +168,7 @@ export function createWaylandInputBackend({ helper, sleep = defaultSleep, keyHol
     pressKey,
     hotkey,
     typeAscii,
+    typeUnicode,
     typeText,
     dispose: () => (typeof helper.dispose === "function" ? helper.dispose() : undefined),
   };

@@ -15,6 +15,18 @@ ZCode 侧的 Computer Use 运行时适配器。原生执行层复用唯一一个
 
 设计与迁移边界见 [`.agents/specs/computer-use-runtime.md`](../../.agents/specs/computer-use-runtime.md)。
 
+## 兼容层（老 GNOME / Wayland）
+
+`compatible/` 只服务 **cua-driver 原生输入不可用**的老 GNOME（Ubuntu 22.04 / GNOME 42，
+portal v1 无 libei），用 mutter 直连注入 + WinRects Shell 扩展完成物理输入；
+GNOME 45+ 与 Windows/macOS 一律走 cua-driver 原生，不加载它。
+
+- `detect.js` 判定是否适用；`executor.js` 把输入类工具翻译到 `backend.js`。
+- `helper/cua-wayland-input.js`（GJS 长驻）只代理 D-Bus 原语，`helper-client.js` 监督它。
+- Unicode 走 `Ctrl+Shift+U` 码点，不依赖剪贴板。
+
+契约与验证记录见 [`.agents/specs/computer-use-wayland-input.md`](../../.agents/specs/computer-use-wayland-input.md)。
+
 测试：`pnpm --filter @zcode/zcode-cua test`。
 
 License: Apache-2.0.

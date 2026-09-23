@@ -102,7 +102,7 @@ test("typeAscii 逐键，字母/Shift 标点正确", async () => {
   await assert.rejects(() => backend.typeAscii("π"), /ASCII/);
 });
 
-test("typeText 分级：set_value → keycode → 剪贴板", async () => {
+test("typeText 分级：set_value → keycode → UTF-8 码点", async () => {
   const helper = makeHelper();
   const backend = createWaylandInputBackend({ helper, sleep: noSleep });
 
@@ -115,14 +115,22 @@ test("typeText 分级：set_value → keycode → 剪贴板", async () => {
   assert.ok(helper.calls.length > 0);
 
   helper.calls.length = 0;
-  const viaClip = await backend.typeText("你好", { pasteText: async () => {} });
-  assert.equal(viaClip.level, "clipboard");
-  assert.equal(helper.calls.length, 0);
+  const viaCode = await backend.typeText("你好", {});
+  assert.equal(viaCode.level, "codepoint");
+  assert.ok(helper.calls.some((call) => call.method === "keycode"));
 });
 
-test("非 ASCII 且无剪贴板回退时报错", async () => {
-  const backend = createWaylandInputBackend({ helper: makeHelper(), sleep: noSleep });
-  await assert.rejects(() => backend.typeText("你好"), /clipboard/);
+test("typeUnicode 用 Ctrl+Shift+U + 十六进制 + Enter", async () => {
+  const helper = makeHelper();
+  const backend = createWaylandInputBackend({ helper, sleep: noSleep });
+  await backend.typeUnicode("π"); // U+03C0 → hex "3c0"
+  assert.deepEqual(codes(helper), [
+    [29, true], [42, true], [22, true], [22, false], [42, false], [29, false],
+    [4, true], [4, false], // '3'
+    [46, true], [46, false], // 'c'
+    [11, true], [11, false], // '0'
+    [28, true], [28, false], // Enter
+  ]);
 });
 
 test("变 scale：按目标点所在 monitor 取 scale", async () => {

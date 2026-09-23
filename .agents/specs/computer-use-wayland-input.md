@@ -177,7 +177,7 @@ NotifyPointerMotionRelative((tx−cx)/scale, (ty−cy)/scale)
 | **Unicode keysym** | `(0x01000000+cp)` | ❌ | π 你好 えー **全丢** |
 | GTK Unicode | Ctrl+Shift+U + 十六进制 | ✅ | 插入 π |
 | Ctrl+C / Ctrl+V | evdev keycode | ✅ | 往返一致 |
-| 剪贴板任意 Unicode | `wl-copy` + Ctrl+V | ✅ | `PASTE 你好 π 😀 42` 全渲染 |
+| 剪贴板任意 Unicode | `wl-copy` + Ctrl+V | ✅ | `PASTE 你好 π 😀 42` 全渲染（探索结论；实现改用 Ctrl+Shift+U，不依赖剪贴板） |
 
 ### 6.2 evdev 对照表（常用子集）
 
@@ -204,19 +204,20 @@ hotkey([mods...], key) = down(mods) → tap(key) → up(mods，逆序)
 
 ```text
 1. 有可访问可编辑元素 → AT-SPI set_value        （不抢焦点、任意文本、走 cua-driver）
-2. 纯 ASCII          → keycode/keysym 直打
-3. 含 Unicode        → wl-copy 写剪贴板 + Ctrl+V （GTK 亦可 Ctrl+Shift+U）
+2. 纯 ASCII          → keycode 直打
+3. 含 Unicode        → Ctrl+Shift+U + 十六进制 + Enter （UTF-8 码点，Linux/GTK 标准）
 ```
+
+不依赖剪贴板（`wl-copy` 会 fork 持有 selection，Node `spawnSync` 会卡死），也不依赖
+mutter 听不懂的 Unicode keysym。
 
 分级测试用例（接入时执行）：
 
 | 级别 | 输入 | 目标 | 期望 |
 | --- | --- | --- | --- |
-| 1 | "hello" | 有 AT-SPI 文本框（如 gedit） | set_value 命中，读回一致 |
+| 1 | "hello" | 有 AT-SPI 文本框（如 gedit） | set_value 命中或回退到 2 |
 | 2 | "ABC123!@#" | 任意聚焦输入 | 逐键正确 |
-| 3a | "你好 π 😀" | GTK 应用 | 剪贴板粘贴渲染 |
-| 3b | "π" | GTK 应用 | Ctrl+Shift+U 插入 |
-| 3c | "你好 π 😀" | 非 GTK（终端等） | 剪贴板粘贴 |
+| 3 | "你好 π 😀" | GTK 应用 | Ctrl+Shift+U 逐码点插入 |
 
 ## 7. 事件顺序与状态所有权
 
@@ -238,8 +239,8 @@ ZCode 后端                      helper（GJS，长驻）              mutter s
 
 ```text
 分级 1: cua-driver set_value ──► AT-SPI EditableText
-分级 2: keycode/keysym 逐键 ──► helper → mutter
-分级 3: wl-copy "你好" ──► 剪贴板；hotkey(ctrl,v) ──► helper → mutter → 粘贴
+分级 2: keycode 逐键 ──► helper → mutter
+分级 3: Ctrl+Shift+U + 十六进制 + Enter ──► helper → mutter（逐码点）
 ```
 
 ### 7.3 唯一所有者
@@ -249,7 +250,6 @@ ZCode 后端                      helper（GJS，长驻）              mutter s
 | 窗口矩形 / 光标 / 截图 | WinRects 扩展 | 后端不缓存，每次现取 |
 | 注入 session（含指针位置） | helper 进程（唯一长驻） | 调用方只传目标 |
 | 元素框 / AT-SPI / 语义 | cua-driver | 后端只做坐标换算 |
-| 剪贴板 | 系统（`wl-copy` 持有 selection） | 后端只写一次 |
 | 目标窗口 focus | WinRects `Activate` | 后端不假设焦点 |
 
 不新增第二条写入路径：后端不缓存窗口列表、坐标、剪贴板、指针位置。
@@ -292,12 +292,15 @@ interface WaylandInputBackend {
   listWindows(): Promise<WinRect[]>;
   capture(): Promise<{ pngBase64: string; width: number; height: number }>;
   getCursor(): Promise<{ x: number; y: number }>;
+  monitors(): Promise<LogicalMonitor[]>;
   activate(windowId: number): Promise<boolean>;
-  click(x: number, y: number): Promise<void>;
+  moveTo(x: number, y: number): Promise<{ x: number; y: number; scale: number }>;
+  click(x: number, y: number, button?: "left" | "right" | "middle"): Promise<void>;
   hotkey(mods: string[], key: string): Promise<void>;
   pressKey(key: string): Promise<void>;
-  typeText(text: string): Promise<void>;
-  scroll(dx: number, dy: number): Promise<void>;
+  typeAscii(text: string): Promise<void>;
+  typeUnicode(text: string): Promise<void>;   // Ctrl+Shift+U + 十六进制 + Enter
+  typeText(text: string, opts?: { trySetValue?: (text: string) => Promise<boolean> }): Promise<{ level: string }>;
 }
 ```
 
@@ -310,20 +313,45 @@ interface WaylandInputBackend {
 - **强制前台**：`Activate` + focus 绑定可接受。
 - **变 scale**：按目标点所在 logical monitor 取 scale；跨输出移动为已知边界。
 - **单指针**：mutter session 操作全局唯一指针，非并发安全。
-- **Unicode keysym 不可用**：只能 set_value 或剪贴板。
+- **Unicode keysym 不可用**：只能 set_value 或 Ctrl+Shift+U 码点。
 - **无 portal/root**。
 - **gjs 依赖**：兼容层要求 gjs（GNOME 环境天然满足）。
 
-## 10. 验证记录（脚本在 `/tmp/cua-test/`）
+## 10. 验证记录（本次实现）
+
+### 10.1 观察 / 坐标 / 点击
+
+| 项 | 结果 |
+| --- | --- |
+| 元素字段形状 | `get_window_state` → `{frame:{x,y,w,h}, label, role, action, element_token}`；文本在 **`label`** |
+| 计算器 "5" | frame `{x:282,y:517,w:60,h:44}`、buffer `(122,58)` → **(398,928)**；mutter 左键 272 命中，截图显示 "5" |
+| 完整 runtime | C4：`get_window_state` 由 driver 提供 462 元素，`press_key`/`click` 由 compat 注入，命中 "5" |
+| detect | 本机 `{applies:true, gnomeShellVersion:42, portalRemoteDesktopVersion:1, winRectsVersion:8}` |
+
+### 10.2 文本分级（gedit）
+
+| 级别 | 输入 | 结果 |
+| --- | --- | --- |
+| 1 set_value | `L1 hello world` | gedit 文档不支持 set_value → 回退 `keycode` |
+| 2 keycode | `L2 ABC123!@#` | `keycode` 下发成功 |
+| 3 codepoint | `L3 你好 π` | `codepoint`（Ctrl+Shift+U）下发成功 |
+
+> gedit 文档文本不通过 AT-SPI `value` 暴露（恒为空），自动读回不适用；靠截图确认渲染。
+
+### 10.3 已知坑
+
+- **`spawnSync("wl-copy")` 卡死**：`wl-copy` fork 的孙进程继承 stdio 管道，`spawnSync` 等管道关闭而挂起
+  → 已弃用剪贴板路径，Unicode 改 **Ctrl+Shift+U 码点**。
+- `get_screen_size` 本机返回 `scale_factor:1`（不上报真实 2）→ scale 必须取 DisplayConfig（§4.3）。
+- 后台进程（计算器/gedit）不跨 shell 调用存活，端到端验证需**同一次调用内**启动。
+
+### 10.4 脚本（`/tmp/cua-test/`，不入库）
 
 | 脚本 | 用途 |
 | --- | --- |
-| `getcursor.js` / `relmove2.js` / `moveto.js` | 读/移动指针 |
-| `moveclick.js` | 移动 + 左键 272 |
-| `keyinject.js` | 键盘（`WID`+`KBSEQ`：tap / down / up / keysym） |
-| `calib.txt` | 真值锚点 `five_position=400,928` |
-
-截图：`/tmp/full.png`、`/tmp/calc*.png`。启动计算器：`(setsid gnome-calculator >/dev/null 2>&1 &); sleep 3`。
+| `validate-c1/c3/c4/c5.mjs` | 各阶段端到端 |
+| `calcvalidate.mjs` / `geditprobe.mjs` | 真实元素字段探查 |
+| `moveclick.js` / `keyinject.js` | gjs 注入 smoke |
 
 ## 11. 实施顺序
 
@@ -334,10 +362,10 @@ interface WaylandInputBackend {
 | C2 | `compatible/helper/cua-wayland-input.js`（GJS，D-Bus 原语） | **已完成**（本机 smoke：ping/version/monitors/getCursor/listWindows/moveRel/button 全通，version=8） |
 | C3 | `compatible/backend.js` + `detect.js`（spawn/监督、路由） | **已完成**（`helper-client.js` + backend + detect；54 测试通过；真实 helper 端到端 click "5" 命中） |
 | C4 | 接 `createComputerUseRuntime` 兜底路由 | **已完成**（`runtime.js` 路由 + `compatible/executor.js`；真实链路：driver 观察 → compat `press_key`/`click` 命中 "5"；70 测试通过） |
-| C5 | 分级 type_text 测试（§6.4 表）+ 变 scale 验证 | 待开始 |
+| C5 | 分级 type_text 测试（§6.4 表）+ 变 scale 验证 | **已完成**（gedit 三级：set_value 回退 keycode、ASCII keycode、Unicode codepoint；单一显示器，变 scale 有单测与逻辑支持，跨输出仍为限制） |
 
 ## 12. 待定
 
 1. 跨输出移动的 scale 处理细节（先标注为限制）。
-2. `scroll` / `drag` 的 mutter 原语验证（`NotifyPointerAxis` / 移动期间保持按钮）。
+2. `scroll` / `drag` 的 mutter 原语验证（`NotifyPointerAxis` / 移动期间保持按钮）；当前返回 `ACTION_UNAVAILABLE`。
 3. `packages/zcode-cua` 是否登记为受管模块（当前策略 `managedOnly`，未含该包）。
