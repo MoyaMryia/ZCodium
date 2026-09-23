@@ -39,6 +39,64 @@ conventions, formulas over hardcoded values, openpyxl read and write, the
 verification checklist, reading the recalculation output, and the performance
 notes) are the substance carried across.
 
+## skills/xlsx/scenes/finance.md, skills/xlsx/engines/design.md, skills/xlsx/quality/pipeline.md
+
+These three files derive from the same project's `xlsx/SKILL.md` (MIT, notice
+above), extending the earlier `SKILL.md` adaptation:
+
+- `scenes/finance.md` carries the financial-model layer — the colour-coding
+  table, the number-format table, the assumption-cell rule, formula hygiene and
+  the hardcode source-comment format — as the scene a reviewer will audit.
+- `engines/design.md` carries the shared design surface (colour roles, number
+  formats, sheet structure, table layout) that every scene sits on.
+- `quality/pipeline.md` carries the delivery gate: recalculate with a real
+  engine, zero formula errors, structural checks, convention checks, an
+  independent spot-check, and template preservation.
+
+The upstream work is licensed under the MIT License, which permits use, copying,
+modification, merging, publication and distribution on the condition that the
+copyright notice and the permission notice are carried along. The notice is
+reproduced in the footer of each file and recorded here.
+
+The deltas from the upstream file: the upstream `xlsx/SKILL.md` presents these
+rules inline inside one document; here they are split by role (scene / engine /
+gate) and rewritten in this repository's voice, with the openpyxl RGB colour
+literals dropped in favour of plain RGB triples, and the openpyxl-specific
+invocations left to `SKILL.md`. The conventions themselves — blue inputs, black
+formulas, green cross-sheet links, red external links, yellow assumption fills,
+years as text, zeros as `-`, negatives in parentheses, units in headers,
+formulas over hardcodes, zero-error delivery, template preservation — are the
+substance carried across.
+
+## skills/xlsx/scenes/create.md, scenes/edit-patterns.md, scenes/analyze.md, scenes/analyze-recipes.md, engines/chart.md, engines/chart-templates.md — API-fact references
+
+These files are original prose written against the public, documented APIs of
+third-party libraries, used as factual sources (interface names, option
+names, and documented behaviour — none of which is copyrightable expression):
+
+| project | license | what was used |
+| --- | --- | --- |
+| `jmcnamara/XlsxWriter` (https://github.com/jmcnamara/XlsxWriter) | BSD-2-Clause | the documented `Workbook` / `add_format` / `write_formula` / `add_series` / `set_*` chart API in `scenes/create.md`, `engines/chart.md`, `engines/chart-templates.md` |
+| `vega/vega-lite` (https://github.com/vega/vega-lite) | BSD-3-Clause | the documented mark / encoding-channel / data-type / aggregation grammar in `scenes/analyze.md`, `scenes/analyze-recipes.md`, `engines/chart.md` |
+| `scanny/python-pptx` — not used by this plugin; recorded in the survey for the presentations plugin | MIT | — |
+
+No upstream source code is vendored into these files, and no upstream file is
+reproduced. The code samples are written for this repository against the
+documented interfaces.
+
+## skills/xlsx/templates/base.py, templates/palettes.py, xlsx.py — original code
+
+Original work for this repository. They implement the conventions in
+`engines/design.md` (colour roles, number formats, assumption blocks, the
+quality gate) against the public APIs named above. They carry no third-party
+source and are covered by the repository's root Apache-2.0 license.
+
+## skills/xlsx/scenes/finance_lite.md, scenes/vba.md, scenes/advanced.md, scenes/edit.md, scenes/convert.md, engines/vba-templates.md — original work
+
+Written from public knowledge (VBA's public grammar, the OOXML spreadsheet
+format, the LibreOffice headless CLI) with no third-party base. Covered by the
+repository's root Apache-2.0 license.
+
 ## Everything else in this plugin
 
 `package.json`, `.zcodium-plugin/plugin.json`, this `NOTICE.md` and
