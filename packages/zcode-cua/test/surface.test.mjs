@@ -138,6 +138,42 @@ test("request_access 全批准", async () => {
   assert.equal(result.structuredContent.granted, true);
 });
 
+test("后台不可用时自动前台重试（driver）", async () => {
+  let clicks = 0;
+  const calls = [];
+  const callDriver = async (name, args) => {
+    calls.push({ name, args });
+    if (name === "get_window_state") {
+      return { text: "t", structuredJson: JSON.stringify({ snapshot_id: "s1", elements: ELEMENTS }), isError: false };
+    }
+    if (name === "click") {
+      clicks += 1;
+      return clicks === 1
+        ? { isError: true, errorCode: "background_unavailable", text: "background delivery refused" }
+        : { text: "clicked", isError: false };
+    }
+    return { text: "", structuredJson: "{}", isError: false };
+  };
+  const surface = createSurfaceLayer({ callDriver, compat: null, compatApplies: false, projectDriverResult, projectDriverError });
+  await surface.execute({ toolName: "get_app_state", arguments: { app_ref: { pid: 100 }, window_id: 58 } });
+  const result = await surface.execute({ toolName: "left_click", arguments: { app_ref: { pid: 100 }, window_id: 58, target: 202 } });
+  assert.equal(result.isError, false);
+  assert.equal(result._meta.foregroundFallback, true);
+  assert.equal(result._meta.deliveryMode, "foreground");
+  const clickCalls = calls.filter((call) => call.name === "click");
+  assert.equal(clickCalls.length, 2);
+  assert.equal(clickCalls[0].args.delivery_mode, undefined);
+  assert.equal(clickCalls[1].args.delivery_mode, "foreground");
+});
+
+test("兼容层结果标记前台", async () => {
+  const compat = makeCompat();
+  const { surface } = makeSurface({ get_window_state: windowStateHandler() }, compat);
+  await surface.execute({ toolName: "get_app_state", arguments: { app_ref: { pid: 100 }, window_id: 58 } });
+  const result = await surface.execute({ toolName: "left_click", arguments: { app_ref: { pid: 100 }, window_id: 58, target: 202 } });
+  assert.equal(result._meta.deliveryMode, "foreground");
+});
+
 test("runtime 识别 ZCode 工具名并走 surface", async () => {
   const client = {
     async callTool(name) {

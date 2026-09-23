@@ -49,6 +49,33 @@ function structured(raw) {
   return parseJson(raw?.structuredJson, undefined);
 }
 
+/** 支持 `delivery_mode` 的输入类工具：后台拿不到就前台重试。 */
+const FOREGROUND_FALLBACK_TOOLS = new Set([
+  "click",
+  "double_click",
+  "right_click",
+  "drag",
+  "scroll",
+  "type_text",
+  "press_key",
+  "hotkey",
+  "mouse_button_down",
+  "mouse_button_up",
+  "mouse_drag",
+]);
+
+function isBackgroundUnavailable(value) {
+  const code = value?.errorCode ?? value?.code;
+  if (code === "background_unavailable") return true;
+  return /background[_ ]?unavailable/i.test(String(value?.message ?? value?.text ?? ""));
+}
+
+function markForeground(result, fallback) {
+  const meta = { ...result?._meta, deliveryMode: "foreground" };
+  if (fallback) meta.foregroundFallback = true;
+  return { ...result, _meta: meta };
+}
+
 /** `ctrl+shift+t` → `{ modifiers:["ctrl","shift"], key:"t" }`。 */
 export function parseKeyChord(text) {
   const parts = String(text ?? "")
@@ -148,18 +175,37 @@ export function createSurfaceLayer({
     return { pid, windowId };
   }
 
+  async function forwardToDriver(driverTool, args, input) {
+    const canFallback = FOREGROUND_FALLBACK_TOOLS.has(driverTool) && args.delivery_mode !== "foreground";
+    try {
+      const raw = await callDriver(driverTool, args, input.signal);
+      if (canFallback && raw?.isError && isBackgroundUnavailable(raw)) {
+        const retry = await callDriver(driverTool, { ...args, delivery_mode: "foreground" }, input.signal);
+        return markForeground(projectDriverResult(retry), true);
+      }
+      return projectDriverResult(raw);
+    } catch (error) {
+      if (canFallback && isBackgroundUnavailable(error)) {
+        const retry = await callDriver(driverTool, { ...args, delivery_mode: "foreground" }, input.signal);
+        return markForeground(projectDriverResult(retry), true);
+      }
+      throw error;
+    }
+  }
+
   async function dispatch(driverTool, driverArgs, input) {
     if (compatApplies && COMPAT_INPUT_TOOLS.has(driverTool) && compat) {
       // 兼容层会自己重新观测，旧 element_token 必然过期 → 传 index。
       const args = { ...driverArgs };
       delete args.element_token;
-      return { compat: true, result: await compat.execute({ toolName: driverTool, arguments: args, context: input.context, signal: input.signal }) };
+      const result = await compat.execute({ toolName: driverTool, arguments: args, context: input.context, signal: input.signal });
+      // 兼容层是 mutter 全局注入，只能前台（决策 1）。
+      return { compat: true, result: markForeground(result, false) };
     }
     // cua-driver 用 per-snapshot token；index 可能与合成快照不匹配。
     const args = { ...driverArgs };
     delete args.element_index;
-    const raw = await callDriver(driverTool, args, input.signal);
-    return { compat: false, result: projectDriverResult(raw) };
+    return { compat: false, result: await forwardToDriver(driverTool, args, input) };
   }
 
   async function targetArgs(input, args) {
