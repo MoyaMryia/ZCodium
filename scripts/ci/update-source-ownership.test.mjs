@@ -66,17 +66,25 @@ test("共享常量未注入 define 时为空串", async () => {
     "ZCODIUM_UPDATE_ORIGIN 缺少 typeof 守卫或空串缺省",
   );
 });
-test("更新缓存目录由应用身份派生，不与上游 ZCode 共用", async () => {
+test("更新缓存目录在打包后被改写为按 appId 隔离的名字", async () => {
   const source = await readFile(join(root, "packages/desktop/electron-builder.config.js"), "utf8");
-  // 注释中保留历史默认名是可以接受的说明文字；这里断言的是配置值本身不能写成字面量。
-  assert.ok(
-    !/updaterCacheDirName:\s*["']/.test(source),
-    "updaterCacheDirName 被写死为字面量，应改为由 desktopProductIdentity.appId 派生",
+  // 该值是 electron-builder 的派生只读属性（AppInfo.updaterCacheDirName），没有可覆盖的配置项，
+  // 因此断言的是 afterPack 里确实发生了改写，而不是配置里声明了某个 key。
+  assert.match(
+    source,
+    /function rewriteUpdaterCacheDirName\(context\) \{/,
+    "缺少 afterPack 阶段的 updaterCacheDirName 改写函数",
   );
   assert.match(
     source,
-    /updaterCacheDirName: desktopProductIdentity\.appId,/,
-    "updaterCacheDirName 未由 desktopProductIdentity.appId 派生",
+    /runTimedSync\("afterPack:rewriteUpdaterCacheDirName",/,
+    "改写函数未挂进 afterPack 步骤",
+  );
+  assert.match(source, /context\.packager\.appInfo\.id\}-updater/, "改写目标未由 appId 派生");
+  // 配置项写法无效：PublishManager 无条件写入 appInfo 的值，写死成 key 只会造成误导。
+  assert.ok(
+    !/^\s+updaterCacheDirName:/m.test(source),
+    "updaterCacheDirName 不应作为 config key 声明（该 key 不生效）",
   );
 });
 
