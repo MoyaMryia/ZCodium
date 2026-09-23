@@ -37,15 +37,15 @@ v1 草案按“多平台各自配置 + 卡片交互”设计，经过对远程 A
 
 ## 状态所有者
 
-| 状态 | 所有者 | 说明 |
-| --- | --- | --- |
-| bridge 配置（`bots-bridge.v2.json`） | ZCodium `BotsRepo` | enabled、默认 allowedWorkspaces、bridge token 引用 |
-| 绑定（`bots-bindings.v2.json`） | ZCodium `BotsRepo` | `actorKey → {workspace, sessionId, pending 交互, cursor}` |
-| bridge token | ZCodium credential store | key `bot:bridge:token`，只展示一次 |
-| 轮次流（streamId/seq） | ZCodium `BotsService`（内存 + 有限落盘游标） | 插件只去重，不产生事实 |
-| 待处理权限/elicitation | ZCodium `BotsService` | 来自 runtime 事件，唯一所有者 |
-| AstrBot 侧事件、卡片、消息 id | AstrBot 插件 | 不进入 ZCodium 持久化 |
-| Agent 会话与任务 | 现有 `IZCodeTaskService` + `SessionRealtimePort` | bridge 不另建任务状态 |
+| 状态                                 | 所有者                                           | 说明                                                      |
+| ------------------------------------ | ------------------------------------------------ | --------------------------------------------------------- |
+| bridge 配置（`bots-bridge.v2.json`） | ZCodium `BotsRepo`                               | enabled、默认 allowedWorkspaces、bridge token 引用        |
+| 绑定（`bots-bindings.v2.json`）      | ZCodium `BotsRepo`                               | `actorKey → {workspace, sessionId, pending 交互, cursor}` |
+| bridge token                         | ZCodium credential store                         | key `bot:bridge:token`，只展示一次                        |
+| 轮次流（streamId/seq）               | ZCodium `BotsService`（内存 + 有限落盘游标）     | 插件只去重，不产生事实                                    |
+| 待处理权限/elicitation               | ZCodium `BotsService`                            | 来自 runtime 事件，唯一所有者                             |
+| AstrBot 侧事件、卡片、消息 id        | AstrBot 插件                                     | 不进入 ZCodium 持久化                                     |
+| Agent 会话与任务                     | 现有 `IZCodeTaskService` + `SessionRealtimePort` | bridge 不另建任务状态                                     |
 
 **唯一写入路径**：`BotsService` 写配置/绑定/游标；插件只发命令、只 ack。
 Agent 控制走既有 `IZCodeTaskService.sendPrompt` 与 `SessionRealtimePort.requestOwnerCommand`。
@@ -114,13 +114,13 @@ server→client  error      协议级错误
 
 ### delivery payload
 
-| type | 字段 | 插件动作 |
-| --- | --- | --- |
-| `text` | `text`, `replace?` | 追加/替换助手正文；喂给 `send_streaming` |
-| `tool` | `toolId`, `title`, `status`, `summary?` | 工具进度行；可作为 `break` 边界 |
-| `changes` | `fileCount`, `files[{path,additions,deletions}]` | 变更摘要文本 |
-| `notice` | `level`, `message` | 提示/错误 |
-| `selection` | 见下 | 交互（权限/提问/菜单），插件打印 `text` |
+| type        | 字段                                             | 插件动作                                 |
+| ----------- | ------------------------------------------------ | ---------------------------------------- |
+| `text`      | `text`, `replace?`                               | 追加/替换助手正文；喂给 `send_streaming` |
+| `tool`      | `toolId`, `title`, `status`, `summary?`          | 工具进度行；可作为 `break` 边界          |
+| `changes`   | `fileCount`, `files[{path,additions,deletions}]` | 变更摘要文本                             |
+| `notice`    | `level`, `message`                               | 提示/错误                                |
+| `selection` | 见下                                             | 交互（权限/提问/菜单），插件打印 `text`  |
 
 `selection` 对齐官方抽象：
 
@@ -142,18 +142,18 @@ server→client  error      协议级错误
 
 ### command
 
-| type | 字段 | ZCodium 动作 |
-| --- | --- | --- |
-| `prompt` | `text` | **文本原样透传**，由 ZCodium 集中解析（见下） |
-| `bind` | `code` | 消费绑定码，建立绑定 |
-| `unbind` | — | 解除绑定 |
-| `new` | — | 新建 session（保留 workspace） |
-| `stop` | — | `requestOwnerCommand(stop_generation)` |
-| `cancel` | — | 取消当前待处理交互 |
-| `status` | — | 回当前绑定/任务状态 |
-| `help` | — | 回文本帮助 |
-| `workspace.set` | `value` | 校验 allowedWorkspaces 后切换 |
-| `permission.respond` | `requestId`, `optionId` | `requestOwnerCommand(respond_permission)`（结构化旁路） |
+| type                  | 字段                                        | ZCodium 动作                                             |
+| --------------------- | ------------------------------------------- | -------------------------------------------------------- |
+| `prompt`              | `text`                                      | **文本原样透传**，由 ZCodium 集中解析（见下）            |
+| `bind`                | `code`                                      | 消费绑定码，建立绑定                                     |
+| `unbind`              | —                                           | 解除绑定                                                 |
+| `new`                 | —                                           | 新建 session（保留 workspace）                           |
+| `stop`                | —                                           | `requestOwnerCommand(stop_generation)`                   |
+| `cancel`              | —                                           | 取消当前待处理交互                                       |
+| `status`              | —                                           | 回当前绑定/任务状态                                      |
+| `help`                | —                                           | 回文本帮助                                               |
+| `workspace.set`       | `value`                                     | 校验 allowedWorkspaces 后切换                            |
+| `permission.respond`  | `requestId`, `optionId`                     | `requestOwnerCommand(respond_permission)`（结构化旁路）  |
 | `elicitation.respond` | `requestId`, `token?`, `action`, `content?` | `requestOwnerCommand(respond_elicitation)`（结构化旁路） |
 
 ### 集中文本解析（对齐官方 `parseBotCommand`）
@@ -217,11 +217,11 @@ server→client  error      协议级错误
 
 ## 分期
 
-| 阶段 | 内容 | 验收 |
-| --- | --- | --- |
-| P1 | v2 协议契约 + 帧校验 | typecheck/lint |
-| P2 | `BotsRepo` + `BotsService`（绑定、轮次状态机、文本交互） | 场景 6/8/9/10 |
-| P3 | `BotsRuntimePort` 适配 + `BotsEventProjector` 事件投影 | 场景 2/3/4/5 |
-| P4 | host WS `botsBridgeServer` 接 v2 帧 + 补投 | 场景 1/7 |
-| P5 | `astrbot-zcodium-plugin`：Star 插件 → bridge → `send_streaming` | 端到端 |
-| P6 | 设置 UI（bridge 开关/token/绑定管理） | 场景 1 |
+| 阶段 | 内容                                                            | 验收           |
+| ---- | --------------------------------------------------------------- | -------------- |
+| P1   | v2 协议契约 + 帧校验                                            | typecheck/lint |
+| P2   | `BotsRepo` + `BotsService`（绑定、轮次状态机、文本交互）        | 场景 6/8/9/10  |
+| P3   | `BotsRuntimePort` 适配 + `BotsEventProjector` 事件投影          | 场景 2/3/4/5   |
+| P4   | host WS `botsBridgeServer` 接 v2 帧 + 补投                      | 场景 1/7       |
+| P5   | `astrbot-zcodium-plugin`：Star 插件 → bridge → `send_streaming` | 端到端         |
+| P6   | 设置 UI（bridge 开关/token/绑定管理）                           | 场景 1         |

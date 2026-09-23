@@ -13,16 +13,46 @@
         height: 100%;
       }
 
-      /* 启动壳（透明窗口上的浮动 logo、遮罩与动画）已整套删除：启动画面只保留 React 的
-         静态标记。这里只留一层纯色底，避免 React bundle 执行前主窗口（透明/vibrancy）
-         露出桌面；bundle 载入后由共享 UI 样式的根背景接管。 */
+      /* React bundle 执行前主窗口（透明/vibrancy）会先显示这一层。只留纯色底会让
+         "窗口已出现、屏幕上却没有任何品牌内容"的空档被放大。这里同时渲染一枚静态
+         ZCodium 标记：与 React 的 ZCodeStartupLogoBadge 共用同一枚 512 图标、同一
+         96px 尺寸与居中位置，React 首次 commit 后接管 #root，衔接时不跳动。
+
+         关键：`src` 必须是 HTML 解析期就存在的静态资源。样式与脚本都会在解析后执行，
+         而 bundle 下载/解析/执行正是我们要覆盖的空档；只有静态 src 才能让浏览器在
+         bundle 执行前就开始取图并绘制珊瑚。
+
+         图标放在 renderer 的 publicDir（`src/renderer/public/logo/icons/512x512.png`），
+         以根路径 `/logo/...` 引用：dev 由 Vite 直接 serve，生产由 Vite 拷贝进产物并
+         按 base 重写，不会依赖 transformIndexHtml 的顺序与缓存。 */
       html {
         background: #161616;
+      }
+
+      .zcode-startup-placeholder {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
       }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="zcode-startup-placeholder" aria-hidden="true">
+        <!-- 与 ZCodeStartupLogoBadge 同图（仓库 public/logo/icons/512x512.png 的 renderer
+             public 副本）；改用根路径让 Vite 在 dev 与产物里都能稳定解析。 -->
+        <img src="/logo/icons/512x512.png" width="96" height="96" alt="" />
+      </div>
+    </div>
+    <script>
+      // 更新状态窗口复用本 HTML，但它本身是轻量弹窗，不应出现启动标记。
+      if (new URLSearchParams(window.location.search).get("windowKind") === "update-status") {
+        document.querySelector(".zcode-startup-placeholder")?.remove();
+      }
+    </script>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

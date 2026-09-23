@@ -1,0 +1,29 @@
+{
+  "name": "@zcode/desk-pilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-platform desktop control surface for ZCode agents. Contract-first: Windows, macOS, Linux X11 and Linux Wayland behind one SurfaceAdapter port.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/contract.ts",
+      "import": "./src/contract.ts"
+    },
+    "./contract": {
+      "types": "./src/contract.ts",
+      "import": "./src/contract.ts"
+    },
+    "./guards": {
+      "types": "./src/guards.ts",
+      "import": "./src/guards.ts"
+    }
+  },
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}

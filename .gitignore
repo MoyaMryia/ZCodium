@@ -72,3 +72,23 @@ packages/desktop/.e2e-network-capture/
 
 # 本地克隆的 AstrBot 插件仓库，仅作参考，不随主仓库入库。
 /astrbot-zcodium-plugin/
+
+# 手动复制到仓库根的桌面安装包（真正的产物在 CI artifact / GitHub Release，
+# 这里只是本地测试下载或构建后顺手丢进来的，体积大且可再生产。
+/ZCode-*.deb
+/ZCode-*.dmg
+/ZCode-*.exe
+/ZCode-*.AppImage
+/ZCode-*.rpm
+/ZCode-*.pkg.tar.zst
+/ZCodium-*.deb
+/ZCodium-*.dmg
+/ZCodium-*.exe
+/ZCodium-*.AppImage
+/ZCodium-*.rpm
+/ZCodium-*.pkg.tar.zst
+
+# DeskPilot 原生 daemon 的 Rust 构建产物与跨平台 manifest，均可再生。
+packages/desk-pilot/native/target/
+packages/desk-pilot/native/dist/
+packages/desk-pilot/native/runtime-manifest.json

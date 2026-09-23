@@ -204,6 +204,8 @@ importers:
         specifier: ^2.10.3
         version: 2.10.3
 
+  apps/zcode-cli/packages/android-emulator-plugin: {}
+
   apps/zcode-cli/packages/bootstrap:
     dependencies:
       '@zcode/adapters':
@@ -467,6 +469,8 @@ importers:
 
   apps/zcode-cli/packages/image-search-plugin: {}
 
+  apps/zcode-cli/packages/ios-simulator-plugin: {}
+
   apps/zcode-cli/packages/node-repl-host:
     dependencies:
       '@modelcontextprotocol/server':
@@ -518,6 +522,8 @@ importers:
   apps/zcode-cli/packages/skill-creator-plugin: {}
 
   apps/zcode-cli/packages/spreadsheets-plugin: {}
+
+  apps/zcode-cli/packages/superpowers-plugin: {}
 
   apps/zcode-cli/packages/swift-bridge:
     dependencies:
@@ -606,6 +612,12 @@ importers:
       '@zcode/shared':
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.2
+
+  packages/desk-pilot:
     devDependencies:
       typescript:
         specifier: ^6.0.2
