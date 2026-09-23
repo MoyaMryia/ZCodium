@@ -14,6 +14,8 @@ const LEFT_SHIFT = 42;
 const LEFT_CTRL = 29;
 const KEY_U = 22;
 const KEY_ENTER = 28;
+const VERTICAL_AXIS = 0;
+const HORIZONTAL_AXIS = 1;
 const DEFAULT_KEY_HOLD_MS = 15;
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -79,6 +81,48 @@ export function createWaylandInputBackend({ helper, sleep = defaultSleep, keyHol
 
   async function button(code, pressed) {
     await helper.request("button", { code, pressed: pressed === true });
+  }
+
+  /**
+   * 滚轮（discrete）：direction 决定轴向与符号。mutter 约定 axis 0=垂直、1=水平，
+   * steps>0 表示下/右，<0 表示上/左，且 steps 不能为 0。滚动按**指针位置**生效。
+   */
+  async function scroll(direction, amount = 3) {
+    const magnitude = Math.abs(Number(amount));
+    if (!Number.isFinite(magnitude) || magnitude === 0) {
+      throw new Error("scroll amount must be a non-zero number");
+    }
+    const vertical = direction === "up" || direction === "down";
+    const negative = direction === "up" || direction === "left";
+    const axis = vertical ? VERTICAL_AXIS : HORIZONTAL_AXIS;
+    const steps = negative ? -magnitude : magnitude;
+    await helper.request("axisDiscrete", { axis, steps });
+    return { axis, steps };
+  }
+
+  /** 按住按钮拖动：moveTo(from) → button down → 分步相对移动 → button up。 */
+  async function drag(from, to, { button: mouseButton = "left", steps = 12 } = {}) {
+    const code = mouseButtonCode(mouseButton);
+    if (code === undefined) throw new Error(`unknown mouse button: ${mouseButton}`);
+    const monitors = await helper.request("monitors");
+    const primary = monitors.find((monitor) => monitor.primary);
+    const scale = scaleForPoint(monitors, from, primary?.scale ?? 1);
+    let cursor = await helper.request("getCursor");
+    const moveToPoint = async (point) => {
+      const { dx, dy } = screenToRelativeMotion(point, cursor, scale);
+      if (dx !== 0 || dy !== 0) await helper.request("moveRel", { dx, dy });
+      cursor = point;
+    };
+    await moveToPoint(from);
+    await helper.request("button", { code, pressed: true });
+    const stepCount = Math.max(1, Math.trunc(steps));
+    for (let index = 1; index <= stepCount; index += 1) {
+      const t = index / stepCount;
+      await moveToPoint({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+      await sleep(keyHoldMs);
+    }
+    await helper.request("button", { code, pressed: false });
+    return { steps: stepCount };
   }
 
   async function keycode(code, pressed) {
@@ -165,6 +209,8 @@ export function createWaylandInputBackend({ helper, sleep = defaultSleep, keyHol
     button,
     keycode,
     click,
+    scroll,
+    drag,
     pressKey,
     hotkey,
     typeAscii,

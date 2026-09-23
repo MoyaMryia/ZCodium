@@ -38,6 +38,35 @@ test("缺少 helper 端口时拒绝构造", () => {
   assert.throws(() => createWaylandInputBackend({}), /helper port/);
 });
 
+test("scroll 映射到 mutter 轴：axis 0=垂直、1=水平，符号表方向", async () => {
+  const helper = makeHelper();
+  const backend = createWaylandInputBackend({ helper, sleep: noSleep });
+  assert.deepEqual(await backend.scroll("down", 5), { axis: 0, steps: 5 });
+  assert.deepEqual(await backend.scroll("up", 3), { axis: 0, steps: -3 });
+  assert.deepEqual(await backend.scroll("right", 2), { axis: 1, steps: 2 });
+  assert.deepEqual(await backend.scroll("left", 4), { axis: 1, steps: -4 });
+  assert.deepEqual(
+    helper.calls.map((call) => call.params),
+    [{ axis: 0, steps: 5 }, { axis: 0, steps: -3 }, { axis: 1, steps: 2 }, { axis: 1, steps: -4 }],
+  );
+  await assert.rejects(() => backend.scroll("down", 0), /non-zero/);
+});
+
+test("drag：按住左键分步相对移动后抬起", async () => {
+  const helper = makeHelper();
+  const backend = createWaylandInputBackend({ helper, sleep: noSleep });
+  await backend.drag({ x: 400, y: 928 }, { x: 800, y: 928 }, { steps: 2 });
+  assert.deepEqual(
+    helper.calls.map((call) => call.method),
+    ["monitors", "getCursor", "moveRel", "button", "moveRel", "moveRel", "button"],
+  );
+  assert.deepEqual(helper.calls[2].params, { dx: 200, dy: 464 });
+  assert.deepEqual(
+    helper.calls.filter((call) => call.method === "button").map((call) => [call.params.code, call.params.pressed]),
+    [[272, true], [272, false]],
+  );
+});
+
 test("click：先移动（除以 scale）再按下/抬起左键 272", async () => {
   const helper = makeHelper();
   const backend = createWaylandInputBackend({ helper, sleep: noSleep });

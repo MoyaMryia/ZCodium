@@ -175,6 +175,67 @@ export function createCompatExecutor({ backend, client } = {}) {
     return ok(`compat move_cursor to ${point.x},${point.y}`);
   }
 
+  async function windowFor(args) {
+    const windows = await backend.listWindows();
+    const window =
+      windows.find((candidate) => candidate.id === args.window_id) ??
+      windows.find((candidate) => candidate.pid === args.pid);
+    if (!window) throw new CompatError("target window not found", "ACTION_UNAVAILABLE");
+    return window;
+  }
+
+  function primaryScale(monitors) {
+    return (monitors.find((monitor) => monitor.primary) ?? monitors[0])?.scale ?? 1;
+  }
+
+  /** 窗口本地截图像素 → 屏幕：截图原点为窗口 buffer 原点，像素单位是 scale=1 空间。 */
+  function windowLocalToScreen(window, scale, local) {
+    return { x: window.buffer_x + scale * local.x, y: window.buffer_y + scale * local.y };
+  }
+
+  async function scroll(args) {
+    const direction = args.direction;
+    if (!["up", "down", "left", "right"].includes(direction)) {
+      throw new CompatError("scroll requires direction up/down/left/right", "ACTION_UNAVAILABLE");
+    }
+    let point;
+    if (args.element_token !== undefined || args.element_index !== undefined) {
+      point = await resolvePoint(args);
+    } else {
+      const window = await windowFor(args);
+      point = { x: window.buffer_x + window.w / 2, y: window.buffer_y + window.h / 2 };
+    }
+    // 滚动按指针位置生效，先把指针移到目标。
+    await backend.moveTo(point.x, point.y);
+    await backend.scroll(direction, args.amount ?? 3);
+    return ok(`compat scroll ${direction} at ${point.x},${point.y}`);
+  }
+
+  async function dragPoint(args, prefix, window, scale) {
+    const token = args[`${prefix}_element_token`];
+    const index = args[`${prefix}_element_index`];
+    if (token !== undefined || index !== undefined) {
+      return resolvePoint({ ...args, element_token: token, element_index: index });
+    }
+    const x = args[`${prefix}_x`];
+    const y = args[`${prefix}_y`];
+    if (Number.isFinite(x) && Number.isFinite(y)) return windowLocalToScreen(window, scale, { x, y });
+    throw new CompatError(
+      `drag needs ${prefix}_x/${prefix}_y or ${prefix}_element_index/${prefix}_element_token`,
+      "ACTION_UNAVAILABLE",
+    );
+  }
+
+  async function drag(args) {
+    const window = await windowFor(args);
+    const monitors = await backend.monitors();
+    const scale = primaryScale(monitors);
+    const from = await dragPoint(args, "from", window, scale);
+    const to = await dragPoint(args, "to", window, scale);
+    await backend.drag(from, to, { button: args.button ?? "left", steps: args.steps ?? 12 });
+    return ok(`compat drag ${from.x},${from.y} -> ${to.x},${to.y}`);
+  }
+
   async function execute({ toolName, arguments: args = {} }) {
     const tool = toolName;
     try {
@@ -196,6 +257,10 @@ export function createCompatExecutor({ backend, client } = {}) {
           return await typeText(args);
         case "move_cursor":
           return await moveCursor(args);
+        case "scroll":
+          return await scroll(args);
+        case "drag":
+          return await drag(args);
         default:
           return fail(
             new CompatError(`tool ${tool} is not supported by the legacy GNOME compat backend`, "ACTION_UNAVAILABLE"),

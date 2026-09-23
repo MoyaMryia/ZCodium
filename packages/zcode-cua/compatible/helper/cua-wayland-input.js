@@ -138,6 +138,16 @@ const methods = {
     session("NotifyKeyboardKeysym", new GLib.Variant("(ub)", [params.code, params.pressed === true]));
     return { ok: true };
   },
+  // 滚轮：axis 0=垂直（steps>0 向下），1=水平（steps>0 向右）；steps 不能为 0。
+  axisDiscrete: (params) => {
+    session("NotifyPointerAxisDiscrete", new GLib.Variant("(ui)", [params.axis, params.steps]));
+    return { ok: true };
+  },
+  // 连续滚动：flags 位 WHEEL=2 / FINGER=4 / CONTINUOUS=8，默认 0=FINGER。
+  axis: (params) => {
+    session("NotifyPointerAxis", new GLib.Variant("(ddu)", [params.dx, params.dy, params.flags ?? 0]));
+    return { ok: true };
+  },
 };
 
 function handle(line) {

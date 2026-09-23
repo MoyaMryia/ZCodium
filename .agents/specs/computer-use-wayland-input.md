@@ -219,6 +219,21 @@ mutter 听不懂的 Unicode keysym。
 | 2 | "ABC123!@#" | 任意聚焦输入 | 逐键正确 |
 | 3 | "你好 π 😀" | GTK 应用 | Ctrl+Shift+U 逐码点插入 |
 
+### 6.5 滚动与拖拽（mutter 原生原语，已验证）
+
+mutter `Session` 提供：
+- `NotifyPointerAxisDiscrete(axis, steps)`：**axis 0 = 垂直**（steps>0 向下）、**axis 1 = 水平**（steps>0 向右）；
+  `steps<0` 反向，`steps=0` 报错。滚动按**指针位置**生效，注入前必须把指针移到目标。
+- `NotifyPointerAxis(dx, dy, flags)`：连续滚动；flags 位 `FINISH=1<<0 / WHEEL=1<<1 / FINGER=1<<2 / CONTINUOUS=1<<3`，默认 FINGER。
+- 拖拽 = 按住按钮 → 分步 `NotifyPointerMotionRelative` → 抬起。
+
+`backend.scroll(direction, amount)` 把 up/down/left/right 映射到 `(axis, ±steps)`；
+`backend.drag(from, to, { steps })` 持有按钮分步相对移动。窗口本地截图像素 → 屏幕：
+`screen = buffer_origin + scale × local`。
+
+验证：gedit 长文档 `axis=0 steps=8` 从第 1 行滚到第 42 行（≈5 行/步）；拖标题栏使窗口移动
+`(124,54) → (1287,304)`。
+
 ## 7. 事件顺序与状态所有权
 
 ### 7.1 click(x, y)
@@ -301,6 +316,8 @@ interface WaylandInputBackend {
   typeAscii(text: string): Promise<void>;
   typeUnicode(text: string): Promise<void>;   // Ctrl+Shift+U + 十六进制 + Enter
   typeText(text: string, opts?: { trySetValue?: (text: string) => Promise<boolean> }): Promise<{ level: string }>;
+  scroll(direction: "up" | "down" | "left" | "right", amount?: number): Promise<{ axis: number; steps: number }>;
+  drag(from: Point, to: Point, opts?: { button?: string; steps?: number }): Promise<{ steps: number }>;
 }
 ```
 
@@ -363,9 +380,10 @@ interface WaylandInputBackend {
 | C3 | `compatible/backend.js` + `detect.js`（spawn/监督、路由） | **已完成**（`helper-client.js` + backend + detect；54 测试通过；真实 helper 端到端 click "5" 命中） |
 | C4 | 接 `createComputerUseRuntime` 兜底路由 | **已完成**（`runtime.js` 路由 + `compatible/executor.js`；真实链路：driver 观察 → compat `press_key`/`click` 命中 "5"；70 测试通过） |
 | C5 | 分级 type_text 测试（§6.4 表）+ 变 scale 验证 | **已完成**（gedit 三级：set_value 回退 keycode、ASCII keycode、Unicode codepoint；单一显示器，变 scale 有单测与逻辑支持，跨输出仍为限制） |
+| C6 | `scroll` / `drag` 原语（§6.5） | **已完成**（`axisDiscrete`/按钮拖动；单测 75/75；真实 gedit 滚动与窗口拖动均生效） |
 
 ## 12. 待定
 
 1. 跨输出移动的 scale 处理细节（先标注为限制）。
-2. `scroll` / `drag` 的 mutter 原语验证（`NotifyPointerAxis` / 移动期间保持按钮）；当前返回 `ACTION_UNAVAILABLE`。
+2. `mouse_button_down/up`、`mouse_drag`（MPX 多指针）仍返回 `ACTION_UNAVAILABLE`，需要时再评估。
 3. `packages/zcode-cua` 是否登记为受管模块（当前策略 `managedOnly`，未含该包）。

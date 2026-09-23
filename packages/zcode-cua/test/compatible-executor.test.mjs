@@ -37,6 +37,12 @@ function makeBackend({ windows, monitors } = {}) {
     async moveTo(x, y) {
       calls.push({ method: "moveTo", x, y });
     },
+    async scroll(direction, amount) {
+      calls.push({ method: "scroll", direction, amount });
+    },
+    async drag(from, to, opts) {
+      calls.push({ method: "drag", from, to, opts });
+    },
     async hotkey(mods, key) {
       calls.push({ method: "hotkey", mods, key });
     },
@@ -149,10 +155,52 @@ test("type_text 分级：set_value → keycode → UTF-8 码点", async () => {
   assert.deepEqual(backend.calls.at(-1), { method: "typeUnicode", text: "你好 π" });
 });
 
-test("scroll/drag 等未验证原语返回 ACTION_UNAVAILABLE", async () => {
+test("scroll 把指针移到窗口中心再滚轮", async () => {
   const backend = makeBackend();
   const executor = createCompatExecutor({ backend, client: makeClient() });
-  for (const tool of ["scroll", "drag", "mouse_drag"]) {
+  const result = await executor.execute({
+    toolName: "scroll",
+    arguments: { pid: 100, window_id: 31, direction: "down", amount: 5 },
+  });
+  assert.equal(result.isError, false);
+  assert.deepEqual(backend.calls.at(-2), { method: "moveTo", x: 802, y: 600 });
+  assert.deepEqual(backend.calls.at(-1), { method: "scroll", direction: "down", amount: 5 });
+  const bad = await executor.execute({ toolName: "scroll", arguments: { window_id: 31, direction: "diagonal" } });
+  assert.equal(bad.structuredContent.code, "ACTION_UNAVAILABLE");
+});
+
+test("drag 用窗口本地像素换算到屏幕", async () => {
+  const backend = makeBackend();
+  const executor = createCompatExecutor({ backend, client: makeClient() });
+  const result = await executor.execute({
+    toolName: "drag",
+    arguments: { pid: 100, window_id: 31, from_x: 10, from_y: 20, to_x: 100, to_y: 200, button: "left", steps: 8 },
+  });
+  assert.equal(result.isError, false);
+  assert.deepEqual(backend.calls.at(-1), {
+    method: "drag",
+    from: { x: 142, y: 98 },
+    to: { x: 322, y: 458 },
+    opts: { button: "left", steps: 8 },
+  });
+});
+
+test("drag 支持元素端点，缺端点时 ACTION_UNAVAILABLE", async () => {
+  const backend = makeBackend();
+  const executor = createCompatExecutor({ backend, client: makeClient() });
+  await executor.execute({
+    toolName: "drag",
+    arguments: { pid: 100, window_id: 31, from_element_index: 202, to_element_index: 202 },
+  });
+  assert.deepEqual(backend.calls.at(-1).from, { x: 398, y: 928 });
+  const bad = await executor.execute({ toolName: "drag", arguments: { window_id: 31 } });
+  assert.equal(bad.structuredContent.code, "ACTION_UNAVAILABLE");
+});
+
+test("mouse_drag 等未实现原语返回 ACTION_UNAVAILABLE", async () => {
+  const backend = makeBackend();
+  const executor = createCompatExecutor({ backend, client: makeClient() });
+  for (const tool of ["mouse_drag", "mouse_button_down"]) {
     const result = await executor.execute({ toolName: tool, arguments: {} });
     assert.equal(result.isError, true, tool);
     assert.equal(result.structuredContent.code, "ACTION_UNAVAILABLE", tool);
