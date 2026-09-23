@@ -55,7 +55,7 @@ export function resolveComputerUseAvailability({
   if (!isDesktop) return { kind: "web", supported: false };
   if (isMacDesktop) return { kind: "local-macos", supported: true };
   if (isWindowsDesktop) return { kind: "local-windows", supported: true };
-  return { kind: "local-linux", supported: false };
+  return { kind: "local-linux", supported: true };
 }
 
 const COMPUTER_USE_SEARCH_TERMS = ["电脑控制", "computer use", "zcode-cua", "cua"];
