@@ -33,6 +33,17 @@
 `uiautomation 0.25.1`、`objc2 0.6.4`、`ashpd 0.13.13`（XDG portal）、`x11rb 0.14.0`、
 `reis 0.7.1`（libei 客户端）、`zbus 5.19.0`。
 
+**P0 骨架实际引入的依赖**（其余等对应后端落地时再逐个收紧，避免提前锁死未经编译验证的组合）：
+`serde` / `serde_json` / `thiserror` / `tracing` / `tracing-subscriber` / `tokio`，以及平台三项
+`windows 0.58`（仅 windows target）、`objc2 0.6`（仅 macOS target）、
+`zbus 5` + `ashpd 0.13` + `x11rb 0.14` + `reis 0.7`（仅 Linux target）。
+
+已验证工具链 `cargo 1.98.1 / rustc 1.98.1`，三个 target 全部通过
+`cargo check` / `cargo clippy -- -D warnings` / `cargo fmt --check`：
+`x86_64-unknown-linux-gnu`（本机实测运行 daemon）、`x86_64-pc-windows-msvc`、`aarch64-apple-darwin`。
+`ashpd` 必须显式开 `tokio` feature——它的 `default-features = false` 之后不会自动带运行时，
+且 RemoteDesktop / ScreenCast / Clipboard 三个 portal API 各自是独立 feature。
+
 **空白**：没有一套同时做到「四平台含 Wayland ＋ a11y-first 感知阶梯 ＋ 稳定 ref ＋ 动作自校验
 ＋ 能力诚实声明 ＋ 统一权限闸门」。Wayland 是所有人的短板，也是本 spec 的差异化重点。
 
@@ -265,17 +276,40 @@ Linux 上也要编译 macOS 依赖。
 `maxPublicMethods 12` → `SurfaceAdapter` 恰好 12 个方法，按输入通道收敛而非一个动词一个方法；
 `forbidCycles` → `core → adapters → native` 单向。
 
+### 线格式规则（Rust ↔ TS）
+
+两侧字段名不一致时**编译期完全没有信号**，只在 host 反序列化 daemon 响应时才炸，而且表现是
+`PROTOCOL_VIOLATION` 这种离根因很远的错误。规则只有四条：
+
+| 位置                | 规则                           | 例证                                 |
+| ------------------- | ------------------------------ | ------------------------------------ |
+| 结构体字段          | camelCase，与 TS 一致          | `snapshotId` / `possiblySent`        |
+| 枚举 tag 值         | snake_case                     | `element_gone` / `portal_screencast` |
+| `PlatformId`        | **kebab-case**（全仓唯一例外） | `linux-x11` / `linux-wayland`        |
+| Rust 的 `ref_` 字段 | `#[serde(rename = "ref")]`     | TS 侧字段名就是 `ref`                |
+
+守卫在 `native/crates/surface-contract/tests/wire_format.rs`：正向断言每个结构体序列化出的
+key 名，反向按 TS 字面量形状手写 JSON 做反序列化。新增字段忘了同步 TS 会让这里直接红。
+
+### 传输层
+
+Unix domain socket（macOS/Linux）与 Windows named pipe 共用同一份行协议，只有"拿到一个已连接的流"
+不同：`serve_connection` / `write_response` 泛型化为 `AsyncRead + AsyncWrite + Unpin`，
+`serve()` 按 `cfg` 分叉。pipe 名允许 host 直接传 `\\.\pipe\desk-pilot-<hash>`，
+也允许传普通路径（用文件名派生），这样同一套 `DESK_PILOT_SOCKET` 三平台不用改。
+Windows 路径只做过编译验证，真机运行未验证。
+
 ## 实施顺序
 
-| 阶段 | 内容                                                              | 状态       |
-| ---- | ----------------------------------------------------------------- | ---------- |
-| P0   | `contract.ts` + 纯 guards + 假 adapter 单测 + surface-daemon 骨架 | 本仓已落地 |
-| P1   | core：UiMap 缓存 / ref / verify / lease                           | 未开始     |
-| P2   | daemon win32 + darwin 后端                                        | 未开始     |
-| P3   | daemon linux-x11 后端                                             | 未开始     |
-| P4   | **daemon linux-wayland 后端**                                     | 未开始     |
-| P5   | 模型面 + 安全闸门 + 横幅 + 租约                                   | 未开始     |
-| P6   | OSWorld-V2 基准 + 自建 Wayland 场景                               | 未开始     |
+| 阶段 | 内容                                                              | 状态                                       |
+| ---- | ----------------------------------------------------------------- | ------------------------------------------ |
+| P0   | `contract.ts` + 纯 guards + 假 adapter 单测 + surface-daemon 骨架 | 本仓已落地，Rust 侧三 target 编译/测试通过 |
+| P1   | core：UiMap 缓存 / ref / verify / lease                           | 未开始                                     |
+| P2   | daemon win32 + darwin 后端                                        | 未开始                                     |
+| P3   | daemon linux-x11 后端                                             | 未开始                                     |
+| P4   | **daemon linux-wayland 后端**                                     | 未开始                                     |
+| P5   | 模型面 + 安全闸门 + 横幅 + 租约                                   | 未开始                                     |
+| P6   | OSWorld-V2 基准 + 自建 Wayland 场景                               | 未开始                                     |
 
 ## 验收场景
 

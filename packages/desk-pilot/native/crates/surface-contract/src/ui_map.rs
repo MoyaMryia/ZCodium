@@ -1,9 +1,16 @@
 //! DeskPilot 线协议契约的 Rust 侧。
 //!
 //! 这个 crate 只放**数据类型**，不放任何平台代码。它与
-//! `packages/desk-pilot/src/{ui-map,actuation,errors}.ts` 一一对应，
-//! 两侧的字段名通过 `#[serde(rename_all = "snake_case")]` 保持稳定；
-//! 任何一侧新增字段都必须同步另一侧，否则 `PROTOCOL_VIOLATION` 会在运行时才暴露。
+//! `packages/desk-pilot/src/{ui-map,actuation,errors}.ts` 一一对应。
+//!
+//! **线格式规则**（`tests/wire_format.rs` 有逐字段的断言守着）：
+//! - 结构体字段名用 camelCase，与 TS 一致；多单词字段必须显式
+//!   `#[serde(rename_all = "camelCase")]`，Rust 默认的 snake_case 与 TS 对不上；
+//! - 枚举的 tag 值用 snake_case（TS 侧就是 `element_gone` / `portal_screencast` 这种）；
+//! - `PlatformId` 是唯一的例外，用 kebab-case，因为 TS 写的是 `linux-x11` / `linux-wayland`；
+//! - `ref_` 必须 `#[serde(rename = "ref")]`，TS 侧字段名就是 `ref`。
+//!
+//! 任何一侧新增字段都必须同步另一侧，否则 `PROTOCOL_VIOLATION` 只在运行时才暴露。
 //!
 //! 设计约束见 `.agents/specs/desk-pilot.md`：
 //! - `bounds` 是诊断信息，永不作为坐标目标；
@@ -22,8 +29,10 @@ pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 /// 单条响应的最大字节数。截图走 base64，32 MiB 对应约 24 MiB 的 PNG。
 pub const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
 
+/// TS 侧是 `"win32" | "darwin" | "linux-x11" | "linux-wayland"`，带连字符，
+/// 因此这里是全仓唯一用 kebab-case 的枚举。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "kebab-case")]
 pub enum PlatformId {
     Win32,
     Darwin,
@@ -31,7 +40,9 @@ pub enum PlatformId {
     LinuxWayland,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// `BTreeMap` 的 key（`source_mix` / `CapabilitySet::perception`），因此需要全序。
+/// 声明顺序即优先级：a11y 最高，vision 最低。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PerceptionSource {
     A11y,
@@ -94,6 +105,7 @@ pub struct Bounds {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ElementProvenance {
     pub source: PerceptionSource,
     /// 0..1。a11y 直读为 1.0。
@@ -105,8 +117,10 @@ pub struct ElementProvenance {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UiElement {
     /// `@<snapshot_id>:e<index>`
+    #[serde(rename = "ref")]
     pub ref_: String,
     pub kind: ElementKind,
     pub name: String,
@@ -120,6 +134,7 @@ pub struct UiElement {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SurfaceRef {
     pub pid: u32,
     pub bundle_id: Option<String>,
@@ -128,6 +143,7 @@ pub struct SurfaceRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FrameBinding {
     pub frame_id: String,
     pub width_px: u32,
@@ -137,6 +153,7 @@ pub struct FrameBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UiMap {
     pub snapshot_id: String,
     pub surface: SurfaceRef,
@@ -148,6 +165,7 @@ pub struct UiMap {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SurfaceSummary {
     pub surface: SurfaceRef,
     pub title: String,
@@ -158,6 +176,7 @@ pub struct SurfaceSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ObserveRequest {
     pub surface: SurfaceRef,
     #[serde(default)]
@@ -167,6 +186,7 @@ pub struct ObserveRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ElementHandle {
     pub snapshot_id: String,
     #[serde(rename = "ref")]

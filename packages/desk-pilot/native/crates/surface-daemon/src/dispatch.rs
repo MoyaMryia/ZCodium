@@ -29,8 +29,10 @@ impl DisabledBackend {
 
 impl SurfaceBackend for DisabledBackend {
     fn capabilities(&self) -> Result<CapabilitySet, BackendError> {
-        let mut capability =
-            surface_backend::backends::conservative_capability(default_platform(), default_session());
+        let mut capability = surface_backend::backends::conservative_capability(
+            default_platform(),
+            default_session(),
+        );
         capability.notes = vec![format!("backend unavailable: {}", self.reason)];
         Ok(capability)
     }
@@ -75,7 +77,9 @@ impl SurfaceBackend for DisabledBackend {
         Ok(AccessReport {
             scope,
             state: surface_contract::GrantState::Unknown,
-            remediation: Some("No backend is available; install a supported desktop session.".to_string()),
+            remediation: Some(
+                "No backend is available; install a supported desktop session.".to_string(),
+            ),
         })
     }
 
@@ -138,11 +142,8 @@ pub fn handle(backend: &Arc<dyn SurfaceBackend>, request: &DeskRequest) -> DeskR
     match result {
         Ok(value) => DeskResponse::ok(request.id.clone(), value),
         Err(error) => {
-            let mut response = DeskResponse::error(
-                request.id.clone(),
-                error.code,
-                error.message.clone(),
-            );
+            let mut response =
+                DeskResponse::error(request.id.clone(), error.code, error.message.clone());
             response.possibly_sent = error.possibly_sent;
             response.recovery = error.recovery.clone();
             response
@@ -151,12 +152,13 @@ pub fn handle(backend: &Arc<dyn SurfaceBackend>, request: &DeskRequest) -> DeskR
 }
 
 fn parse<T: serde::de::DeserializeOwned>(input: &serde_json::Value) -> Result<T, BackendError> {
-    serde_json::from_value(input.clone()).map_err(|error| {
-        BackendError::invalid_argument(format!("invalid input payload: {error}"))
-    })
+    serde_json::from_value(input.clone())
+        .map_err(|error| BackendError::invalid_argument(format!("invalid input payload: {error}")))
 }
 
-fn serialize<T: serde::Serialize>(value: Result<T, BackendError>) -> Result<serde_json::Value, BackendError> {
+fn serialize<T: serde::Serialize>(
+    value: Result<T, BackendError>,
+) -> Result<serde_json::Value, BackendError> {
     value.and_then(|value| {
         serde_json::to_value(value)
             .map_err(|error| BackendError::new(DeskErrorCode::ProtocolViolation, error.to_string()))

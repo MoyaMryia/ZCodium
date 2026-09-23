@@ -9,8 +9,16 @@ use crate::ui_map::{Bounds, SurfaceRef};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ActionTarget {
-    Element { snapshot_id: String, ref_: String },
+    // tag 值由 enum 的 rename_all 管；变体里的字段名要单独声明，
+    // 否则会落回 Rust 默认的 snake_case，和 TS 的 snapshotId 对不上。
+    #[serde(rename_all = "camelCase")]
+    Element {
+        snapshot_id: String,
+        #[serde(rename = "ref")]
+        ref_: String,
+    },
     /// 坐标目标。`frame_id` 为空即非法，host 侧在进入 daemon 前就会拒绝。
+    #[serde(rename_all = "camelCase")]
     Coordinate { frame_id: String, x: f64, y: f64 },
 }
 
@@ -53,6 +61,7 @@ pub enum PointerGesture {
         to: Bounds,
         button: PointerButton,
     },
+    #[serde(rename_all = "camelCase")]
     Scroll { delta_x: f64, delta_y: f64 },
 }
 
@@ -77,11 +86,13 @@ pub enum Expectation {
     ElementGone { target: ActionTarget },
     ElementPresent { target: ActionTarget },
     ValueIs { target: ActionTarget, value: String },
-    SurfaceTitleIs { surface: SurfaceRef, text: String },
+    // TS 侧字段名是 `title`；写成 text 会让 host 反序列化直接失败。
+    SurfaceTitleIs { surface: SurfaceRef, title: String },
 }
 
 /// 破坏性动作的统一信封。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActuationEnvelope {
     pub target: ActionTarget,
     #[serde(default)]
@@ -120,6 +131,7 @@ pub enum Verification {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActuationOutcome {
     /// 指令是否已下达到平台。参数校验失败必须是 false。
     pub possibly_sent: bool,
@@ -147,6 +159,7 @@ pub struct CdpAttachRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CdpEndpoint {
     pub port: u16,
     pub http_endpoint: String,

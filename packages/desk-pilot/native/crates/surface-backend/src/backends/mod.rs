@@ -8,19 +8,19 @@
 
 use std::sync::Arc;
 
-use surface_contract::{CapabilitySet, PlatformId, SessionType};
 use surface_contract::{AccessScope, GrantState, PrimitiveState, Primitives};
+use surface_contract::{CapabilitySet, PlatformId, SessionType};
 
 use crate::{BackendError, SurfaceBackend};
 
-#[cfg(target_os = "windows")]
-pub mod win32;
 #[cfg(target_os = "macos")]
 pub mod darwin;
 #[cfg(target_os = "linux")]
-pub mod linux_x11;
-#[cfg(target_os = "linux")]
 pub mod linux_wayland;
+#[cfg(target_os = "linux")]
+pub mod linux_x11;
+#[cfg(target_os = "windows")]
+pub mod win32;
 
 /// 运行时选择后端。
 ///
@@ -66,10 +66,22 @@ pub fn select_backend() -> Result<Arc<dyn SurfaceBackend>, BackendError> {
 /// 比默认可用、按失败逐项关闭安全得多。
 pub fn conservative_capability(platform: PlatformId, session: SessionType) -> CapabilitySet {
     let mut perception = std::collections::BTreeMap::new();
-    perception.insert(surface_contract::PerceptionSource::A11y, PrimitiveState::Unavailable);
-    perception.insert(surface_contract::PerceptionSource::Ocr, PrimitiveState::Unavailable);
-    perception.insert(surface_contract::PerceptionSource::Dom, PrimitiveState::Unavailable);
-    perception.insert(surface_contract::PerceptionSource::Vision, PrimitiveState::Unavailable);
+    perception.insert(
+        surface_contract::PerceptionSource::A11y,
+        PrimitiveState::Unavailable,
+    );
+    perception.insert(
+        surface_contract::PerceptionSource::Ocr,
+        PrimitiveState::Unavailable,
+    );
+    perception.insert(
+        surface_contract::PerceptionSource::Dom,
+        PrimitiveState::Unavailable,
+    );
+    perception.insert(
+        surface_contract::PerceptionSource::Vision,
+        PrimitiveState::Unavailable,
+    );
 
     let mut grants = std::collections::BTreeMap::new();
     for scope in [

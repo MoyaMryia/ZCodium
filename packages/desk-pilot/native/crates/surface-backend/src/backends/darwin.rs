@@ -10,15 +10,16 @@
 //!
 //! 状态：接口已定义，实现尚未落地。
 
+use surface_contract::PerceptionSource;
 use surface_contract::{
-    AccessReport, AccessScope, ActuationOutcome, CdpAttachRequest, CdpEndpoint, CapabilitySet,
+    AccessReport, AccessScope, ActuationOutcome, CapabilitySet, CdpAttachRequest, CdpEndpoint,
     ClipboardOp, ClipboardResult, ElementHandle, GrantState, KeyChord, ObserveRequest, PlatformId,
     PointerRequest, PrimitiveState, Primitives, SemanticRequest, SessionType, SurfaceSummary,
     TextRequest, UiElement, UiMap,
 };
-use surface_contract::{PerceptionSource};
 
-use crate::{conservative_capability, BackendError, SurfaceBackend};
+use super::conservative_capability;
+use crate::{BackendError, SurfaceBackend};
 
 /// 可达性树来源。AX 调用必须在有 Accessibility 权限的进程里做；
 /// 权限缺失时 `probe` 返回 `PermissionDenied` 而不是半可用的树。
@@ -75,9 +76,15 @@ pub struct DarwinBackend {
 impl DarwinBackend {
     pub fn probe() -> Result<Self, BackendError> {
         let mut capability = conservative_capability(PlatformId::Darwin, SessionType::Native);
-        capability.perception.insert(PerceptionSource::A11y, PrimitiveState::Available);
-        capability.perception.insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
-        capability.perception.insert(PerceptionSource::Vision, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::A11y, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
+        capability
+            .perception
+            .insert(PerceptionSource::Vision, PrimitiveState::Available);
         capability.primitives = Primitives {
             pointer: true,
             keyboard: true,
@@ -88,14 +95,27 @@ impl DarwinBackend {
             // CGEventPostToPid：定向到指定进程的后台输入，不抢焦点。
             background_input: true,
         };
-        capability.grants.insert(AccessScope::Accessibility, GrantState::Unknown);
-        capability.grants.insert(AccessScope::ScreenRecording, GrantState::Unknown);
-        capability.grants.insert(AccessScope::InputMonitoring, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::Automation, GrantState::Unknown);
-        capability.grants.insert(AccessScope::PortalScreencast, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::PortalRemotedesktop, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::Accessibility, GrantState::Unknown);
+        capability
+            .grants
+            .insert(AccessScope::ScreenRecording, GrantState::Unknown);
+        capability
+            .grants
+            .insert(AccessScope::InputMonitoring, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::Automation, GrantState::Unknown);
+        capability
+            .grants
+            .insert(AccessScope::PortalScreencast, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::PortalRemotedesktop, GrantState::NotApplicable);
         capability.notes = vec![
-            "accessibility and screen recording grants are probed lazily; see request_access".to_string(),
+            "accessibility and screen recording grants are probed lazily; see request_access"
+                .to_string(),
         ];
         Ok(Self { capability })
     }

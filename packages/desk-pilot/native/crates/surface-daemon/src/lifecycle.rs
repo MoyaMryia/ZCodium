@@ -8,8 +8,6 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use tokio::sync::watch;
-
 /// 默认空闲退出。宿主崩溃时 daemon 不该变成孤儿进程一直占着桌面控制权。
 pub const DEFAULT_IDLE_EXIT: Duration = Duration::from_secs(15 * 60);
 
@@ -42,7 +40,9 @@ impl DaemonConfig {
         // 而错误表现是"连不上"而不是"配置错"。
         let display = socket_path.to_string_lossy();
         if display.contains("${") || display.contains("$VAR") {
-            return Err(format!("DESK_PILOT_SOCKET has an unexpanded placeholder: {display}"));
+            return Err(format!(
+                "DESK_PILOT_SOCKET has an unexpanded placeholder: {display}"
+            ));
         }
 
         let launcher_pid = std::env::var("DESK_PILOT_LAUNCHER_PID")
@@ -88,8 +88,7 @@ impl DaemonHandle {
     }
 
     pub fn mark_ready(&self) {
-        self.ready
-            .store(true, std::sync::atomic::Ordering::Release);
+        self.ready.store(true, std::sync::atomic::Ordering::Release);
     }
 
     pub fn is_ready(&self) -> bool {
@@ -180,7 +179,8 @@ fn errno_eperm() -> i32 {
 
 pub fn init_tracing() {
     use tracing_subscriber::EnvFilter;
-    let filter = EnvFilter::try_from_env("DESK_PILOT_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter =
+        EnvFilter::try_from_env("DESK_PILOT_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(true)

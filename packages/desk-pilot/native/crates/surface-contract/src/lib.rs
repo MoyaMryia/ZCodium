@@ -13,10 +13,10 @@ pub use actuation::{
 };
 pub use errors::{
     AccessReport, AccessScope, CapabilitySet, DeskErrorCode, DeskRequest, DeskResponse, GrantState,
-    Primitives, PrimitiveState, RequestContext, SessionType, DESK_IPC_VERSION, DESK_METHODS,
-    MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
+    PrimitiveState, Primitives, RequestContext, SessionType, DESK_METHODS,
 };
 pub use ui_map::{
-    Bounds, ElementFlag, ElementHandle, ElementKind, ElementProvenance, FrameBinding, ObserveRequest,
-    PerceptionSource, PlatformId, SurfaceRef, SurfaceSummary, UiElement, UiMap,
+    Bounds, ElementFlag, ElementHandle, ElementKind, ElementProvenance, FrameBinding,
+    ObserveRequest, PerceptionSource, PlatformId, SurfaceRef, SurfaceSummary, UiElement, UiMap,
+    DESK_IPC_VERSION, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
 };

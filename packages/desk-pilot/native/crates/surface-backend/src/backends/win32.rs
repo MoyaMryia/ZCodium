@@ -8,22 +8,27 @@
 //!
 //! 状态：接口已定义，P2 落地。
 
+use surface_contract::PerceptionSource;
 use surface_contract::{
-    AccessReport, AccessScope, ActuationOutcome, Bounds, CdpAttachRequest, CdpEndpoint, CapabilitySet,
-    ClipboardOp, ClipboardResult, ElementHandle, GrantState, KeyChord, ObserveRequest,
+    AccessReport, AccessScope, ActuationOutcome, Bounds, CapabilitySet, CdpAttachRequest,
+    CdpEndpoint, ClipboardOp, ClipboardResult, ElementHandle, GrantState, KeyChord, ObserveRequest,
     PlatformId, PointerRequest, PrimitiveState, Primitives, SemanticRequest, SessionType,
     SurfaceRef, SurfaceSummary, TextRequest, UiElement, UiMap,
 };
-use surface_contract::{PerceptionSource};
 
-use crate::{conservative_capability, BackendError, SurfaceBackend};
+use super::conservative_capability;
+use crate::{BackendError, SurfaceBackend};
 
 /// 可达性树来源。UIA 是 COM 接口，不能跨线程共享句柄，实现方自行加 apartment 管理。
 pub trait UiaTreeSource: Send + Sync {
     /// 枚举可驱动应用。`bundle_id` 填 exe 路径——Windows 没有 bundle id。
     fn list_applications(&self) -> Result<Vec<SurfaceRef>, BackendError>;
     /// 读一个窗口的归一化元素树。
-    fn read_window_tree(&self, surface: &SurfaceRef, max_depth: Option<u32>) -> Result<Vec<UiElement>, BackendError>;
+    fn read_window_tree(
+        &self,
+        surface: &SurfaceRef,
+        max_depth: Option<u32>,
+    ) -> Result<Vec<UiElement>, BackendError>;
     /// 按元素句柄读单个元素的最新状态。
     fn read_element(&self, handle: &ElementHandle) -> Result<Option<UiElement>, BackendError>;
     /// 坐标命中测试，返回该点的元素。坐标动作前必须调用以证明归属。
@@ -75,9 +80,15 @@ impl Win32Backend {
     /// 让 host 看到一个"什么都做不了"的诚实声明，而不是一个起不来的进程。
     pub fn probe() -> Result<Self, BackendError> {
         let mut capability = conservative_capability(PlatformId::Win32, SessionType::Native);
-        capability.perception.insert(PerceptionSource::A11y, PrimitiveState::Available);
-        capability.perception.insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
-        capability.perception.insert(PerceptionSource::Vision, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::A11y, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
+        capability
+            .perception
+            .insert(PerceptionSource::Vision, PrimitiveState::Available);
         capability.primitives = Primitives {
             pointer: true,
             keyboard: true,
@@ -88,14 +99,27 @@ impl Win32Backend {
             // SendInput 只作用于前台线程，不存在"定向到某进程"的后台输入。
             background_input: false,
         };
-        capability.grants.insert(AccessScope::Accessibility, GrantState::Granted);
-        capability.grants.insert(AccessScope::ScreenRecording, GrantState::Granted);
-        capability.grants.insert(AccessScope::InputMonitoring, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::Automation, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::PortalScreencast, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::PortalRemotedesktop, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::Accessibility, GrantState::Granted);
+        capability
+            .grants
+            .insert(AccessScope::ScreenRecording, GrantState::Granted);
+        capability
+            .grants
+            .insert(AccessScope::InputMonitoring, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::Automation, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::PortalScreencast, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::PortalRemotedesktop, GrantState::NotApplicable);
         capability.notes = vec![
-            "background input is unavailable: SendInput only reaches the foreground thread".to_string(),
+            "background input is unavailable: SendInput only reaches the foreground thread"
+                .to_string(),
         ];
         Ok(Self { capability })
     }

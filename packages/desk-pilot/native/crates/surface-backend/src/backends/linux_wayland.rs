@@ -18,15 +18,16 @@
 //!
 //! 状态：接口已定义，实现尚未落地。
 
+use surface_contract::PerceptionSource;
 use surface_contract::{
-    AccessReport, AccessScope, ActuationOutcome, CdpAttachRequest, CdpEndpoint, CapabilitySet,
+    AccessReport, AccessScope, ActuationOutcome, CapabilitySet, CdpAttachRequest, CdpEndpoint,
     ClipboardOp, ClipboardResult, ElementHandle, GrantState, KeyChord, ObserveRequest, PlatformId,
     PointerRequest, PrimitiveState, Primitives, SemanticRequest, SessionType, SurfaceSummary,
     TextRequest, UiElement, UiMap,
 };
-use surface_contract::{PerceptionSource};
 
-use crate::{conservative_capability, BackendError, SurfaceBackend};
+use super::conservative_capability;
+use crate::{BackendError, SurfaceBackend};
 
 /// 合成输入的三种合法来源。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,13 +90,22 @@ impl WaylandBackend {
     /// wlr 虚拟输入全局对象。两者都没有时仍然构造成功后端，只是能力全关——
     /// host 需要一个能回报"做不到"的进程，而不是一个起不来的进程。
     pub fn probe() -> Result<Self, BackendError> {
-        let mut capability = conservative_capability(PlatformId::LinuxWayland, SessionType::Wayland);
+        let mut capability =
+            conservative_capability(PlatformId::LinuxWayland, SessionType::Wayland);
 
         // 可达性与平台无关：AT-SPI 在 Wayland 上照常工作。
-        capability.perception.insert(PerceptionSource::A11y, PrimitiveState::Available);
-        capability.perception.insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
-        capability.perception.insert(PerceptionSource::Dom, PrimitiveState::Unavailable);
-        capability.perception.insert(PerceptionSource::Vision, PrimitiveState::Degraded);
+        capability
+            .perception
+            .insert(PerceptionSource::A11y, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
+        capability
+            .perception
+            .insert(PerceptionSource::Dom, PrimitiveState::Unavailable);
+        capability
+            .perception
+            .insert(PerceptionSource::Vision, PrimitiveState::Degraded);
 
         let route = detect_input_route();
         let (pointer, keyboard) = match route {
@@ -115,30 +125,41 @@ impl WaylandBackend {
             // libei 与 wlr 虚拟输入都是"合成事件"，不存在定向到某进程的后台输入。
             background_input: false,
         };
-        capability.grants.insert(AccessScope::Accessibility, GrantState::Granted);
-        capability.grants.insert(AccessScope::ScreenRecording, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::InputMonitoring, GrantState::NotApplicable);
-        capability.grants.insert(AccessScope::Automation, GrantState::NotApplicable);
         capability
             .grants
-            .insert(AccessScope::PortalScreencast, screencast_grant_state(screencast));
+            .insert(AccessScope::Accessibility, GrantState::Granted);
         capability
             .grants
-            .insert(AccessScope::PortalRemotedesktop, remote_desktop_grant_state(route));
+            .insert(AccessScope::ScreenRecording, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::InputMonitoring, GrantState::NotApplicable);
+        capability
+            .grants
+            .insert(AccessScope::Automation, GrantState::NotApplicable);
+        capability.grants.insert(
+            AccessScope::PortalScreencast,
+            screencast_grant_state(screencast),
+        );
+        capability.grants.insert(
+            AccessScope::PortalRemotedesktop,
+            remote_desktop_grant_state(route),
+        );
 
         capability.notes = vec![
             format!("input route: {}", route.as_str()),
-            "Wayland forbids synthetic input by design; no root/uinput fallback is offered".to_string(),
+            "Wayland forbids synthetic input by design; no root/uinput fallback is offered"
+                .to_string(),
         ];
         if !screencast {
-            capability
-                .notes
-                .push("ScreenCast not granted; capture is disabled until the user consents".to_string());
+            capability.notes.push(
+                "ScreenCast not granted; capture is disabled until the user consents".to_string(),
+            );
         }
         if !clipboard_read {
-            capability
-                .notes
-                .push("clipboard read unavailable (no wl-paste); clipboard write still works".to_string());
+            capability.notes.push(
+                "clipboard read unavailable (no wl-paste); clipboard write still works".to_string(),
+            );
         }
 
         Ok(Self { capability, route })
@@ -169,7 +190,9 @@ fn remote_desktop_grant_state(route: WaylandInputRoute) -> GrantState {
 fn detect_input_route() -> WaylandInputRoute {
     // libei 需要一个已建立的 portal 会话；骨架阶段无法在无会话的情况下判定，
     // 因此只有当 compositor 明显不是 wlroots 时才提前排除 wlr 路线。
-    let compositor = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().to_lowercase();
+    let compositor = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_lowercase();
     let is_wlroots_like = compositor.contains("sway")
         || compositor.contains("hyprland")
         || compositor.contains("river")
@@ -255,13 +278,18 @@ impl SurfaceBackend for WaylandBackend {
                         text: None,
                         written: false,
                         note: Some(
-                            "clipboard read unavailable on this Wayland session (no wl-paste)".to_string(),
+                            "clipboard read unavailable on this Wayland session (no wl-paste)"
+                                .to_string(),
                         ),
                     });
                 }
-                Err(BackendError::not_implemented("linux-wayland clipboard read"))
+                Err(BackendError::not_implemented(
+                    "linux-wayland clipboard read",
+                ))
             }
-            ClipboardOp::Write { .. } => Err(BackendError::not_implemented("linux-wayland clipboard write")),
+            ClipboardOp::Write { .. } => Err(BackendError::not_implemented(
+                "linux-wayland clipboard write",
+            )),
         }
     }
 
@@ -277,9 +305,9 @@ impl SurfaceBackend for WaylandBackend {
             .copied()
             .unwrap_or(GrantState::NotApplicable);
         let remediation = match scope {
-            AccessScope::PortalScreencast if state == GrantState::Denied => Some(
-                "Approve the ScreenCast prompt; without it capture stays disabled".to_string(),
-            ),
+            AccessScope::PortalScreencast if state == GrantState::Denied => {
+                Some("Approve the ScreenCast prompt; without it capture stays disabled".to_string())
+            }
             AccessScope::PortalRemotedesktop if state == GrantState::Denied => Some(
                 "Approve the RemoteDesktop prompt; without it pointer and keyboard stay disabled"
                     .to_string(),

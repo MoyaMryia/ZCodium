@@ -24,6 +24,11 @@ tokio = { version = "1", features = [
   "sync",
 ] }
 
+# 工作区内部 crate 也必须走 workspace.dependencies，否则
+# `surface-contract.workspace = true` 找不到可继承的条目。
+surface-contract = { path = "crates/surface-contract" }
+surface-backend = { path = "crates/surface-backend" }
+
 # 平台 FFI。feature 集合在 P2–P4 实现对应后端时逐个收紧；
 # 这里先按最小可用集声明，避免骨架阶段就锁死一个未经编译验证的组合。
 [workspace.dependencies.windows]
@@ -48,13 +53,19 @@ version = "5"
 
 [workspace.dependencies.ashpd]
 version = "0.13"
+# default-features = false + 显式 tokio：ashpd 的 default 只开 tokio，但 portal 的各个
+# API 都是独立 feature。Wayland 后端只需要 RemoteDesktop（libei 输入）、
+# ScreenCast（PipeWire 截图）和 Clipboard（只写）三个，其余 portal 不拉进来。
+# `backend` 提供 async-trait，是调用这些 API 的前置条件。
 default-features = false
+features = ["tokio", "backend", "remote_desktop", "screencast", "clipboard"]
 
 [workspace.dependencies.x11rb]
 version = "0.14"
 
 [workspace.dependencies.reis]
 version = "0.7"
+features = ["tokio"]
 
 [profile.release]
 lto = true

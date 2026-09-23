@@ -7,6 +7,8 @@
 //! trait 是同步的：daemon 用 `tokio::task::spawn_blocking` 包一层，
 //! 比 `async fn in trait` 少一层装箱，也让后端可以安全地持有非 `Send` 的平台句柄。
 
+pub mod backends;
+
 use surface_contract::*;
 
 /// 后端错误。
@@ -69,7 +71,9 @@ impl BackendError {
             code: DeskErrorCode::StaleRef,
             message: message.into(),
             possibly_sent: false,
-            recovery: Some("Call observe again and re-pick the index from the fresh UiMap.".to_string()),
+            recovery: Some(
+                "Call observe again and re-pick the index from the fresh UiMap.".to_string(),
+            ),
         }
     }
 

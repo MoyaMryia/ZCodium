@@ -45,7 +45,8 @@ impl DeskErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// `CapabilitySet::grants` 的 `BTreeMap` key，因此需要全序。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessScope {
     Accessibility,
@@ -82,6 +83,7 @@ pub enum PrimitiveState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CapabilitySet {
     pub platform: PlatformId,
     pub session_type: SessionType,
@@ -100,6 +102,7 @@ pub enum SessionType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Primitives {
     pub pointer: bool,
     pub keyboard: bool,
@@ -112,7 +115,10 @@ pub struct Primitives {
     pub background_input: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// `DeskRequest.context` 带 `#[serde(default)]`，因此需要 `Default`；
+/// 同时 daemon 在没有调用方上下文时也要能构造一份空上下文。
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RequestContext {
     #[serde(default)]
     pub session_id: Option<String>,
@@ -138,6 +144,7 @@ pub struct DeskRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeskResponse {
     pub id: String,
     pub ok: bool,

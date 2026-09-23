@@ -10,15 +10,16 @@
 //!
 //! 状态：接口已定义，实现尚未落地。
 
+use surface_contract::PerceptionSource;
 use surface_contract::{
-    AccessReport, AccessScope, ActuationOutcome, Bounds, CdpAttachRequest, CdpEndpoint, CapabilitySet,
-    ClipboardOp, ClipboardResult, ElementHandle, GrantState, KeyChord, ObserveRequest, PlatformId,
-    PointerRequest, PrimitiveState, Primitives, SemanticRequest, SessionType, SurfaceRef,
-    SurfaceSummary, TextRequest, UiElement, UiMap,
+    AccessReport, AccessScope, ActuationOutcome, Bounds, CapabilitySet, CdpAttachRequest,
+    CdpEndpoint, ClipboardOp, ClipboardResult, ElementHandle, GrantState, KeyChord, ObserveRequest,
+    PlatformId, PointerRequest, PrimitiveState, Primitives, SemanticRequest, SessionType,
+    SurfaceRef, SurfaceSummary, TextRequest, UiElement, UiMap,
 };
-use surface_contract::{PerceptionSource};
 
-use crate::{conservative_capability, BackendError, SurfaceBackend};
+use super::conservative_capability;
+use crate::{BackendError, SurfaceBackend};
 
 /// AT-SPI 树来源。实现方负责 D-Bus 连接与 `atspi` proxy 生命周期。
 pub trait AtspiTreeSource: Send + Sync {
@@ -62,9 +63,15 @@ pub struct X11Backend {
 impl X11Backend {
     pub fn probe() -> Result<Self, BackendError> {
         let mut capability = conservative_capability(PlatformId::LinuxX11, SessionType::X11);
-        capability.perception.insert(PerceptionSource::A11y, PrimitiveState::Available);
-        capability.perception.insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
-        capability.perception.insert(PerceptionSource::Vision, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::A11y, PrimitiveState::Available);
+        capability
+            .perception
+            .insert(PerceptionSource::Ocr, PrimitiveState::Degraded);
+        capability
+            .perception
+            .insert(PerceptionSource::Vision, PrimitiveState::Available);
         capability.primitives = Primitives {
             pointer: true,
             keyboard: true,

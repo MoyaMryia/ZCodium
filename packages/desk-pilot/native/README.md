@@ -63,8 +63,27 @@ Wayland 禁止合成输入是**组合器的设计决策，不是缺陷**。因�
 `BackendError::not_implemented`，除 `capabilities` / `request_access` / `shutdown` 外）。
 实施顺序见 spec 的「实施顺序」表：P2 win32 + darwin，P3 linux-x11，P4 linux-wayland。
 
-本开发环境没有 Rust 工具链，因此 `cargo check` 未在此处执行；`Cargo.toml` 里的
-平台依赖 feature 集合需要在 P2 首次真实构建时逐个收紧。
+已验证（工具链 `cargo 1.98.1 / rustc 1.98.1`）：
+
+| 检查                                                    | `x86_64-unknown-linux-gnu` | `x86_64-pc-windows-msvc` | `aarch64-apple-darwin` |
+| ------------------------------------------------------- | -------------------------- | ------------------------ | ---------------------- |
+| `cargo check --workspace --all-targets`                 | 通过                       | 通过                     | 通过                   |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 通过                       | 通过                     | 通过                   |
+| `cargo fmt --all --check`                               | 通过                       | 通过                     | 通过                   |
+| `cargo test --workspace`                                | 5/5 通过                   | —                        | —                      |
+| `cargo build --release`                                 | 通过                       | —                        | —                      |
+| daemon 实际运行                                         | **已运行**                 | 未运行                   | 未运行                 |
+
+Linux 上实测：daemon 起 socket、`capabilities` 返回 Wayland 诚实能力集、
+未实现的方法返回 `UNSUPPORTED_ON_PLATFORM`、未知方法返回 `PROTOCOL_VIOLATION`。
+Windows / macOS 只有编译级验证，**运行时未验证**。
+
+## 线格式（Rust ↔ TS）
+
+结构体字段 camelCase、枚举 tag snake*case、`PlatformId` kebab-case、`ref*`序列化为`ref`。
+完整规则与逐字段守卫见 `crates/surface-contract/tests/wire_format.rs`，
+以及 spec 的「线格式规则」一节。两侧字段名不一致时编译期没有信号，
+只在 host 反序列化时才以 `PROTOCOL_VIOLATION` 的形式暴露。
 
 ## 构建
 
