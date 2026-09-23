@@ -137,3 +137,53 @@ simply not legible at poster distance.
 - Column count matches the paper size and orientation, and the reading order is
   unambiguous.
 - All fonts embedded (`pdffonts`).
+
+## Production workflow
+
+1. **BRIEF** — the venue and stock (A0/A1, portrait/landscape), the viewing
+   distance it implies, the three things a passer-by must take away, and the
+   QR/contact destination. Posters are read standing up, at speed, once.
+2. **DESIGN** — the palette and the type ladder from the viewing distance
+   (below), decided before the first block is placed.
+3. **EDIT** — extract the roles: claim (the title), evidence (the figures),
+   method (one short block), context (authors, affiliation, logo). Everything
+   else is a handout, not a poster.
+4. **BUILD** — the canvas in `creative-fixed-canvas.md` at poster dimensions,
+   blocks placed on the grid.
+5. **PREFLIGHT** — render at reduced scale *and* at 100 % on a detail region:
+   reduced scale shows the composition, 100 % shows whether the body text
+   survives its own size.
+6. **DELIVER** — print PDF with bleed, plus a screen version for the virtual
+   session most conferences now run.
+
+## Block budget
+
+A poster is a fixed set of blocks on a grid, in reading order:
+
+| block | share of the canvas | content |
+| --- | --- | --- |
+| title band | 10–15 % | title, authors, affiliation, logo |
+| the claim | 10 % | one sentence, display size |
+| figures | 40–50 % | 2–4 figures, each with a one-line takeaway |
+| method / results text | 20–25 % | short blocks, 24–32 pt |
+| footer | 5 % | contact, QR, grant number |
+
+Blocks that do not fit are cut, not shrunk below the ladder's minimum.
+
+## Colour at poster scale
+
+- Large fields of saturated colour band in print; prefer deep tones with the
+  accent used sparingly, or a light field with dark ink.
+- Colour blocks (not rules) separate sections — a hairline that reads at A4
+  vanishes at A0.
+- Contrast is checked at viewing distance: print a test strip at final size and
+  look at it from two metres before committing.
+
+## Common poster failures
+
+- Body text set at document size (10–11 pt) — unreadable from arm's length.
+- A figure that was designed for a paper and scaled up: its labels scale with
+  it and become blocky. Re-make figures for the poster canvas.
+- The QR code placed where the poster will be rolled or folded.
+- No clear reading order: the eye enters at the title and must be able to walk
+  the grid without doubling back.

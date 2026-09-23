@@ -1,0 +1,128 @@
+% AltaCV-style resume — original work for this repository.
+%
+% A two-column sidebar CV in the AltaCV tradition: photo/contact/ skills in the
+% left rail, experience and education in the main column, with a coloured
+% accent carried through the section rules. Written from public LaTeX
+% knowledge; no third-party template is vendored.
+%
+% Build:  latexmk -pdf resume-altacv.tex
+% Page:   A4; switch via the geometry options below.
+
+\documentclass[10pt,a4paper]{article}
+
+% ---------------------------------------------------------------- geometry
+\usepackage[a4paper,left=1.6cm,right=1.6cm,top=1.4cm,bottom=1.4cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage{fontawesome5}          % icons; drop with the rail if unavailable
+\usepackage[hidelinks]{hyperref}
+
+% ---------------------------------------------------------------- palette
+\definecolor{accent}{HTML}{1F6FEB}   % one accent, used for every rule
+\definecolor{ink}{HTML}{1A1A1A}
+\definecolor{muted}{HTML}{5A6472}
+\color{ink}
+
+% ---------------------------------------------------------------- type
+\renewcommand{\familydefault}{\sfdefault}   % sans: the AltaCV register
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=1pt}
+\newcommand{\railhead}[1]{{\color{accent}\bfseries\small\MakeUppercase{#1}}}
+\newcommand{\cvsection}[1]{%
+  \par\vspace{8pt}{\color{accent}\large\bfseries\MakeUppercase{#1}}\par
+  {\color{accent}\rule{\linewidth}{0.8pt}}\par\vspace{4pt}%
+}
+% One dated position: bold role / org, right-aligned dates, then the bullets.
+\newcommand{\role}[3]{%
+  \par\noindent\textbf{#1} --- #2\hfill{\small\color{muted}#3}\par\vspace{1pt}%
+}
+\newcommand{\railitem}[2]{\item \textbf{#1:} #2}
+
+\begin{document}
+\pagestyle{empty}
+
+% ================================================================ header
+\begin{center}
+  {\Huge\bfseries FIRST M. LAST}\\[3pt]
+  {\large\color{muted} The Position or Field Being Applied For}\\[6pt]
+  {\small
+    \faEnvelope\ \href{mailto:first.last@example.com}{first.last@example.com}
+    \quad \faPhone\ +00 000 000 000
+    \quad \faMapMarker*\ City, Country
+    \quad \faGithub\ \href{https://github.com/handle}{handle}
+    \quad \faLinkedin\ \href{https://linkedin.com/in/handle}{handle}}
+\end{center}
+\vspace{4pt}
+{\color{accent}\rule{\linewidth}{1.2pt}}
+
+% ================================================================ two columns
+\noindent\begin{minipage}[t]{0.32\textwidth}
+  \vspace{0pt}
+
+  \railhead{Profile}\par\vspace{2pt}
+  {\small Two or three sentences: what you do, the domain you do it in, and the
+  result you are known for. Written for the role, not for a search engine.}
+  \par\vspace{8pt}
+
+  \railhead{Skills}\par\vspace{2pt}
+  {\small
+  \begin{itemize}
+    \railitem{Languages}{Python, TypeScript, SQL, \LaTeX}
+    \railitem{Frameworks}{React, Node, pytest}
+    \railitem{Tooling}{git, Docker, CI/CD}
+    \railitem{Languages spoken}{English (native), Mandarin (fluent)}
+  \end{itemize}}
+  \par\vspace{8pt}
+
+  \railhead{Certifications}\par\vspace{2pt}
+  {\small
+  \begin{itemize}
+    \item Certification Name --- Issuer, Year
+  \end{itemize}}
+  \par\vspace{8pt}
+
+  \railhead{Interests}\par\vspace{2pt}
+  {\small Open-source maintenance; typesetting; distance running.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.65\textwidth}
+  \vspace{0pt}
+
+  \cvsection{Experience}
+  \role{Senior Engineer}{Company Name, City}{2022--present}
+  \begin{itemize}
+    \item Led the rewrite of the core pipeline, cutting end-to-end latency by
+          40\%; owned the design doc, the rollout and the on-call runbook.
+    \item Mentored four engineers; two were promoted during the period.
+  \end{itemize}
+  \vspace{4pt}
+  \role{Engineer}{Earlier Company, City}{2019--2022}
+  \begin{itemize}
+    \item Built the reporting service behind the customer dashboard; 99.95\%
+          availability over two years.
+  \end{itemize}
+
+  \cvsection{Projects}
+  \role{Project Name}{Personal / open source}{2021--present}
+  \begin{itemize}
+    \item One line on what it is, one on the result, with the link in the text.
+  \end{itemize}
+
+  \cvsection{Education}
+  \role{M.Sc., Computer Science}{University Name}{2017--2019}
+  {\small Thesis: \emph{Title}. Advisor: Prof. Name.}
+  \vspace{3pt}
+  \role{B.Sc., Computer Science}{University Name}{2013--2017}
+
+  \cvsection{Selected writing}
+  \begin{itemize}
+    \item \textbf{Title of the piece} --- venue, year. One line on what it
+          argues.
+  \end{itemize}
+\end{minipage}
+
+\end{document}

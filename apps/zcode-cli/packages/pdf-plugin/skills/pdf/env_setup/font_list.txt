@@ -1,0 +1,81 @@
+# Font list
+
+Fonts the pdf skill's documents actually name, grouped by the job they do.
+Use it to decide what to install before a build that needs a specific face,
+and to diagnose a substitution after the fact.
+
+The list is factual data — font family names and their sources — not a
+redistribution of the fonts themselves. Install from the upstream project of
+your platform.
+
+## Text faces (serif)
+
+| family | notes | typical use |
+| --- | --- | --- |
+| Latin Modern Roman | ships with every TeX Live; the Computer Modern descendant | default pdfLaTeX body face |
+| TeX Gyre Termes | Times-metrics, wide coverage | Times-style documents |
+| TeX Gyre Pagella | Palatino-metrics | bookish body text |
+| Libertinus / Linux Libertine | elegant, good italics | reports, theses |
+| Noto Serif | huge script coverage | CJK-adjacent Latin text, mixed documents |
+| DejaVu Serif | wide coverage, utilitarian | when nothing else is installed |
+
+## Text faces (sans)
+
+| family | notes | typical use |
+| --- | --- | --- |
+| Latin Modern Sans | ships with TeX Live | default sans |
+| TeX Gyre Heros | Helvetica-metrics | headings, slides |
+| Fira Sans | compact, modern | technical documents |
+| Noto Sans | huge script coverage | mixed documents |
+| DejaVu Sans | wide coverage, utilitarian | fallback |
+
+## Monospace
+
+| family | notes |
+| --- | --- |
+| Latin Modern Mono / TeX Gyre Cursor | Courier-metrics; ships with TeX Live |
+| DejaVu Sans Mono | clear at small sizes; the usual code face |
+| JetBrains Mono / Fira Code | ligatures and clearer digits; install explicitly |
+
+## CJK faces
+
+| script | families worth having | engine note |
+| --- | --- | --- |
+| Chinese | Noto Serif CJK SC, Noto Sans CJK SC, Source Han Serif/Sans, WenQuanYi | `xeCJK`/`ctex` with `fontspec`; XeLaTeX or LuaLaTeX |
+| Japanese | Noto Serif CJK JP, IPAex | same |
+| Korean | Noto Serif CJK KR, Nanum | same |
+
+CJK documents cannot use pdfLaTeX with the system faces — the engine choice is
+XeLaTeX or LuaLaTeX (SKILL.md §4), and the face must be named explicitly so the
+build does not depend on the machine's default fallback.
+
+## Math faces
+
+| family | notes |
+| --- | --- |
+| Latin Modern Math | the pdfLaTeX default |
+| TeX Gyre Termes Math / Pagella Math | to match the text face |
+| STIX Two Math | Times-compatible, broad symbol coverage |
+| Libertinus Math | matches Libertinus text |
+
+## Diagnosing a substitution
+
+```bash
+pdffonts document.pdf
+```
+
+Every font line should name a face you chose and show `emb yes`. A face you did
+not choose, or `emb no`, means the build machine substituted — the document's
+metrics moved with it. Fix by installing the named face, or by changing the
+preamble to a face that exists on the machine that renders.
+
+## Installing
+
+- **TeX Live**: most of the TeX Gyre and Latin Modern faces ship with
+  `collection-fontsrecommended` / `collection-fontsextra`
+  (`tlmgr install collection-fontsextra`).
+- **System fonts** (Noto, Fira, JetBrains, Source Han): the platform's package
+  manager — `apt install fonts-noto-cjk`, `brew install font-jetbrains-mono`,
+  or the upstream release archives. XeLaTeX/LuaLaTeX see system fonts through
+  `fontspec` by family name; after installing, refresh the font cache
+  (`fc-cache -f`) before building.

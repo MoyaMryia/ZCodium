@@ -1,6 +1,6 @@
 ---
 name: pdf
-description: Use whenever a PDF is the artifact being produced — a report, resume or CV, poster, academic paper, thesis, letter, invoice, handout or slide notes — in other words whenever the deliverable is a typeset PDF rather than an editable Office file or a web page. Covers routing the document to a typesetting brief, choosing a LaTeX document class and engine, driving a latexmk build with xelatex / lualatex / pdflatex, resolving bibliography passes with biber or bibtex, and rasterizing pages to PNG for the visual-judge gate. Also use it to finish an existing PDF — fill its AcroForm fields or stamp text annotations onto a flat page — and to render a PDF's pages to PNG. Use it when the user asks to write, generate, typeset, lay out or format a PDF, asks why a generated PDF looks wrong, or reports symptoms such as a blank page, a table broken across pages, tofu boxes or missing glyphs, fonts that exist only on the build machine, a bibliography printed as question marks, a table of contents with placeholder page numbers, text running into the margin, a resume spilling onto a second page, a poster whose body text is unreadable at arm's length, or asks to fill out or complete a PDF form.
+description: Use whenever a PDF is the artifact being produced — a report, resume or CV, poster, academic paper, thesis, letter or invoice — i.e. a typeset PDF, not an editable Office file or web page. Covers routing the document to a typesetting brief, choosing a LaTeX document class and engine, driving a latexmk build with xelatex / lualatex / pdflatex, resolving bibliography passes with biber or bibtex, and rasterizing pages to PNG for the visual-judge gate. Also use it to finish an existing PDF — fill its AcroForm fields or stamp annotations onto a flat page — and to render its pages to PNG. Trigger on requests to write, generate, typeset, lay out or format a PDF, or on symptoms such as a blank page, a table broken across pages, tofu boxes or missing glyphs, fonts that exist only on the build machine, a bibliography printed as question marks, a table of contents with placeholder page numbers, text running into the margin, a resume spilling onto page two, or a poster unreadable at arm"s length.
 ---
 
 # PDF Production
@@ -14,7 +14,7 @@ Two jobs, one artifact. The first is **producing** a PDF whose content is _types
 It does **not**:
 
 - convert between Office formats — no `.docx` → PDF exporter, no PDF → text extraction pipeline, no poster renderer. The one exception is HTML → PDF (§6.6): a plain HTML page can be typeset through the local LibreOffice, because that path shares nothing with the LaTeX pipeline and needs no extra toolchain beyond what §3 already requires;
-- redact or do page surgery — no script here removes content, splits or merges pages, or strips annotations; form filling adds fields and annotations, it does not rewrite page content. Putting a rendered cover in front of a body PDF (§6.6) is concatenation of whole pages, not surgery on them;
+- redact content, or do surgery **inside** a page — no script here removes content from a page, strips annotations, or rewrites a page's drawing operators. Whole-page moves are `pdf_ops.py` (§6.7): merge, extract, split, rotate, metadata. Putting a rendered cover in front of a body PDF (§6.6) is the same kind of operation — concatenation of whole pages, not surgery on them;
 - ship a design engine, a template library or a LaTeX renderer of its own. The typesetting path runs on a TeX distribution plus the poppler / mupdf / ghostscript utilities that already sit beside it. The scripts under `skills/pdf/scripts/` are thin Python wrappers: the rendering and form-filling ones over `pdf2image` and `pypdf` (`pdf2image` in turn shells out to poppler), the HTML path over the LibreOffice HTML import, and the quality gate over the standard library plus the poppler command-line tools.
 
 Keep the `.tex` source next to the output. The build is reproducible, the reader will ask for changes, and a PDF whose source has been thrown away cannot be revised. A form you fill is different in kind: keep the `fields.json` and the field values beside the output so a correction is a re-run of the fill step, not a fresh analysis of the page.
@@ -28,6 +28,12 @@ Decide what kind of document this is before writing any preamble. The brief fixe
 | a report, technical document, white paper, manual, book chapter, or an academic paper with no journal template | `skills/pdf/briefs/report.md` | section hierarchy, figure and table numbering, table of contents, headers and footers, bibliography   |
 | a resume, CV, or a one-page professional profile                                                               | `skills/pdf/briefs/resume.md` | the single-page constraint, information density, ATS readability, two-column structure                |
 | a conference, event or exhibition poster on A0 / A1 stock                                                      | `skills/pdf/briefs/poster.md` | large-format geometry, viewing distance and the type scale it forces, colour blocks, figure rescaling |
+| a journal submission, conference paper or thesis where the venue supplies a class                                 | `skills/pdf/briefs/academic.md` | venue class first, IMRaD spine, anonymised review build, bibliography passes, page limits |
+| an infographic one-pager, visual brief, or any single-canvas designed document                                    | `skills/pdf/briefs/creative.md` | fixed canvas, colour system, canvas type scale, grid composition, print vs screen export |
+| a magazine-style report, lookbook, annual review — multi-page visual documents that turn                        | `skills/pdf/briefs/creative-flow.md` | spread-as-unit, page rhythm, image/text interleave, pacing across the document |
+| a certificate, form letter, slide-export or social-format page — exact dimensions, no reflow                    | `skills/pdf/briefs/creative-fixed-canvas.md` | canvas specification, bleed and safe margin, absolute placement, fixed-canvas verification |
+| a runbook, SOP, installation or migration manual — the reader is executing, not browsing                        | `skills/pdf/briefs/process.md` | numbered executable steps, preconditions, verification, command and parameter presentation |
+| a multi-part manual, generated API reference, or decision-tree migration guide                                    | `skills/pdf/briefs/process-advanced.md` | part/chapter hierarchy, generated-vs-written split, decision tables, diagrams in the build, CI checks |
 
 Rules of thumb while routing:
 
@@ -65,6 +71,13 @@ Cross-platform notes:
 
 When the text is not Latin — Chinese, Japanese, Korean, Cyrillic, Greek, or heavy symbol use — the engine choice stops being optional; see §4.
 
+`env_setup/` carries the machine-side companion to this table: `env_check.sh`
+(the check-only verdict, exit 0 = buildable), `setup_mac_linux.sh` and
+`setup_windows.ps1` (install the small pieces — poppler, Python deps — and
+report the large ones as prerequisites), `setup.md` (the narrative, including
+LibreOffice's install-on-demand rule), and `font_list.txt` (the faces this
+skill's documents name, with sources). Run the check before promising a PDF.
+
 ## 4. Choose the engine before the class
 
 The engine is a build-time decision that the preamble depends on, so it cannot be swapped later without editing the source.
@@ -85,6 +98,14 @@ Rules:
 ## 5. The build pipeline
 
 Work in this order. Each step has a failure mode that the next step will not catch.
+
+Reference layer for the decisions this section makes: `typesetting/typography.md`
+(type ladder, families, engine/font matrix), `typesetting/geometry.md` and
+`typesetting/pagination-geometry.md` (the page stack and the width to size
+against), `typesetting/pagination.md` (break control), `typesetting/overflow.md`
+(diagnosing from the log), `typesetting/fill-engine.md` (why a page has a hole),
+`typesetting/palette.md` and `typesetting/charts.md` (colour and data figures),
+`typesetting/cover.md` and `typesetting/cover-backgrounds.md` (the cover page).
 
 ### Step 1 — Fix the geometry
 
@@ -430,6 +451,42 @@ The family is two files, standard library plus `pdftotext` / `pdfinfo`:
 
 Run them by path from the repository root, as above; they import each other by flat module name, so `python3 skills/pdf/scripts/toc_validate.py …` works and `import toc_validate` from elsewhere does not.
 
+### 6.7 Whole-page surgery — `pdf_ops.py`
+
+Page-level moves: concatenating, extracting, splitting, rotating, and document
+metadata. These operate on **whole pages only** — a page is either moved,
+rotated or re-labelled, never edited inside. That boundary is what makes the
+operations safe on a file the user still needs to read, and it is why redaction
+and content removal are not here (they are a different tool's job).
+
+| command | what it does |
+| --- | --- |
+| `info <file.pdf>` | page count, page size(s), title/author, bookmark count |
+| `merge -o out.pdf in1.pdf in2.pdf ...` | concatenate whole PDFs, carrying bookmarks whose pages survive |
+| `extract -o out.pdf in.pdf <pages>` | pull a page range into one new PDF |
+| `split --outdir <dir> in.pdf [--every N]` | one file per page, or per N pages |
+| `rotate -o out.pdf in.pdf <pages> --by 90` | rotate a page range |
+| `meta in.pdf [--set k=v ...] [-o out.pdf]` | read or write document metadata |
+
+`<pages>` is 1-based, comma-separated, open-ended: `1,3,5-8,12-`.
+
+Safety rules the script enforces rather than documents:
+
+- **It refuses to overwrite an input** unless `--force` is passed — the
+  "I just overwrote my only copy" failure is the one this prevents.
+- **It refuses encrypted files** with a message naming the reason; decrypt
+  first, then operate on the copy.
+- **It refuses page ranges outside the document** rather than clamping them.
+- **In-place metadata writes build a temporary file and replace atomically** —
+  an interrupted write leaves the original intact, not a truncated PDF.
+- **A bookmark whose target page was not extracted is dropped**, never
+  redirected to a different page.
+
+Dependency: `pypdf` (declared in the script's PEP 723 header). poppler's
+`pdfinfo`/`pdftoppm` cover the inspection and rendering jobs (§6.1–6.2); this
+script covers the ones poppler does not.
+
+
 ## 7. Defects and self-check
 
 These are the ones a reader notices and a clean compile log walks past. Read the log for them; do not wait for the visual gate.
@@ -471,3 +528,70 @@ The mechanical half of this table is automated: `pdf_qa.py` (§6.5) reports blan
 - **`pdf_qa.py` needs four poppler binaries, not Python packages.** It imports only the standard library, so a missing `pdftotext` / `pdfinfo` / `pdffonts` / `pdftoppm` shows up as a run-time error naming the tool and exit 1 — not as an `ImportError` at start, and never as a silently passing gate. It also renders every page at 40 dpi to judge ink, so on a very large document that render is the slow part.
 - **`html2pdf.py` and `cover_render.py` need `soffice`, and its HTML import has edges.** A missing converter is a named error and exit 1, never a skipped render. When it is present, remember what the import does and does not honour: breaks on real block elements but not on `div`, `page-break-inside` ignored, class names with underscores dropped (the script writes class and id break rules inline for exactly that reason), named page sizes other than A4 ignored, and the document's own `body` margin added to the injected `@page` margin (§6.6). A cover that renders to two pages is refused rather than merged.
 - **`fill_pdf_form_with_annotations.py` overlays text; it does not create a field.** The stamped text is a `FreeText` annotation a viewer shows but a recipient cannot edit as a form value. A PDF whose filled values must stay editable needs real AcroForm fields, which the non-fillable path does not add.
+
+## 9. Pre-routing checks
+
+Run these **before** matching a brief — each one changes the routing:
+
+| check | why it changes the route |
+| --- | --- |
+| Does the venue/source supply a template or class? | If yes, the template wins and only the figure/caption/bibliography parts of a brief apply |
+| Is the text non-Latin? | Forces the engine (§4) and the font plan (`configs/fonts.md`) |
+| Is there an existing PDF to finish (form, annotations) rather than one to create? | That is §6, not a brief — no typesetting happens |
+| Is the deliverable a fixed-dimension canvas? | `briefs/creative-fixed-canvas.md`, not `creative.md` |
+| Will it be printed? | Bleed, 300 dpi rasters and the palette's print behaviour all become requirements |
+
+## 10. Figure and diagram embedding
+
+**Figures are block-level.** A figure is never inline in a paragraph, never
+inside a list item, and never sized to "whatever is left" on the line. It is a
+block with its own width, its own vertical space, and a caption that belongs to
+it.
+
+**Complex diagram strategy**: a diagram that cannot be drawn as one figure is
+several figures, split by phase, actor or layer, with the captions carrying the
+relationship. `briefs/academic.md` §Scenario B has the TikZ-vs-HTML decision.
+
+**Diagram content quality rules** (the same rules as charts):
+
+- One message per figure, stated in the caption's first sentence.
+- Type inside the figure matches the document family; sizes scaled so labels
+  survive the final placed size.
+- Colour from `typesetting/palette.md`; the greyscale test before delivery.
+- Vector first (PDF/SVG from TikZ, matplotlib, Inkscape); raster only for
+  photographs, 300 dpi at placed size.
+- Every figure referenced from the body text, placed near its first reference.
+
+## 11. HTML→PDF rendering rules
+
+The HTML path (`html2pdf.py`, `cover_render.py`) is the creative/cover route.
+Its failure modes are layout failures, and they are all preventable:
+
+- **Engine selection**: LibreOffice is the only renderer this skill ships for
+  HTML. A page that depends on browser-only behaviour (grid gaps, modern CSS)
+  renders differently — check the output, do not assume.
+- **No `overflow: hidden` on fixed-size pages**: it clips content silently,
+  and the clipped content is exactly what the reader needed. Let the page be
+  the size it is and fit the content to it.
+- **Full-bleed rule**: backgrounds reach the paper edge or the document has
+  visible white margins — there is no in-between. On the HTML path that is
+  `@page { margin: 0 }` plus a body sized to the page box.
+- **Background colour consistency**: the `@page` background and the body
+  background are the same colour, or the edge of the page shows a seam. The
+  seam is invisible in the CSS and obvious in the PDF.
+- **Content centering**: content is centred against the page box, not against
+  a default margin — a 1 mm drift reads as a mistake at poster size.
+- **Anti-void edges**: no large blank margin on any side. A page with 40 mm of
+  white at the bottom and 15 mm at the top reads as broken, not as minimal.
+
+## 12. Preflight
+
+Before the artifact is handed over:
+
+1. **Page count and page box** are what was specified (`pdfinfo`).
+2. **Fonts embedded** (`pdffonts`), no substitutions.
+3. **Every page rendered and read** — `convert_pdf_to_images.py` then look.
+4. **`pdf_qa.py`** passes (the gate in §6.5), with `--poster` for poster output.
+5. **Overflow checked**: no text into the margin, no clipped content, no void
+   edges (§11).
+6. **The brief's own self-check** — each brief ends with one; run it.

@@ -1,0 +1,115 @@
+% Academic resume / CV template — original work for this repository.
+%
+% A one-column academic CV: conservative typography, sections that hold
+% education, appointments, publications, grants, teaching and service. Public
+% LaTeX knowledge only; no third-party template is vendored. Requires a TeX
+% distribution with `moderncv`-free plain article class, `geometry`,
+% `titlesec`, `enumitem`, `hyperref`, `fontenc`.
+%
+% Build:  latexmk -pdf resume-academic.tex
+% Page:   US Letter by default; switch via the geometry options below.
+
+\documentclass[11pt]{article}
+
+% ---------------------------------------------------------------- geometry
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+% ---------------------------------------------------------------- type
+\renewcommand{\familydefault}{\rmdefault}   % serif body: the academic default
+\setlength{\parindent}{0pt}
+\setlist[itemize]{leftmargin=1.4em, itemsep=1pt, parsep=0pt, topsep=2pt}
+
+% ---------------------------------------------------------------- headings
+\titleformat{\section}{\large\bfseries\scshape}{}{0em}{}[\titlerule]
+\titlespacing{\section}{0pt}{12pt}{6pt}
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+
+% Running head: name on the left, page number on the right.
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\scshape Curriculum Vitae}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------------------------------------------------------------- helpers
+% An entry line: bold left item, right-aligned date, no table rules.
+\newcommand{\cventry}[3]{%
+  \par\noindent\textbf{#1}\hfill{\small #2}\par
+  \noindent #3\par\vspace{4pt}%
+}
+% A dated list item (publication, grant, talk).
+\newcommand{\cvitem}[2]{\item \textbf{#1.} #2}
+
+\begin{document}
+
+% ================================================================ header
+\begin{center}
+  {\LARGE\scshape First M. Last}\\[4pt]
+  {\small Department of Subject, Institution Name}\\[2pt]
+  {\small City, Country \quad$\cdot$\quad
+   \href{mailto:first.last@institution.edu}{first.last@institution.edu} \quad$\cdot$\quad
+   \href{https://orcid.org/0000-0000-0000-0000}{ORCID}}
+\end{center}
+\vspace{2pt}
+
+% ================================================================ sections
+\section{Education}
+\cventry{Ph.D., Field of Study}{2019--2024}
+        {Institution Name, City, Country. Dissertation: \emph{Title of the
+        Dissertation}. Advisor: Prof. A. Advisor.}
+\cventry{M.Sc., Field of Study}{2017--2019}
+        {Institution Name, City, Country.}
+
+\section{Academic Appointments}
+\cventry{Postdoctoral Researcher}{2024--present}
+        {Institution Name, City, Country. With Prof. A. Advisor.}
+
+\section{Publications}
+\subsection{Journal articles}
+\begin{itemize}
+  \cvitem{Last, F. M., \& Advisor, A.}{2024}{Title of the paper in Title Case.
+        \emph{Journal Name}, 12(3), 45--67.
+        \href{https://doi.org/10.0000/00000}{doi:10.0000/00000}}
+\end{itemize}
+\subsection{Conference papers}
+\begin{itemize}
+  \cvitem{Last, F. M.}{2023}{Title of the paper in Title Case. In
+        \emph{Proceedings of the Conference on Subject} (pp.\ 1--10). Publisher.}
+\end{itemize}
+
+\section{Grants and Awards}
+\begin{itemize}
+  \cvitem{Name of the Award}{2023--2026}{Granting body. Role: principal
+        investigator. Amount: \$000,000.}
+\end{itemize}
+
+\section{Teaching}
+\begin{itemize}
+  \item \textbf{Course Number, Course Title} --- Instructor of record, Fall 2023.
+  \item \textbf{Course Number, Course Title} --- Teaching assistant, Spring 2022.
+\end{itemize}
+
+\section{Service}
+\begin{itemize}
+  \item Reviewer, \emph{Journal Name}, \emph{Other Journal}, 2022--present.
+  \item Organizer, Workshop on Subject, Conference on Subject, 2023.
+\end{itemize}
+
+\section{Talks}
+\begin{itemize}
+  \cvitem{Title of the Talk}{2023}{Invited talk, Institution Name, City, Country.}
+\end{itemize}
+
+\section{Skills}
+Programming languages; instruments and laboratory techniques; software and
+toolchains; languages spoken.
+
+\end{document}

@@ -108,3 +108,51 @@ split is deliberate:
 - Dates aligned on every entry, formatting identical throughout.
 - No entry split across the column break.
 - Nothing below 10 pt.
+
+## Line-break rules (language-aware)
+
+A resume is parsed before it is read, and line breaks decide what the parser
+sees:
+
+- **Never break inside a date range**: `2021.03–2023.07` stays on one line. A
+  break inside it makes the parser see two dates.
+- **Never break inside a company/title pair**: the employer and the role belong
+  to the same visual line, or the parser attributes the role to the wrong
+  employer.
+- **Never break a bullet mid-phrase**: a bullet is one sentence; if it wraps,
+  the continuation is indented to the text, not to the bullet.
+- **CJK resumes**: the punctuation prohibitions apply (a line never starts with
+  `。，、`); Latin names inside CJK text keep their own word boundaries.
+- **No hyphenated line breaks in names, emails, URLs or version numbers** —
+  these are parsed as identifiers, and a hyphen changes the identifier.
+
+## Page-fill rules (anti-blank-space)
+
+The one-page constraint is a fill constraint, not just a length constraint:
+
+- **The page is full or the page is short**: a resume ending two-thirds down
+  reads as "not enough experience". Either add the evidence or accept one page
+  with a deliberate bottom margin — never a half-empty page.
+- **Spacing is the last resort**: before stretching leading to fill a page,
+  check whether content is missing. Stretched spacing on a thin resume is
+  visible to every reader.
+- **Two pages are two full pages**: a second page with three lines on it is a
+  formatting defect; either the content fills page two or it fits on one.
+- **The bottom margin is a design element**: a resume that ends exactly at the
+  margin looks finished; one that ends mid-page looks truncated.
+
+## ATS readability checklist
+
+- [ ] Text is selectable and extractable (no image-only pages, no text as
+      curves).
+- [ ] Contact details are plain text at the top, not inside a header image or a
+      text box.
+- [ ] Section headings are real headings (bold or a heading style), not
+      all-caps body text that a parser might read as content.
+- [ ] Dates use one format throughout, parseable by a machine.
+- [ ] No multi-column layout that interleaves when extracted (a two-column
+      resume extracts as alternating lines — test by copy-pasting the PDF into
+      a text editor and reading what comes out).
+- [ ] No tables used for layout (a layout table extracts as a grid of
+      fragments).
+- [ ] Fonts embedded, so the file renders identically everywhere.
