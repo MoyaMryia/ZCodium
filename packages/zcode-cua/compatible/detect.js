@@ -61,3 +61,47 @@ export function detectWaylandCompat({
     details,
   };
 }
+
+const WLR_COMPOSITORS = /sway|labwc|wayfire|river|wlroots/i;
+const HYPRLAND = /hyprland/i;
+const KDE = /kde|plasma/i;
+
+/**
+ * 全平台执行路径判定（计划见 `.agents/specs/computer-use-platform-architecture.md` §4、§5）。
+ *
+ * - Windows / macOS / Linux X11 / wlroots / Hyprland → `native`（cua-driver）；
+ * - 老 GNOME Wayland → `compat`（mutter + WinRects）；
+ * - KWin（KDE Plasma）→ `unavailable`（上游缺 target-addressable 适配器）。
+ *
+ * 纯函数：探测值由调用方注入，不发起 D-Bus/进程调用。
+ */
+export function resolvePlatformPath({
+  platform = process.platform,
+  env = process.env,
+  gnomeShellVersion,
+  portalRemoteDesktopVersion,
+  winRectsVersion,
+} = {}) {
+  const session = sessionType(env);
+  const desktop = `${env.XDG_CURRENT_DESKTOP ?? ""}${env.XDG_SESSION_DESKTOP ?? ""}`;
+  const base = { platform, session, desktop };
+
+  if (platform === "darwin") return { ...base, path: "native", reason: "cua-driver native (macOS)" };
+  if (platform === "win32") return { ...base, path: "native", reason: "cua-driver native (Windows)" };
+  if (platform !== "linux") return { ...base, path: "native", reason: "cua-driver native" };
+  if (session !== "wayland") return { ...base, path: "native", reason: "X11 native (XSendEvent/XTest)" };
+
+  if (/gnome/i.test(desktop)) {
+    const compat = detectWaylandCompat({ platform, env, gnomeShellVersion, portalRemoteDesktopVersion, winRectsVersion });
+    if (compat.applies) return { ...base, path: "compat", reason: compat.reason };
+    if (/WinRects/.test(compat.reason)) return { ...base, path: "unavailable", reason: compat.reason };
+    return { ...base, path: "native", reason: "GNOME native (portal/libei or winrects@cua)" };
+  }
+  if (KDE.test(desktop)) {
+    return { ...base, path: "unavailable", reason: "KWin target-addressable adapter is not provided upstream" };
+  }
+  if (WLR_COMPOSITORS.test(desktop) || HYPRLAND.test(desktop)) {
+    return { ...base, path: "native", reason: "wlroots/Hyprland native (virtual-pointer/keyboard)" };
+  }
+  return { ...base, path: "native", reason: "cua-driver native (probe)" };
+}
