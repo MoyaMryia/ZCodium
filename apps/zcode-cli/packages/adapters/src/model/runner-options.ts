@@ -9,7 +9,6 @@ import type {
   AiSdkStreamTextOptions,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { createModelRequestAttributionHeaders, type ModelStatusContext } from "./runner-status.js";
 
 type ExperimentalIncludeWithResponseBody = {
   requestBody?: boolean;
@@ -23,21 +22,10 @@ function shouldIncludeStreamResponseBody(resolved: ResolvedAiSdkModel): boolean 
   );
 }
 
-function mergeRequestHeaders(
-  providerHeaders: Record<string, string> | undefined,
-  attributionHeaders: Record<string, string>,
-): Record<string, string> {
-  return {
-    ...providerHeaders,
-    ...attributionHeaders,
-  };
-}
-
 export function createGenerateTextOptions(input: {
   env?: EnvRecord;
   request: AiSdkModelTextRequest;
   resolved: ResolvedAiSdkModel;
-  statusContext: ModelStatusContext;
 }): AiSdkGenerateTextOptions {
   const providerOptions = mergeProviderOptions(
     input.resolved.providerOptions,
@@ -75,10 +63,8 @@ export function createGenerateTextOptions(input: {
       : undefined,
     providerOptions: requestProviderOptions,
     abortSignal: input.request.abortSignal,
-    headers: mergeRequestHeaders(
-      input.resolved.headers,
-      createModelRequestAttributionHeaders(input.statusContext),
-    ),
+    // 会话/请求/trace 标识只用于本地执行，不能自动作为归因头发送给模型服务。
+    headers: input.resolved.headers,
     // ZCode owns system-message construction in core/context. Keep AI SDK from
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,
@@ -90,7 +76,6 @@ export function createStreamTextOptions(input: {
   env?: EnvRecord;
   request: AiSdkModelTextRequest;
   resolved: ResolvedAiSdkModel;
-  statusContext: ModelStatusContext;
 }): AiSdkStreamTextOptions {
   const providerOptions = mergeProviderOptions(
     input.resolved.providerOptions,
@@ -121,10 +106,7 @@ export function createStreamTextOptions(input: {
     seed: input.request.seed,
     providerOptions: requestProviderOptions,
     abortSignal: input.request.abortSignal,
-    headers: mergeRequestHeaders(
-      input.resolved.headers,
-      createModelRequestAttributionHeaders(input.statusContext),
-    ),
+    headers: input.resolved.headers,
     // ZCode owns system-message construction in core/context. Keep AI SDK from
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,

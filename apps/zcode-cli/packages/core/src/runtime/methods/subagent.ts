@@ -203,14 +203,11 @@ export function createDefaultSubagentPort(
           ? childModel
           : baseChildModelFactory(target);
       const parentToolCallId = traceStringAttribute(request.traceContext, "parentToolCallId");
-      // 对外交互端口（permission broker + provider runtime headers）：与 dwf actor、legacy
+      // 权限交互端口（permission broker）：与 dwf actor、legacy
       // workflow child 共用同一条派生，路由身份统一落到本 runtime 的会话。
       const childClientPorts = deriveChildClientPorts(
         {
           permissionBroker: this.permissionBroker,
-          ...(this.providerRuntimeHeadersPort === undefined
-            ? {}
-            : { providerRuntimeHeadersPort: this.providerRuntimeHeadersPort }),
         },
         {
           agentId: request.agentId,
@@ -299,7 +296,7 @@ export function createDefaultSubagentPort(
           modelFactory: childModelFactory,
           resolveEffectiveModelSelection: deps.resolveEffectiveModelSelection,
           // 子 runtime 自己仍使用 request.sessionId 做事件持久化和 trace 归档；对外阻塞交互
-          // （permission / AskUserQuestion / provider runtime headers）一律路由回父 session——
+          // （permission / AskUserQuestion）一律路由回父 session——
           // 桌面 UI 只认识父 task 的 sessionId。派生收敛在 deriveChildClientPorts 一处，
           // dwf actor 与 legacy workflow child 走同一条。
           ...childClientPorts,

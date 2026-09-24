@@ -334,7 +334,6 @@ export type ZCodeProtocolMessage = z.infer<typeof zcodeProtocolMessageSchema>;
 export const zcodeProtocolNotifications = {
   storageStartup: "startup/storageState",
   diagnostic: "process/safeDiagnostic",
-  providerRuntimeHeadersCancelled: "interaction/providerRuntimeHeadersCancelled",
   mcpTelemetry: "process/mcpTelemetry",
   mcpResourceSamples: "process/mcpResourceSamples",
   toolExecResource: "process/toolExecResource",
@@ -2294,60 +2293,6 @@ export const zcodeUserInputResponseSchema = z
   .strict();
 export type ZCodeUserInputResponse = z.infer<typeof zcodeUserInputResponseSchema>;
 
-export const zcodeProviderRuntimeHeadersRequestReasonSchema = z.enum(["model-request"]);
-export const zcodeProviderRuntimeHeadersRequestParamsSchema = z
-  .object({
-    requestId: nonEmptyString,
-    sessionId: nonEmptyString,
-    turnId: nonEmptyString.optional(),
-    workspace: zcodeWorkspaceRefSchema,
-    modelSelection: modelSelectionSchema,
-    providerId: nonEmptyString,
-    accountAccess: zcodeProviderAccountAccessSchema.optional(),
-    reason: zcodeProviderRuntimeHeadersRequestReasonSchema,
-  })
-  .strict();
-export type ZCodeProviderRuntimeHeadersRequestParams = z.infer<
-  typeof zcodeProviderRuntimeHeadersRequestParamsSchema
->;
-
-/** 请求取消只作用于同 workspace/session 的这一轮凭据刷新。 */
-export const zcodeProviderRuntimeHeadersCancelledSchema = z
-  .object({
-    requestId: nonEmptyString,
-    sessionId: nonEmptyString,
-    workspace: zcodeWorkspaceRefSchema,
-  })
-  .strict();
-export type ZCodeProviderRuntimeHeadersCancelled = z.infer<
-  typeof zcodeProviderRuntimeHeadersCancelledSchema
->;
-
-export const zcodeProviderRuntimeHeadersResponseSchema = z.discriminatedUnion("headersApplied", [
-  z
-    .object({
-      headersApplied: z.literal(true),
-      // 合并重接：成功必须携带当前请求的鉴权材料，不依赖旧 Registry 已被写入。
-      requestAuth: z
-        .object({
-          apiKey: nonEmptyString.optional(),
-          headers: z.record(nonEmptyString, nonEmptyString).optional(),
-        })
-        .strict(),
-      errorMessage: nonEmptyString.optional(),
-    })
-    .strict(),
-  z
-    .object({
-      headersApplied: z.literal(false),
-      errorMessage: nonEmptyString.optional(),
-    })
-    .strict(),
-]);
-export type ZCodeProviderRuntimeHeadersResponse = z.infer<
-  typeof zcodeProviderRuntimeHeadersResponseSchema
->;
-
 // ── Plugin management (list + enable/disable) ──
 // 镜像 @zcode/contracts 的 PluginMetadata, 仅保留 UI 需要的可序列化字段。
 export const zcodePluginOptionValueSchema = z.union([z.string(), z.number(), z.boolean()]);
@@ -3527,7 +3472,6 @@ export const zcodeProtocolMethods = {
   processChildProcesses: "process/childProcesses",
   interactionRequestPermission: "interaction/requestPermission",
   interactionRequestUserInput: "interaction/requestUserInput",
-  interactionRequestProviderRuntimeHeaders: "interaction/requestProviderRuntimeHeaders",
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",

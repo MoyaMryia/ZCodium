@@ -122,19 +122,15 @@ export class AiSdkModelAdapter {
     const optionSpecs = options.modelConfig.optionSpecs;
     const toLegacyRequest = (request: ModelExecutionRequest): AiSdkModelTextRequest => {
       const context = getCurrentModelInvocationContext();
-      const {
-        refreshRuntimeHeadersBeforeAttempt: contextRefreshRuntimeHeadersBeforeAttempt,
-        ...invocationContext
-      } = context ?? {};
+      const invocationContext = context ?? {};
       const shouldAttachReasoningObservation = request.options.reasoningLevel !== undefined;
       const selectedReasoningLevel = request.options.reasoningLevel;
       const requestAuthDependency = options.requestDependencies?.requestAuth;
       const requestAuthRequired =
         options.providerConfig.access.type === "zhipu-account" &&
         options.providerConfig.access.mode === "off-peak";
-      // 调用级 runtime header Port 只服务绑定完整 Account Access 的账号型 Model；
-      // 普通 API-key Model 若也消费该 Port，会把静态鉴权误送到 Host 刷新并在请求前失败。
-      // Off-Peak Model 始终使用创建时注入的执行作用域 Source，不依赖账号服务。
+      // Host 官方身份端口已移除。旧账号型 Model 必须在网络请求前失败，
+      // 不能把缺失的官方身份当成匿名访问；Off-Peak 暂仍使用单独的执行作用域 Source。
       const refreshRuntimeHeadersBeforeAttempt = requestAuthRequired
         ? async (input: ModelRequestAuthSourceInput) => {
             const requestAuth = await requestAuthDependency?.source?.resolve(input);
@@ -147,13 +143,12 @@ export class AiSdkModelAdapter {
             return { headersApplied: true, requestAuth };
           }
         : options.providerConfig.access.type === "zhipu-account"
-          ? (contextRefreshRuntimeHeadersBeforeAttempt ??
-            (async () => {
+          ? async () => {
               throw new ModelProtocolError(
                 ModelErrorCode.ModelRequestAuthMissing,
                 `Account model request auth is unavailable: ${resolved.providerId}/${resolved.modelId}`,
               );
-            }))
+            }
           : undefined;
       return {
         messages: request.messages,
@@ -175,17 +170,16 @@ export class AiSdkModelAdapter {
               },
             }
           : {}),
-        ...(refreshRuntimeHeadersBeforeAttempt
-          ? {
-              refreshRuntimeHeadersBeforeAttempt: (input) =>
-                refreshRuntimeHeadersBeforeAttempt({
-                  ...input,
-                  ...(options.providerConfig.access.type === "zhipu-account"
-                    ? { accountAccess: options.providerConfig.access }
-                    : {}),
-                }),
-            }
-          : {}),
+        // 显式覆盖旧调用上下文中的同名字段，禁止把退休的 Host 回调透传给普通模型。
+        refreshRuntimeHeadersBeforeAttempt: refreshRuntimeHeadersBeforeAttempt
+          ? (input) =>
+              refreshRuntimeHeadersBeforeAttempt({
+                ...input,
+                ...(options.providerConfig.access.type === "zhipu-account"
+                  ? { accountAccess: options.providerConfig.access }
+                  : {}),
+              })
+          : undefined,
       };
     };
     const resolveForRequest = (

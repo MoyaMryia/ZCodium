@@ -5,7 +5,6 @@ import type {
   AgentRuntimeConfig,
   ExecuteTurnOptions,
   ExpertWorkflowCommandResult,
-  ProviderRuntimeHeadersPort,
   PresentationSurface,
   ResumeSessionResult,
   StartSavedWorkflowRunResult,
@@ -141,11 +140,6 @@ export interface ZCodeAppOptions {
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
   /** 新 Session 使用的 Environment 默认选择；仅在没有显式 runtime modelSelection 时参与初始化。 */
   configuredDefaultModelSelection?: ModelSelection;
-  /**
-   * provider runtime headers 端口：主 runtime 每次调用报自己的会话；child runtime 一律向父
-   * runtime 取派生实例。
-   */
-  providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   loggerFactory?: LoggerFactory;
   officialPluginRoots?: string[];
   pluginStorageRoot?: string;

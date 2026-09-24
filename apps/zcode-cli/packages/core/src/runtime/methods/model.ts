@@ -21,7 +21,6 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { modelRequestTokenLimitLogContext } from "./model-token-limits.js";
 import { createModelStreamingEventQueue } from "./model-streaming-event-queue.js";
 import { getOrCreateReasoningBlock } from "./reasoning-stream.js";
-import { createRefreshRuntimeHeadersBeforeModelAttempt } from "./model-runtime-headers.js";
 import { resolveModelRequestSessionTypeFromTaskType } from "./model-request-session-type.js";
 import { isOutputTokenLimitFinishReason } from "./turn-output-token-continuation.js";
 
@@ -112,11 +111,6 @@ export async function runModelTextRequest(
         : {}),
     }),
     traceContext: projectedOptions.traceContext,
-    refreshRuntimeHeadersBeforeAttempt: createRefreshRuntimeHeadersBeforeModelAttempt(this, {
-      abortSignal: projectedOptions.abortSignal,
-      model,
-      traceContext: projectedOptions.traceContext,
-    }),
     // SSE 已经输出后由 core recovery 重发新请求；这些请求在 adapter 看起来都是 attempt=1，
     // 必须把 recovery 次数带过去，才能把 idle timeout 从首请求窗口逐次递增。
     streamIdleTimeoutRetryNumber: projectedOptions.streamRecovery?.retryNumber,

@@ -253,7 +253,6 @@ export async function* runStreamText(input: {
         env: input.env,
         request: attemptRequest,
         resolved,
-        statusContext,
       });
       requestHeaders = sanitizeModelNetworkHeaders(options.headers);
       requestHeaderCount = Object.keys(requestHeaders).length;

@@ -5,11 +5,9 @@ import {
   type TraceContext,
   type TurnInputIntentMetadata,
 } from "@zcode/contracts";
-import { getCurrentModelInvocationContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
-import { createRefreshRuntimeHeadersBeforeModelAttempt } from "./model-runtime-headers.js";
-import { createRuntimeModel, withModelInvocationContext } from "./runtime-model.js";
+import { createRuntimeModel } from "./runtime-model.js";
 import { applyRuntimeExecutionState } from "../execution-state.js";
 
 export function createTurnModel(
@@ -20,17 +18,10 @@ export function createTurnModel(
   } = {},
 ): Model {
   const selection = options.selection ?? runtime.getSessionModelSelection();
-  const model = createRuntimeModel(runtime, {
+  return createRuntimeModel(runtime, {
     selection,
     requestDependencies: options.requestDependencies,
   });
-  return withModelInvocationContext(model, (request) => ({
-    refreshRuntimeHeadersBeforeAttempt: createRefreshRuntimeHeadersBeforeModelAttempt(runtime, {
-      abortSignal: request.abortSignal,
-      model,
-      traceContext: getCurrentModelInvocationContext()?.traceContext ?? runtime.rootTraceContext,
-    }),
-  }));
 }
 
 /**

@@ -18,7 +18,6 @@ export type {
   PromptAdmissionOptions,
   PromptAdmissionReceipt,
   PermissionDecisionResult,
-  ProviderRuntimeHeadersPort,
   ResumeSessionOptions,
   ResumeSessionResult,
   StopActiveForegroundExecutionOptions,

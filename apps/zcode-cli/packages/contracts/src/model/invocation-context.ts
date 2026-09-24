@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { ModelApiCallObservation } from "../model/observation.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import type {
@@ -29,18 +28,6 @@ export interface ModelInvocationContext {
   streamIdleTimeoutRetryNumber?: number;
   streamRecovery?: ModelStreamRecoveryStatus;
   preserveProviderStreamBoundaries?: boolean;
-  refreshRuntimeHeadersBeforeAttempt?: (input: {
-    accountAccess?: ZCodeProviderAccountAccess;
-    attempt: number;
-    reason?: "model-request";
-    abortSignal?: AbortSignal;
-    providerId: string;
-    modelId: string;
-    traceContext?: TraceContext;
-  }) => Promise<{
-    headersApplied: boolean;
-    requestAuth?: ModelRequestAuth;
-  }>;
 }
 
 /** Adapter 为单个物理请求 attempt 使用的动态鉴权材料。 */

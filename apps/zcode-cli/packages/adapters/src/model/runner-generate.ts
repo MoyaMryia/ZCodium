@@ -152,7 +152,6 @@ export async function runGenerateText(input: {
         env: input.env,
         request: attemptRequest,
         resolved,
-        statusContext,
       });
       requestHeaders = sanitizeModelNetworkHeaders(options.headers);
       requestHeaderCount = Object.keys(requestHeaders).length;
