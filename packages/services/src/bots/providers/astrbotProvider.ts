@@ -5,6 +5,10 @@
 // - 出站：BotOutboundMessage 文本 → bridge delivery 帧。
 // - 交互：官方 selection 走文本回退（ZCodium 侧 channel 固定为 astrbot）。
 //
+// 轮次模型（与插件对齐，每命令一个 stream）：
+//   beginTurn → accepted(新 stream) → delivery… → status
+// 若该命令启动了任务流（notifyTaskLifecycle("started")），则命令流被提升为任务流，
+// 任务期间出站继续走任务流，终态/等待交互时以 status 收口。
 // binding 路由与 seq/ack/replay 只属于传输层；provider 不持 sessionId/pending/任务状态。
 
 import { createHash, randomUUID } from "node:crypto";
@@ -26,6 +30,11 @@ import type { AstrBotBridgeTransport, IAstrBotBridgeService } from "../astrbotBr
 import { BotsDeliveryLog, type BotsDeliveryReplay } from "../botsDeliveryLog.js";
 import type { BotProviderAdapter, BotTaskLifecyclePhase } from "./types.js";
 
+/** 官方 inbound 处理入口会注入 botId（wire 上没有该字段）。 */
+const inboundFrameSchema = botsBridgeCommandFrameSchema.extend({
+  zcodeBotId: z.string().trim().min(1),
+});
+
 /** actorKey 用平台稳定用户 id 派生，不落明文 id（原桥接 domain 逻辑，现为 provider 私有）。 */
 function computeActorKey(channel: string, externalUserId: string): string {
   return createHash("sha256").update(`${channel}\u0000${externalUserId.trim()}`).digest("hex");
@@ -34,11 +43,6 @@ function computeActorKey(channel: string, externalUserId: string): string {
 function buildBindingId(channel: string, actorKey: string): string {
   return `${channel}:${actorKey.slice(0, 16)}`;
 }
-
-/** 官方 inbound 处理入口会注入 botId（wire 上没有该字段）。 */
-const inboundFrameSchema = botsBridgeCommandFrameSchema.extend({
-  zcodeBotId: z.string().trim().min(1),
-});
 
 function targetKey(actor: Pick<BotActor, "chatId" | "providerUserId">): string {
   return actor.chatId?.trim() || actor.providerUserId;
@@ -73,14 +77,14 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
   const deliveryLog = new BotsDeliveryLog({ idFactory, clock });
   /** targetKey → bindingId（出站路由）。 */
   const routing = new Map<string, string>();
-  /** bindingId → 当前 streamId（内存）。 */
-  const streams = new Map<string, string>();
+  /** bindingId → 当前命令轮次（命令窗口内出站走它）。 */
+  const currentTurns = new Map<string, { streamId: string; startedTask: boolean }>();
+  /** bindingId → 正在运行的任务流。 */
+  const taskStreams = new Map<string, string>();
   /** bindingId → 最近分配的下行 seq。 */
   const cursors = new Map<string, number>();
   /** bindingId → 最近一条 delivery（snapshot 用）。 */
   const latestFrames = new Map<string, BotsBridgeDeliveryFrame>();
-  /** 已进入任务流、等待终态的 binding。 */
-  const taskRunning = new Set<string>();
   let transport: AstrBotBridgeTransport | null = null;
 
   function resolveBindingId(actor: Pick<BotActor, "chatId" | "providerUserId">): string {
@@ -91,18 +95,7 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
     transport?.send(frame);
   }
 
-  function ensureStream(bindingId: string): string {
-    const existing = streams.get(bindingId);
-    if (existing) {
-      return existing;
-    }
-    const streamId = idFactory();
-    streams.set(bindingId, streamId);
-    return streamId;
-  }
-
-  function endTurn(bindingId: string, state: BotsBridgeStreamState): void {
-    const streamId = streams.get(bindingId) ?? idFactory();
+  function emitStatus(bindingId: string, streamId: string, state: BotsBridgeStreamState): void {
     emit({
       v: BOTS_BRIDGE_PROTOCOL_VERSION,
       kind: "status",
@@ -111,7 +104,19 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
       streamId,
       state,
     });
-    streams.delete(bindingId);
+  }
+
+  function emitDelivery(bindingId: string, streamId: string, text: string): void {
+    const currentCursor = cursors.get(bindingId) ?? 0;
+    const frame = deliveryLog.append({
+      bindingId,
+      streamId,
+      currentCursor,
+      payload: { type: "text", text },
+    });
+    cursors.set(bindingId, frame.seq);
+    latestFrames.set(bindingId, frame);
+    emit(frame);
   }
 
   function beginTurn(frame: BotsBridgeCommandFrame, botId: string): string {
@@ -125,7 +130,8 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
     };
     const bindingId = resolveBindingId(actor);
     routing.set(targetKey(actor), bindingId);
-    const streamId = ensureStream(bindingId);
+    const streamId = idFactory();
+    currentTurns.set(bindingId, { streamId, startedTask: false });
     emit({
       v: BOTS_BRIDGE_PROTOCOL_VERSION,
       kind: "accepted",
@@ -138,23 +144,32 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
   }
 
   function settleTurn(bindingId: string): void {
-    if (!taskRunning.has(bindingId)) {
-      endTurn(bindingId, "completed");
+    const turn = currentTurns.get(bindingId);
+    if (!turn) {
+      return;
+    }
+    currentTurns.delete(bindingId);
+    // 启动任务的轮次由任务终态收口；其余命令立即收口。
+    if (!turn.startedTask) {
+      emitStatus(bindingId, turn.streamId, "completed");
     }
   }
 
-  function notifyTaskLifecycle(
-    _bot: unknown,
-    actor: BotActor,
-    phase: BotTaskLifecyclePhase,
-  ): void {
+  function notifyTaskLifecycle(_bot: unknown, actor: BotActor, phase: BotTaskLifecyclePhase): void {
     const bindingId = routing.get(targetKey(actor)) ?? resolveBindingId(actor);
     if (phase === "started") {
-      taskRunning.add(bindingId);
+      const turn = currentTurns.get(bindingId);
+      const streamId = turn?.streamId ?? idFactory();
+      if (turn) {
+        turn.startedTask = true;
+      }
+      taskStreams.set(bindingId, streamId);
       return;
     }
-    taskRunning.delete(bindingId);
-    endTurn(bindingId, toBridgeState(phase));
+    const streamId =
+      taskStreams.get(bindingId) ?? currentTurns.get(bindingId)?.streamId ?? idFactory();
+    taskStreams.delete(bindingId);
+    emitStatus(bindingId, streamId, toBridgeState(phase));
   }
 
   return {
@@ -171,17 +186,10 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
         logger.warn(undefined, `astrbot delivery without binding target=${message.providerUserId}`);
         return;
       }
-      const streamId = ensureStream(bindingId);
-      const currentCursor = cursors.get(bindingId) ?? 0;
-      const frame = deliveryLog.append({
-        bindingId,
-        streamId,
-        currentCursor,
-        payload: { type: "text", text: message.text },
-      });
-      cursors.set(bindingId, frame.seq);
-      latestFrames.set(bindingId, frame);
-      emit(frame);
+      // 命令窗口内走当前命令流；任务运行期间走任务流；兜底新建流。
+      const streamId =
+        currentTurns.get(bindingId)?.streamId ?? taskStreams.get(bindingId) ?? idFactory();
+      emitDelivery(bindingId, streamId, message.text);
     },
 
     parseCallback(payload: unknown): BotInboundMessage[] {
@@ -273,10 +281,10 @@ export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): 
     dispose(): void {
       transport = null;
       routing.clear();
-      streams.clear();
+      currentTurns.clear();
+      taskStreams.clear();
       cursors.clear();
       latestFrames.clear();
-      taskRunning.clear();
     },
   };
 }

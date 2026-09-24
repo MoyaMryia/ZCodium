@@ -510,6 +510,9 @@ const zhCN: Record<string, string> = {
   "bots.astrbot.step.install": "安装 astrbot-zcodium-plugin 插件。",
   "bots.astrbot.step.configure": "把该文件里的 url、port、token 填入插件配置。",
   "bots.astrbot.step.bind": "在聊天里发送 /bind <绑定码> 完成绑定。",
+  "bots.astrbot.boundDescription": "已绑定 AstrBot 桥接；消息经官方 Bots 流程处理。",
+  "bots.astrbot.unboundDescription":
+    "安装并配置 astrbot-zcodium-plugin，然后生成绑定码完成绑定。",
   "bots.addBot": "新建机器人",
   "bots.addBinding": "添加新的绑定",
   "bots.setup.chooseBot": "选择机器人",

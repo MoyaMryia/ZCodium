@@ -1306,6 +1306,15 @@ export function BotsDialog({
 
                 {selectedBot.provider === "astrbot" ? (
                   <AstrBotSettingsCard
+                    bot={selectedBot}
+                    runtime={selectedRuntime}
+                    bindCode={bindCode}
+                    bindExpired={bindExpired}
+                    bindRemainingMs={bindRemainingMs}
+                    bindCountdownProgress={bindCountdownProgress}
+                    onCreateBindCode={() => void handleCreateBindCode()}
+                    onUnbind={() => void handleUnbind()}
+                    onCopyBindCommand={() => void copyBindCommand()}
                     onOpenPlugin={() => platform.openExternal(ASTRBOT_PLUGIN_URL)}
                   />
                 ) : (
