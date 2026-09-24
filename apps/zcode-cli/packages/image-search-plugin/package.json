@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@zcode/image-search-plugin",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
-  "license": "Apache-2.0",
-  "description": "MCP server plugin that lets the agent pull illustrations and reference imagery through the image_search tool."
+  "description": "Connect a user-configured image-search MCP service.",
+  "license": "Apache-2.0"
 }

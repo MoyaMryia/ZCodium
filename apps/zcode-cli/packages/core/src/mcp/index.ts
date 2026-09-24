@@ -148,7 +148,6 @@ function createMcpToolEntry(
         };
 
   return {
-
     // 因精确查找直接返回 Tool not found。只在不可伪造的官方 authority 门成立且内部
     // serverName 仍是官方 namespaced 名时挂单向别名；provider 继续只看规范名称。
     aliases: officialCuaProviderSpellingAliases(name, descriptor, officialCuaAuthorityVerified),
@@ -177,8 +176,6 @@ function createMcpToolEntry(
         serverName: descriptor.serverName,
         toolName: descriptor.toolName,
         ...(descriptor.description ? { description: descriptor.description } : {}),
-        // 只有官方 MCP 的结果才允许携带被客户端信任的结构化标识（额度耗尽 / 无套餐）。
-        ...(descriptor.official ? { official: true } : {}),
       },
       needsApproval,
       readOnly,

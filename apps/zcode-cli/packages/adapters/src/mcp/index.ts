@@ -30,23 +30,10 @@ import type {
   McpServerStatus,
   McpToolCallResult,
   McpToolDescriptor,
-  OfficialMcpAuthFailureReason,
-  OfficialMcpAuthHeadersPort,
-  OfficialMcpTrustedOriginRegistry,
 } from "@zcode/contracts";
-import { ZCODE_MCP_SERVER_REQUEST_ID_META_KEY } from "@zcode/contracts";
 import { normalizeMcpToolDescriptor } from "./descriptor.js";
-import {
-  createOfficialMcpAuthFetch,
-  OfficialMcpAuthError,
-  type OfficialMcpServerResponseInfo,
-} from "./official-auth.js";
-import {
-  OFFICIAL_MCP_AUTH_META_KEY,
-  ZCODE_OFFICIAL_MCP_AUTH_TYPE,
-  type McpServerFailureKind,
-  type OfficialMcpAuthFailureKind,
-} from "@zcode/shared";
+import type { McpServerFailureKind } from "@zcode/shared";
+import { getUnsupportedMcpAuthError } from "./config-auth.js";
 import {
   buildMcpStdioEnv,
   createMcpTransportFetch,
@@ -94,12 +81,6 @@ const DEFAULT_MCP_TIMEOUT_MS = 30_000;
 const MCP_PING_TIMEOUT_MS = 5_000;
 const MAX_MCP_VERSION_PROBE_TIMEOUT_MS = 5_000;
 const MCP_STDIO_STDERR_LOG_MAX_CHARS = 4_000;
-/**
- * span → request id 的暂存条数上限。正常情况下每条都会在同一次 tool call 结束时被取走，
- * 留下的只有无人认领的（如连接期请求），几十条足够，纯为防止长会话下无界增长。
- */
-const MAX_TRACKED_SERVER_REQUEST_IDS = 64;
-
 export interface CreateMcpAdapterOptions {
   clientName?: string;
   clientVersion?: string;
@@ -109,39 +90,12 @@ export interface CreateMcpAdapterOptions {
   processTracker?: McpProcessTracker;
   mcpOAuth?: McpOAuthRuntimeOptions;
   network?: NetworkEgressEnvPolicy;
-  /**
-   * 官方 Server MCP 鉴权依赖。trustedOrigins 缺失时仍 fail closed；authHeadersPort
-   * 可缺省，此时各请求匿名降级并交给服务端做权威判定。
-   */
-  officialMcpAuth?: {
-    authHeadersPort?: OfficialMcpAuthHeadersPort;
-    trustedOrigins: OfficialMcpTrustedOriginRegistry;
-    /**
-     * 当前 ZCode API origin。stdio 形态没有 `url` 可供校验，targetOrigin 只能由宿主给出
-     * ——插件因此无法把身份头导向别的 origin。
-     * 与 trustedOrigins 的 `resolveZCodeApiOrigin` 必须同源，否则两侧判定会分叉。
-     */
-    resolveZCodeApiOrigin?: () => string;
-    workspaceIdentity?: string;
-  };
   workingDirectory?: string;
 }
 
 type McpClient = Client;
 type McpTransport = StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport;
 type AuthorizationCodeOAuthConfig = Extract<McpOAuthConfig, { type: "authorization_code" }>;
-
-/**
- * stdio 官方 MCP 的身份头载荷，随每条出站协议消息的 `_meta` 下发。
- *
- * 失败也下发（`ok: false` + 枚举 reason）；stdio 插件拿不到头时不会去打官方端点。HTTP 路径则
- * 由 adapter 发起无身份的 tools/call，让 ZCode server 返回权威结构化错误。把 reason 交给 stdio
- * 插件才能让它把"未登录"与"无 Coding Plan
- * 套餐"如实呈现给用户，而不是静默降级成一句莫名其妙的失败。
- */
-type OfficialMcpAuthMetaPayload =
-  | { ok: true; headers: Record<string, string> }
-  | { ok: false; reason: OfficialMcpAuthFailureReason };
 
 interface McpServerRecord {
   client?: McpClient;
@@ -193,31 +147,9 @@ class NodeMcpAdapter implements McpPort {
   private readonly logger?: Logger;
   private readonly mcpOAuth?: McpOAuthRuntimeOptions;
   private readonly network?: NetworkEgressEnvPolicy;
-  private readonly officialMcpAuth?: CreateMcpAdapterOptions["officialMcpAuth"];
   private readonly processTracker?: McpProcessTracker;
   private readonly connectionGenerations = new Map<string, number>();
   private credentialStore?: SharedZCodeCredentialStore;
-  /**
-   * 官方鉴权失败分类的暂存槽。不能从 error 对象读——SDK 的 version
-   * negotiation 会把 OfficialMcpAuthError 重新包装成普通 Error，instanceof 失效；
-   * 也不允许按错误文本反解。因此在抛出点写入，failConnection 取用后立即清除。
-   */
-  private readonly lastOfficialAuthKind = new Map<string, OfficialMcpAuthFailureKind>();
-  /**
-   * span → 服务端 request id。只有官方 MCP 会写入（唯一能看到响应头的地方是 auth fetch
-   * wrapper），供 in-band 失败（HTTP 200 + `isError`）把 id 带回 tool result。
-   *
-   * 用 span 而不是 traceId 作键：traceId 覆盖整个顶层 session，同一 session 的多次调用
-   * 共用它，关联会串号；span 是一次 tool call 的粒度。
-   *
-   * 有界并即取即删：拿不到匹配的 span（如 initialize / tools/list，它们没有 `_meta`）
-   * 就让条目自然被挤出，绝不"取最近一次"兜底——那会把上一次调用的 id 贴到这一次的失败上。
-   */
-  private readonly serverRequestIdBySpan = new Map<string, string>();
-  private readonly connectionDiagnosticByServer = new Map<
-    string,
-    Pick<McpServerStatus, "failureKind" | "serverRequestId">
-  >();
   private readonly records = new Map<string, McpServerRecord>();
   private readonly workingDirectory?: string;
 
@@ -232,7 +164,6 @@ class NodeMcpAdapter implements McpPort {
     });
     this.mcpOAuth = options.mcpOAuth;
     this.network = options.network;
-    this.officialMcpAuth = options.officialMcpAuth;
     this.processTracker = options.processTracker;
     this.workingDirectory = options.workingDirectory;
   }
@@ -305,8 +236,6 @@ class NodeMcpAdapter implements McpPort {
     const startedAt = Date.now();
     const timeoutMs = config.timeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
     const generation = this.nextConnectionGeneration(name);
-    this.lastOfficialAuthKind.delete(name);
-    this.connectionDiagnosticByServer.delete(name);
     this.logger?.info("MCP server connection started", {
       event: "mcp.server.connect.started",
       mcpServerName: name,
@@ -326,6 +255,16 @@ class NodeMcpAdapter implements McpPort {
         status: "completed",
         transport: config.type,
       });
+      return status;
+    }
+
+    const authError = getUnsupportedMcpAuthError(config);
+    if (authError) {
+      const status = this.createStatus(config, "failed", {
+        error: authError,
+        failureKind: "connection_failed",
+      });
+      this.records.set(name, { config, status, tools: [] });
       return status;
     }
 
@@ -353,7 +292,6 @@ class NodeMcpAdapter implements McpPort {
       config,
       generation,
       name,
-      oauthAuthorizationTimeoutMs: options.oauthAuthorizationTimeoutMs,
       signal: abortController.signal,
       timeoutMs,
       workingDirectory: options.workingDirectory,
@@ -523,147 +461,6 @@ class NodeMcpAdapter implements McpPort {
     }
   }
 
-  /** 连接期诊断按 server 保存；tool call request id 继续按 span 隔离。 */
-  private rememberServerResponse(
-    serverName: string,
-    response: OfficialMcpServerResponseInfo,
-  ): void {
-    if (
-      !response.spanId &&
-      response.rpcMethod !== "tools/call" &&
-      this.records.get(serverName)?.status.status === "connecting"
-    ) {
-      if (response.failureKind) {
-        this.connectionDiagnosticByServer.set(serverName, {
-          failureKind: response.failureKind,
-          ...(response.serverRequestId ? { serverRequestId: response.serverRequestId } : {}),
-        });
-      }
-      return;
-    }
-    if (!response.spanId) return;
-    if (!response.serverRequestId) return;
-    // 401 重试会对同一 span 产生两条响应，后写覆盖——留下的是最终那次，正是要报的那个。
-    this.serverRequestIdBySpan.set(response.spanId, response.serverRequestId);
-    while (this.serverRequestIdBySpan.size > MAX_TRACKED_SERVER_REQUEST_IDS) {
-      const oldest = this.serverRequestIdBySpan.keys().next();
-      if (oldest.done) break;
-      this.serverRequestIdBySpan.delete(oldest.value);
-    }
-  }
-
-  /** 取出并清除该 span 的 request id。取不到返回 undefined，不做任何兜底猜测。 */
-  private takeServerRequestId(spanId: string | undefined): string | undefined {
-    if (!spanId) return undefined;
-    const requestId = this.serverRequestIdBySpan.get(spanId);
-    if (requestId !== undefined) this.serverRequestIdBySpan.delete(spanId);
-    return requestId;
-  }
-
-  /**
-   * 解析 stdio 官方 MCP 本次出站协议消息的身份头。
-   * 返回 undefined 表示"不是官方 stdio server"——此时 `_meta` 里绝不能出现该键，否则等于把
-   * 身份头广播给任意第三方插件。
-   */
-  private async resolveOfficialStdioAuthMeta(
-    serverName: string,
-    config: McpServerConfig,
-    signal: AbortSignal | undefined,
-  ): Promise<OfficialMcpAuthMetaPayload | undefined> {
-    if (config.type !== "stdio" || !isOfficialAuthConfig(config) || !config.official) {
-      return undefined;
-    }
-    const official = config.official;
-    const authHeadersPort = this.officialMcpAuth?.authHeadersPort;
-    const trustedOrigins = this.officialMcpAuth?.trustedOrigins;
-    const resolveZCodeApiOrigin = this.officialMcpAuth?.resolveZCodeApiOrigin;
-    const logBase = {
-      event: "mcp.official_auth.stdio_meta",
-      mcpKey: official.mcpKey,
-      mcpServerName: serverName,
-      module: "adapters.mcp",
-    };
-    const fail = (reason: OfficialMcpAuthFailureReason): OfficialMcpAuthMetaPayload => {
-      // 刻意不写 lastOfficialAuthKind：那个 map 只被 failConnection 读取，用来给**连接失败**
-      // 打分类标签。stdio 的身份头缺失不会让连接失败，写进去会一直留着，等到该 server 之后
-      // 因为别的原因（子进程死掉等）真正断连时被当成断连原因记进日志，属误导。
-      // 本路径的可观测性由下面这条自己的 event + 下发给插件的 reason 承担。
-      this.logger?.warn("Official MCP stdio auth headers unavailable", {
-        ...logBase,
-        reason,
-        status: "failed",
-      });
-      return { ok: false, reason };
-    };
-
-    // standalone CLI 没有 host auth port。不静默省略该键：插件区分不了"宿主不支持"与
-    // "宿主支持但我没登录"，只有显式 reason 才能给出正确的用户提示。
-    if (!authHeadersPort || !trustedOrigins || !resolveZCodeApiOrigin) {
-      return fail("official_auth_unavailable");
-    }
-
-    // stdio 没有 url，origin 由宿主给出而非插件声明。isTrusted 在此退化为恒真断言，但仍要调用：
-    // 它同时校验 https、拒绝带 username/password 的 URL，并让 dev loopback 开关继续生效。
-    //
-    // 这两步原来裸调用。origin 解析依赖 settings / 运行时环境，isTrusted 是
-    // 注入的实现，两者都可能抛。异常裸冒泡会绕过整个失败分类：插件收不到 `{ok:false, reason}`，
-    // 而 reason 是跨 adapter / host / UI 的契约（决定提示文案与是否重试）。因此统一映射为
-    // official_auth_unavailable——宿主侧解析不出可信 origin，对插件而言就是"官方鉴权不可用"。
-    // 错误文本只进日志，绝不参与流程判断。
-    let targetOrigin: string;
-    let trust: Awaited<ReturnType<OfficialMcpTrustedOriginRegistry["isTrusted"]>>;
-    try {
-      targetOrigin = resolveZCodeApiOrigin();
-      trust = await trustedOrigins.isTrusted({
-        mcpKey: official.mcpKey,
-        origin: targetOrigin,
-        pluginId: official.pluginId,
-      });
-    } catch (error) {
-      this.logger?.warn("Official MCP stdio origin resolution failed", {
-        ...logBase,
-        error: error instanceof Error ? error.message : String(error),
-        errorName: error instanceof Error ? error.name : "unknown",
-        pluginId: official.pluginId,
-      });
-      return fail("official_auth_unavailable");
-    }
-    if (!trust.trusted) {
-      this.logger?.warn("Official MCP stdio origin is not trusted", {
-        ...logBase,
-        detail: trust.detail ?? "unknown",
-        pluginId: official.pluginId,
-        targetOrigin,
-      });
-      return fail("official_mcp_origin_untrusted");
-    }
-
-    const resolved = await authHeadersPort.resolveHeaders({
-      mcpKey: official.mcpKey,
-      pluginId: official.pluginId,
-      targetOrigin,
-      ...(this.officialMcpAuth?.workspaceIdentity
-        ? { workspaceIdentity: this.officialMcpAuth.workspaceIdentity }
-        : {}),
-      ...(this.workingDirectory ? { workspacePath: this.workingDirectory } : {}),
-      ...(signal ? { signal } : {}),
-    });
-    if (!resolved.ok) return fail(resolved.reason);
-
-    // 只记 header 名与套餐维度，绝不记 header 值——日志留存周期不受控。
-    this.logger?.debug("Official MCP stdio auth headers attached", {
-      ...logBase,
-      identityHeaderNames: Object.keys(resolved.headers)
-        .map((name) => name.toLowerCase())
-        .sort(),
-      ...(resolved.headers["Bigmodel-Target-Type"]
-        ? { identityTargetType: resolved.headers["Bigmodel-Target-Type"] }
-        : {}),
-      status: "completed",
-    });
-    return { ok: true, headers: resolved.headers };
-  }
-
   private async callToolOnClient(
     client: McpClient,
     request: McpCallToolRequest,
@@ -707,7 +504,6 @@ class NodeMcpAdapter implements McpPort {
       const isError = typeof result.isError === "boolean" ? result.isError : false;
       // 官方 MCP 的 in-band 失败（配额耗尽、无套餐）是 HTTP 200 + isError，wrapper 那条
       // 非 2xx warn 覆盖不到；request id 也只有 wrapper 能看到，所以在这里按 span 取回。
-      const serverRequestId = this.takeServerRequestId(request.trace?.spanId);
       const outcome = {
         ...logBase,
         contentBlocks: Array.isArray(result.content) ? result.content.length : 0,
@@ -715,7 +511,6 @@ class NodeMcpAdapter implements McpPort {
         hasStructuredContent: result.structuredContent !== undefined,
         // 业务级失败（isError）与传输级失败不同，必须能分开统计。
         isError,
-        ...(serverRequestId ? { serverRequestId } : {}),
       };
       if (isError) {
         // 之前 in-band 失败只有这条 debug，而生产 logger 最低级别是 Info——等于配额耗尽
@@ -732,11 +527,7 @@ class NodeMcpAdapter implements McpPort {
           : [{ type: "text", text: "" }],
         structuredContent: result.structuredContent,
         isError: typeof result.isError === "boolean" ? result.isError : undefined,
-        // 只在失败时附加：成功路径上它是纯噪声。服务端已给的键一律不覆盖。
-        _meta:
-          isError && serverRequestId
-            ? { ...meta, [ZCODE_MCP_SERVER_REQUEST_ID_META_KEY]: serverRequestId }
-            : meta,
+        _meta: meta,
       };
     } catch (error) {
       const durationMs = Date.now() - startedAt;
@@ -746,14 +537,11 @@ class NodeMcpAdapter implements McpPort {
       const timedOut =
         /timed?\s*out|timeout/i.test(message) ||
         (error instanceof Error && error.name === "AbortError");
-      // 传输级失败也带上：4xx/5xx 时 SDK 抛出的 message 里没有 request id。
-      const serverRequestId = this.takeServerRequestId(request.trace?.spanId);
       this.logger?.warn("MCP tool call failed", {
         ...logBase,
         argumentKeys,
         durationMs,
         error: message,
-        ...(serverRequestId ? { serverRequestId } : {}),
         errorName: error instanceof Error ? error.name : "unknown",
         status: "failed",
         timedOut,
@@ -944,7 +732,6 @@ class NodeMcpAdapter implements McpPort {
     }
     await Promise.all(Array.from(this.records.keys()).map((name) => this.closeRecord(name)));
     this.records.clear();
-    this.connectionDiagnosticByServer.clear();
     this.logger?.info("MCP adapter closed", {
       durationMs: Date.now() - startedAt,
       event: "mcp.adapter.closed",
@@ -1002,7 +789,6 @@ class NodeMcpAdapter implements McpPort {
     config: McpServerConfig;
     generation: number;
     name: string;
-    oauthAuthorizationTimeoutMs?: number;
     signal: AbortSignal;
     timeoutMs: number;
     workingDirectory?: string;
@@ -1013,7 +799,6 @@ class NodeMcpAdapter implements McpPort {
       generation,
       name,
       oauthAuthorizationAttempted = false,
-      oauthAuthorizationTimeoutMs,
       signal,
       timeoutMs,
       workingDirectory,
@@ -1028,14 +813,7 @@ class NodeMcpAdapter implements McpPort {
       config.type === "stdio" ? "process_start_failed" : "network_unreachable";
 
     try {
-      const transportBundle = await this.createTransport(
-        config,
-        name,
-        generation,
-        oauthAuthorizationTimeoutMs,
-        workingDirectory,
-        signal,
-      );
+      const transportBundle = await this.createTransport(config, name, workingDirectory);
       transport = transportBundle.transport;
       getRecentStderr = this.attachStdioLogging(name, transport);
       client = new Client(
@@ -1071,20 +849,7 @@ class NodeMcpAdapter implements McpPort {
       );
       listToolsDurationMs = Date.now() - listToolsStartedAt;
       const tools = listed.tools.map((tool) =>
-        normalizeMcpToolDescriptor(
-          name,
-          tool,
-          config.timeoutMs,
-          // 只有 http 形态置位。这个标记的用途是**信任结果里的结构化标识**
-          // （额度耗尽 / 无套餐），因此判据必须是"结果由谁产出"：
-          //   - http：结果来自 ZCode 后端。fetch wrapper 对每次请求校验 origin；登录态只在
-          //     tools/call 解析，缺失时由同一可信后端返回结构化 coding_plan_required；
-          //   - stdio：结果由插件进程自己产出，可以任意伪造 `{"error_code":"quota_exceeded"}`，
-          //     从而在用户输入框上方弹出"额度用完 / 请开通 Coding Plan"的误导提示。
-          // 原判据是 `type !== "sse"`，把 stdio 一起放了进来，等于这道门槛在 stdio 上为零。
-          // 注意这不是在挡凭证外泄（那由 origin 校验负责），而是在挡**结果伪造**。
-          config.type === "http" && config.auth?.type === ZCODE_OFFICIAL_MCP_AUTH_TYPE,
-        ),
+        normalizeMcpToolDescriptor(name, tool, config.timeoutMs),
       );
       const negotiatedProtocolEra = client.getProtocolEra();
       const negotiatedProtocolVersion = client.getNegotiatedProtocolVersion();
@@ -1096,7 +861,6 @@ class NodeMcpAdapter implements McpPort {
         await this.closeClientAndTransport(name, client, transport);
         return this.records.get(name)?.status ?? status;
       }
-      this.connectionDiagnosticByServer.delete(name);
       this.records.set(name, {
         client,
         config,
@@ -1350,34 +1114,15 @@ class NodeMcpAdapter implements McpPort {
       transport,
     } = input;
     const message = error instanceof Error ? error.message : String(error);
-    // 官方 MCP 鉴权失败的稳定分类必须落进日志：failConnection 原先只记
-    // error.message，而多数分类并不出现在 message 文本里（只有 auth-port 那条带上了），
-    // 导致 official_mcp_origin_untrusted / official_auth_rejected 等在生产日志里 grep 不到。
-    const officialAuthKind =
-      (error instanceof OfficialMcpAuthError ? error.kind : undefined) ??
-      this.lastOfficialAuthKind.get(name);
-    this.lastOfficialAuthKind.delete(name);
-    const responseDiagnostic = this.connectionDiagnosticByServer.get(name);
-    this.connectionDiagnosticByServer.delete(name);
     const failureKind =
-      (officialAuthKind === "official_mcp_origin_untrusted"
-        ? "official_origin_untrusted"
-        : undefined) ??
-      responseDiagnostic?.failureKind ??
       (error instanceof McpTimeoutError && fallbackFailureKind !== "tool_list_failed"
         ? "connection_timeout"
         : undefined) ??
       fallbackFailureKind ??
       "connection_failed";
-    const displayMessage = responseDiagnostic?.serverRequestId
-      ? `${message} - ${responseDiagnostic.serverRequestId}`
-      : message;
     const status = this.createStatus(config, "failed", {
-      error: displayMessage,
+      error: message,
       failureKind,
-      ...(responseDiagnostic?.serverRequestId
-        ? { serverRequestId: responseDiagnostic.serverRequestId }
-        : {}),
     });
     const recentStderr = getRecentStderr?.();
     const mcpTransportPid = getStdioTransportPid(transport);
@@ -1390,11 +1135,10 @@ class NodeMcpAdapter implements McpPort {
       ...this.connectionContext,
       connectDurationMs,
       durationMs: Date.now() - startedAt,
-      error: displayMessage,
+      error: message,
       event: "mcp.server.failed",
       listToolsDurationMs,
       mcpServerName: name,
-      ...(officialAuthKind ? { officialAuthKind } : {}),
       ...(mcpTransportPid != null ? { mcpTransportPid } : {}),
       status: "failed",
       ...(recentStderr ? { stderr: recentStderr } : {}),
@@ -1406,10 +1150,7 @@ class NodeMcpAdapter implements McpPort {
   private async createTransport(
     config: McpServerConfig,
     serverName: string,
-    generation: number,
-    _oauthAuthorizationTimeoutMs?: number,
     workingDirectory?: string,
-    signal?: AbortSignal,
   ): Promise<{ transport: McpTransport }> {
     if (config.type === "stdio") {
       return {
@@ -1424,18 +1165,6 @@ class NodeMcpAdapter implements McpPort {
             ...config.env,
           },
           stderr: "pipe",
-          ...(isOfficialAuthConfig(config) && config.official
-            ? {
-                requestMetaProvider: async () => {
-                  const authMeta = await this.resolveOfficialStdioAuthMeta(
-                    serverName,
-                    config,
-                    signal,
-                  );
-                  return authMeta ? { [OFFICIAL_MCP_AUTH_META_KEY]: authMeta } : undefined;
-                },
-              }
-            : {}),
         }),
       };
     }
@@ -1445,13 +1174,10 @@ class NodeMcpAdapter implements McpPort {
       network: this.network,
     });
     if (config.type === "http") {
-      const officialAuthFetch = this.createOfficialAuthFetch(config, serverName, generation);
       return {
         transport: new StreamableHTTPClientTransport(new URL(config.url), {
-          // 官方鉴权路径下 authProvider 必为 undefined：不落 OAuth 凭据、
-          // 不起 localhost 回调 server、401/403 不转授权流程。
           authProvider: this.createOAuthClientProvider(serverName, config),
-          fetch: officialAuthFetch ?? fetch,
+          fetch,
           requestInit: config.headers ? { headers: config.headers } : undefined,
         }),
       };
@@ -1464,52 +1190,6 @@ class NodeMcpAdapter implements McpPort {
         requestInit: config.headers ? { headers: config.headers } : undefined,
       }),
     };
-  }
-
-  /**
-   * 官方鉴权 MCP 的动态 fetch。返回 undefined 表示走普通 MCP 路径。
-   *
-   * trusted origin 依赖缺失时直接 fail closed。auth port 可以缺失：wrapper 仍校验 origin，
-   * 各请求匿名降级并由服务端做权威判定。
-   */
-  private createOfficialAuthFetch(
-    config: McpServerConfig,
-    serverName: string,
-    generation: number,
-  ): typeof globalThis.fetch | undefined {
-    if (!isOfficialAuthConfig(config) || config.type !== "http" || !config.official) {
-      return undefined;
-    }
-    const official = config.official;
-    const authHeadersPort = this.officialMcpAuth?.authHeadersPort;
-    const trustedOrigins = this.officialMcpAuth?.trustedOrigins;
-    if (!trustedOrigins) {
-      return (() => {
-        throw new OfficialMcpAuthError(
-          "official_auth_unavailable",
-          `official MCP trusted origin registry is not available in this runtime: ${serverName}`,
-        );
-      }) as unknown as typeof globalThis.fetch;
-    }
-    return createOfficialMcpAuthFetch({
-      baseFetch: createMcpTransportFetch({ env: this.env, network: this.network }),
-      official,
-      onAuthFailure: (kind) => this.lastOfficialAuthKind.set(serverName, kind),
-      onServerResponse: (response) => {
-        if (this.isCurrentConnection(serverName, generation)) {
-          this.rememberServerResponse(serverName, response);
-        }
-      },
-      serverName,
-      trustedOrigins,
-      url: config.url,
-      ...(authHeadersPort ? { authHeadersPort } : {}),
-      ...(this.logger ? { logger: this.logger } : {}),
-      ...(this.officialMcpAuth?.workspaceIdentity
-        ? { workspaceIdentity: this.officialMcpAuth.workspaceIdentity }
-        : {}),
-      ...(this.workingDirectory ? { workspacePath: this.workingDirectory } : {}),
-    });
   }
 
   /**
@@ -1528,9 +1208,6 @@ class NodeMcpAdapter implements McpPort {
     config: McpServerConfig,
   ): AuthProvider | OAuthClientProvider | undefined {
     if (config.type === "stdio") return undefined;
-    // 官方鉴权与 OAuth 互斥：官方 MCP 的失败只能由 ZCode 登录/套餐解决，
-    // 交出任何 authProvider 都会让 401 误转成 MCP 授权流程。
-    if (isOfficialAuthConfig(config)) return undefined;
     const authorizationCodeOAuthConfig = resolveAuthorizationCodeOAuthConfig(config);
     if (authorizationCodeOAuthConfig) {
       return createMcpOAuthTokenProvider({
@@ -1840,11 +1517,6 @@ function resolveAuthorizationCodeOAuthConfig(
   config: McpServerConfig,
 ): AuthorizationCodeOAuthConfig | undefined {
   if (config.type === "stdio") return undefined;
-  // 官方鉴权与 MCP OAuth 互斥。必须位于所有既有分支之前：
-  // 官方 MCP 既不写 oauth 字段、又禁止静态 authorization 头，若不在此短路就会落进
-  // 下面的 authorization_code 兜底，导致 401 时弹出 MCP 授权 UI —— 而官方鉴权失败
-  // 只能由 ZCode 自身的登录/套餐解决，不可能由目标 MCP 的 OAuth 授权解决。
-  if (isOfficialAuthConfig(config)) return undefined;
   if (config.oauth?.type === "authorization_code") return config.oauth;
   if (config.oauth?.type === "client_credentials") return undefined;
   if (hasAuthorizationHeader(config.headers)) return undefined;
@@ -1854,23 +1526,6 @@ function resolveAuthorizationCodeOAuthConfig(
   return {
     type: "authorization_code",
   };
-}
-
-/**
- * auth.type/provider 精确命中且 provenance 存在时为真；provenance 缺失说明不是 Plugin loader
- * 产出的配置。
- *
- * 覆盖 http 与 stdio 两种形态——两者的凭证投递通道不同，但"是否官方鉴权"
- * 的判定同源。调用方若只关心某一形态，需自行再判 `config.type`（如 createOfficialAuthFetch
- * 只处理 http、_meta 注入只处理 stdio）。
- */
-function isOfficialAuthConfig(config: McpServerConfig): boolean {
-  return (
-    (config.type === "http" || config.type === "stdio") &&
-    config.auth?.type === "zcode_official" &&
-    config.auth.provider === "jwt_token" &&
-    config.official !== undefined
-  );
 }
 
 function hasAuthorizationHeader(headers: Record<string, string> | undefined): boolean {

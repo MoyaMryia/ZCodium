@@ -39,7 +39,6 @@ import {
 import { browserCommandResultSchema } from "../browser-use/result.js";
 import { integratedTerminalShellSelectionSchema } from "../validationAppSettings.js";
 import { zcodeTaskModeSchema } from "../zcode-task-mode-schema.js";
-import { OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS } from "../official-mcp-auth.js";
 import {
   zcodeDeliveryKindSchema,
   zcodeMessageVisibilitySchema,
@@ -2383,52 +2382,6 @@ export type ZCodeProviderRuntimeHeadersResponse = z.infer<
   typeof zcodeProviderRuntimeHeadersResponseSchema
 >;
 
-// ── 官方 Server MCP 鉴权──
-// Agent 进程不是用户身份权威：它把 (pluginId, mcpKey, targetOrigin) 报给 host，由 host
-// 解析当前 Coding Plan 凭证并回传本次请求的身份头。请求侧不含任何秘密。
-// 与 interaction/requestProviderRuntimeHeaders 同类：Agent 发起、host 自动响应、零 UI。
-export const zcodeOfficialMcpAuthHeadersRequestParamsSchema = z
-  .object({
-    requestId: nonEmptyString,
-    workspace: zcodeWorkspaceRefSchema,
-    pluginId: nonEmptyString,
-    mcpKey: nonEmptyString,
-    targetOrigin: nonEmptyString,
-  })
-  .strict();
-export type ZCodeOfficialMcpAuthHeadersRequestParams = z.infer<
-  typeof zcodeOfficialMcpAuthHeadersRequestParamsSchema
->;
-
-/**
- * 失败原因必须可枚举，避免调用方按文本分流；因此响应不含 errorMessage。
- *
- * `official_mcp_origin_untrusted` 是 host 侧二次校验的拒绝原因：`targetOrigin` 不等于当前
- * ZCode API origin。判定只看 origin，`pluginId` / `mcpKey` 仅用于日志归属。与"未登录/无凭据"
- * 分开，才能在排查时区分"被拒绝"和"没身份"。
- */
-export const zcodeOfficialMcpAuthFailureReasonSchema = z.enum(
-  OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS,
-);
-
-export const zcodeOfficialMcpAuthHeadersResponseSchema = z.discriminatedUnion("ok", [
-  z
-    .object({
-      ok: z.literal(true),
-      headers: z.record(z.string(), z.string()),
-    })
-    .strict(),
-  z
-    .object({
-      ok: z.literal(false),
-      reason: zcodeOfficialMcpAuthFailureReasonSchema,
-    })
-    .strict(),
-]);
-export type ZCodeOfficialMcpAuthHeadersResponse = z.infer<
-  typeof zcodeOfficialMcpAuthHeadersResponseSchema
->;
-
 // ── Plugin management (list + enable/disable) ──
 // 镜像 @zcode/contracts 的 PluginMetadata, 仅保留 UI 需要的可序列化字段。
 export const zcodePluginOptionValueSchema = z.union([z.string(), z.number(), z.boolean()]);
@@ -3610,7 +3563,6 @@ export const zcodeProtocolMethods = {
   interactionRequestPermission: "interaction/requestPermission",
   interactionRequestUserInput: "interaction/requestUserInput",
   interactionRequestProviderRuntimeHeaders: "interaction/requestProviderRuntimeHeaders",
-  interactionRequestOfficialMcpAuthHeaders: "interaction/requestOfficialMcpAuthHeaders",
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",

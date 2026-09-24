@@ -60,7 +60,8 @@ const ZCODIUM_AUTHOR = { name: "ZCodium", url: "https://zcode.z.ai" } as const;
 const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obra" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
-export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["browser-use-plugin"];
+export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS =
+  BUILTIN_PLUGIN_SEED_PATHS["browser-use-plugin"];
 const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["node-repl-host"];
 export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["documents-plugin"];
 export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["pdf-plugin"];
@@ -167,14 +168,14 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     }),
   ),
   {
-    // 沿用原聚合文档插件的官方搜图能力，仅拆出独立开关；认证仍由官方 MCP adapter 注入。
-    defaultEnabled: true,
+    // 用户先配置自己的 MCP 服务再启用，空配置不能在每个新会话反复报错。
+    defaultEnabled: false,
     listing: {
       author: ZCODIUM_AUTHOR,
       category: "productivity",
       displayName: "Image Search",
       displayName_i18n: { "zh-CN": "搜图" },
-      description_i18n: { "zh-CN": "查找插图与参考配图。" },
+      description_i18n: { "zh-CN": "连接你配置的网络搜图 MCP 服务。" },
     },
     name: "image-search",
     requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["image-search-plugin"],
@@ -184,7 +185,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../image-search-plugin",
       "../../../image-search-plugin",
     ],
-    version: "0.1.1",
+    version: "0.2.0",
   },
   {
     listing: {
@@ -345,8 +346,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "developer-tools",
       displayName: "Superpowers",
       description_i18n: {
-        "zh-CN":
-          "Superpowers 方法论：头脑风暴、计划、测试驱动开发、系统化调试与代码评审。",
+        "zh-CN": "Superpowers 方法论：头脑风暴、计划、测试驱动开发、系统化调试与代码评审。",
       },
     },
     name: "superpowers",

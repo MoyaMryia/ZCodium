@@ -94,7 +94,6 @@ export * from "./remote-workspace-identity.js";
 export * from "./zcode-api-retry-status.js";
 export * from "./zcode-network-debug-status.js";
 export * from "./zcode-session-visible-content.js";
-export * from "./official-mcp-auth.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";
 export * from "./conversation-share.js";

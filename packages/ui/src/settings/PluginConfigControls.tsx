@@ -1,5 +1,5 @@
 import { Eye, EyeOff, RotateCcw, Save, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ZCodePluginInfo, ZCodePluginScope, ZCodePluginUserConfigOption } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -33,6 +33,7 @@ export function PluginConfigControls({
   scope,
 }: PluginConfigControlsProps) {
   const { intl } = useZCodeIntl();
+  const descriptionPrefix = useId();
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({});
   const entries = Object.entries(plugin.userConfig ?? {});
   if (entries.length === 0) return null;
@@ -50,6 +51,7 @@ export function PluginConfigControls({
       <div className="grid gap-2 sm:grid-cols-2">
         {entries.map(([key, option]) => {
           const label = option.title ?? key;
+          const descriptionId = option.description ? `${descriptionPrefix}-${key}` : undefined;
           const value = getValue(plugin, key, option);
           const clearPending = isOptionClearPending?.(plugin.id, key) ?? false;
           const canClearOption =
@@ -107,6 +109,7 @@ export function PluginConfigControls({
                     type={revealedSecrets[key] ? "text" : "password"}
                     data-testid="plugin-store-config-input"
                     data-config-key={key}
+                    aria-describedby={descriptionId}
                     size="sm"
                     className="h-8 min-w-0 flex-1 rounded-lg"
                     value={String(value)}
@@ -148,6 +151,7 @@ export function PluginConfigControls({
                   <Switch
                     data-testid="plugin-store-config-input"
                     data-config-key={key}
+                    aria-describedby={descriptionId}
                     checked={Boolean(value)}
                     disabled={isSaving}
                     onCheckedChange={(checked) => onSetDraft(plugin.id, key, checked)}
@@ -160,6 +164,7 @@ export function PluginConfigControls({
                     type={option.type === "number" ? "number" : "text"}
                     data-testid="plugin-store-config-input"
                     data-config-key={key}
+                    aria-describedby={descriptionId}
                     size="sm"
                     className="h-8 min-w-0 flex-1 rounded-lg"
                     value={String(value)}
@@ -169,6 +174,15 @@ export function PluginConfigControls({
                   {clearButton}
                 </div>
               )}
+              {/* 配置说明必须随字段可见，否则用户无法知道地址格式和鉴权值的填写规则。 */}
+              {option.description ? (
+                <span
+                  id={descriptionId}
+                  className="mt-1 block text-ui-caption text-foreground-subtle break-words"
+                >
+                  {option.description}
+                </span>
+              ) : null}
             </label>
           );
         })}
