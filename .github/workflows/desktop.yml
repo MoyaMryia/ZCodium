@@ -65,7 +65,15 @@ jobs:
       - name: Install isolated Computer Use test desktop
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb openbox bubblewrap dbus-x11 at-spi2-core
+          sudo apt-get install -y --no-install-recommends xvfb openbox bubblewrap dbus-x11 at-spi2-core apparmor
+          # Ubuntu 24.04 的 userns 限制会阻止 bwrap 配置隔离网络的 loopback。
+          # 仅授权 CI 的 bwrap 创建命名空间，保留全局 AppArmor 与测试断网隔离。
+          sudo apparmor_parser -r <<'PROFILE'
+          abi <abi/4.0>,
+          profile zcodium-ci-bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
       - name: Computer Use actions without network access
         run: node scripts/ci/cua-actions-smoke.mjs
       - name: Remote form browser checks
