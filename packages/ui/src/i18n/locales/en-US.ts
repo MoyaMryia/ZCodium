@@ -1688,11 +1688,6 @@ const enUS: Record<string, string> = {
   "ssh.authMethod": "Authentication method",
   "ssh.auth.password": "Password",
   "ssh.auth.privateKey": "Private key",
-  "ssh.assetInstallMode": "Resource download method",
-  "ssh.assetInstallMode.local-download-upload": "Download locally, then upload",
-  "ssh.assetInstallMode.remote-download": "Download on remote server",
-  "ssh.assetInstallModeDescription":
-    "Remote server download reduces upload waiting, but the server must reach the ZCodium CDN and have download, extract, and checksum tools.",
   "ssh.password": "Password",
   "ssh.passwordPlaceholder": "Enter your SSH password",
   "ssh.privateKey": "Private key",

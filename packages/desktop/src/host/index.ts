@@ -66,7 +66,6 @@ import {
   getAppConfigDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
-  type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
 } from "@zcode/services/node";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -115,7 +114,6 @@ import type {
   DeployLockMode,
   IRemoteBackend,
   RemoteRuntimeNetworkOptions,
-  RemoteAssetNetworkPort,
   RemoteConnection,
 } from "@zcode/server/remote";
 import type { RemoteTarget } from "@zcode/shared";
@@ -185,10 +183,7 @@ const hostRemoteMediaRequestLimiter = {
 const remoteMediaRangePreviewEnabled =
   process.env["ZCODE_REMOTE_MEDIA_RANGE_PREVIEW_ENABLED"] !== "0";
 
-type RemoteAssetDirs = Pick<
-  ConnectOptions,
-  "mockCdnDir" | "remoteCdnBaseUrl" | "remoteCdnBaseUrls" | "remoteCacheDir"
->;
+type RemoteAssetDirs = Pick<ConnectOptions, "bundledRemoteAssetsDir">;
 
 const { parentPort } = process;
 
@@ -1583,7 +1578,6 @@ console.error = (...args: unknown[]) => {
 let databaseStartup: ReturnType<typeof createHostDatabaseStartup> | undefined;
 const pendingStartupAttachments = new Map<string, () => void>();
 let activeServices: ServiceCollection | null = null;
-let activeHostApiNetworkTransport: HostApiNetworkTransport | null = null;
 /** 本地 host services 的资源遥测订阅；远端连接的订阅由各自的 connection handle 持有。 */
 let activeLocalResourceTelemetry: IDisposable | null = null;
 // 资源管理器采样只在 main 请求时执行一次，Host 不维护任何周期定时器。
@@ -1594,14 +1588,6 @@ const hostResourceUsageResponder = createHostResourceUsageResponder({
 let activeSessionRealtimePort: ReturnType<typeof createTaskRealtimeBridgeForHostInit> = null;
 let hasDisposedHostResources = false;
 let disposeHostResourcesInFlight: Promise<HostShutdownResult> | null = null;
-
-function requireActiveHostApiNetworkTransport(): HostApiNetworkTransport {
-  if (!activeHostApiNetworkTransport) {
-    // Bug 原因：remote asset 若在 Host 网络策略就绪前回退 global fetch，会绕过设置页显式代理。
-    throw new Error("Window Host network transport is not initialized");
-  }
-  return activeHostApiNetworkTransport;
-}
 
 async function resolveDesktopRemoteRuntimeNetwork(
   target: RemoteTarget,
@@ -1649,7 +1635,6 @@ async function createWindowRemoteConnectionHandle(params: {
   const connection = await setupRemoteConnection(
     params.target,
     params.remoteAssets,
-    { fetch: requireActiveHostApiNetworkTransport().fetch },
     await resolveDesktopRemoteRuntimeNetwork(params.target),
     (exitCode) => notifyClose({ exitCode, signal: null }),
     params.target.kind === "ssh" ? "caller-serialized" : "remote",
@@ -2256,7 +2241,6 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
         timedOutPhases: shutdownResult.timedOutPhases,
       });
     }
-    activeHostApiNetworkTransport = null;
     return shutdownResult;
   })();
 
@@ -2296,7 +2280,6 @@ function disposeHostResourcesBestEffort(reason: string): void {
       logger.error("failed to dispose local services:", error);
     } finally {
       activeServices = null;
-      activeHostApiNetworkTransport = null;
     }
   }
 
@@ -2943,7 +2926,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
                 process.platform === "win32" ? cuaOperationStateReporter : undefined,
             });
             activeServices = initializedServices;
-            activeHostApiNetworkTransport = hostApiNetworkTransport;
             return initializedServices;
           },
         });
@@ -3003,7 +2985,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
 async function setupRemoteConnection(
   target: RemoteTarget,
   remoteAssets: RemoteAssetDirs,
-  remoteAssetNetwork: RemoteAssetNetworkPort,
   remoteRuntimeNetwork: RemoteRuntimeNetworkOptions | undefined,
   onDidRemoteClose: (exitCode: number) => void,
   deployLockMode: DeployLockMode = "remote",
@@ -3015,7 +2996,6 @@ async function setupRemoteConnection(
   const backend = await createRemoteBackend(target);
   const connection = await connectRemote(backend, {
     ...remoteAssets,
-    remoteAssetNetwork,
     remoteRuntimeNetwork,
     signal,
     // SSH/Docker 远端 server 由 host process 单独启动，不能依赖桌面 main 的环境继承。
@@ -3024,7 +3004,6 @@ async function setupRemoteConnection(
     // 远端 zcode-server/agent 是独立进程，不能继承 host 里的测试/生产 endpoint 选择。
     // 这里只透传 server 侧白名单允许的公开环境变量，避免把 credential/token 带到远端机器。
     remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),
-    assetInstallMode: target.kind === "ssh" ? target.assetInstallMode : undefined,
     // SSH 由窗口级 registry 串行复用，其余 transport 仍保留远端 connector 自身锁。
     deployLockMode,
     onDidRemoteClose: ({ code }) => {

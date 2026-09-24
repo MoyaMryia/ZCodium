@@ -12,7 +12,6 @@ import {
 } from "@zcode/server/remote/deployShared.js";
 import type { RemoteAssetInstaller } from "@zcode/server/remote/remoteAssetInstaller.js";
 import { buildWriteLiteralFileCommand } from "@zcode/server/remote/posixShell.js";
-import { deployDevelopmentZCodeAgentRuntime } from "@zcode/server/remote/zcodeAgentDevDeploy.js";
 import {
   buildRemoteAgentBundleWrapper,
   isRemoteAgentBundleWrapperCurrent,
@@ -72,7 +71,7 @@ async function shouldSkipZCodeAgentDeploy(params: {
 
   if (!params.expectedArtifactSha256) {
     params.loggers.logWarn(
-      `[remote-assets] ${params.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${params.componentId} reason=manifest SHA unavailable`,
+      `[remote-assets] upload required: component=${params.componentId} reason=manifest SHA unavailable`,
     );
     return false;
   }
@@ -84,14 +83,14 @@ async function shouldSkipZCodeAgentDeploy(params: {
   });
   if (identityDecision.shouldDeploy) {
     params.loggers.logWarn(
-      `[remote-assets] ${params.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${params.componentId} reason=${identityDecision.reason}`,
+      `[remote-assets] upload required: component=${params.componentId} reason=${identityDecision.reason}`,
     );
     return false;
   }
 
   if (!(await params.backend.exists(params.remoteBinaryPath))) {
     params.loggers.logWarn(
-      `[remote-assets] ${params.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${params.componentId} reason=remote wrapper missing path=${params.remoteBinaryPath}`,
+      `[remote-assets] upload required: component=${params.componentId} reason=remote wrapper missing path=${params.remoteBinaryPath}`,
     );
     return false;
   }
@@ -101,7 +100,7 @@ async function shouldSkipZCodeAgentDeploy(params: {
       const remoteWrapper = await params.backend.readFile(params.remoteBinaryPath);
       if (!isRemoteAgentBundleWrapperCurrent(remoteWrapper, params.runtimeResourceDir)) {
         params.loggers.logWarn(
-          `[remote-assets] ${params.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${params.componentId} reason=wsl wrapper stale path=${params.remoteBinaryPath}`,
+          `[remote-assets] upload required: component=${params.componentId} reason=wsl wrapper stale path=${params.remoteBinaryPath}`,
         );
         return false;
       }
@@ -113,14 +112,14 @@ async function shouldSkipZCodeAgentDeploy(params: {
   // wrapper 在、但 zcode.cjs 缺失（被清理 / 旧原生二进制部署残留）时也要重新部署。
   if (!(await params.backend.exists(params.remoteBundlePath))) {
     params.loggers.logWarn(
-      `[remote-assets] ${params.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${params.componentId} reason=remote bundle missing path=${params.remoteBundlePath}`,
+      `[remote-assets] upload required: component=${params.componentId} reason=remote bundle missing path=${params.remoteBundlePath}`,
     );
     return false;
   }
 
   if (params.missingOfficialPluginAssetPaths.length > 0) {
     params.loggers.logWarn(
-      `[remote-assets] ${params.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${params.componentId} reason=official plugin assets missing paths=${params.missingOfficialPluginAssetPaths.join(",")}`,
+      `[remote-assets] upload required: component=${params.componentId} reason=official plugin assets missing paths=${params.missingOfficialPluginAssetPaths.join(",")}`,
     );
     return false;
   }
@@ -181,32 +180,9 @@ export async function deployZCodeAgentRuntime(
     remoteProviderDir,
   );
 
-  if (
-    await deployDevelopmentZCodeAgentRuntime(
-      backend,
-      {
-        runtimeVersion: runtime.version,
-        runtimeResourceDir: runtime.bundledResourceDir,
-        remoteProviderDir,
-        remoteVersionFile,
-        remoteBinaryPath,
-        force: Boolean(options.force),
-      },
-      loggers,
-    )
-  ) {
-    return;
-  }
-
-  let expectedArtifactSha256: string | null = null;
-  try {
-    expectedArtifactSha256 =
-      (await options.installer.resolveComponentSha256?.(componentId)) ?? null;
-  } catch (error) {
-    loggers.logWarn(
-      `[zcode-agent-deploy] ${provider}: 读取 manifest SHA 失败，将重新部署: ${String(error)}`,
-    );
-  }
+  // 开发态也必须消费同一份已校验制品，不能绕过 manifest 上传工作区中的旧 dist。
+  const expectedArtifactSha256 = await options.installer.resolveComponentSha256?.(componentId);
+  if (!expectedArtifactSha256) throw new Error(`Bundled agent identity missing: ${componentId}`);
 
   if (
     await shouldSkipZCodeAgentDeploy({
@@ -228,7 +204,7 @@ export async function deployZCodeAgentRuntime(
 
   loggers.log(`[zcode-agent-deploy] ${provider}: 开始部署 v${runtime.version}...`);
   // 缺少远端 plugin 只表示安装不完整，不等于 App 版本变化。
-  // 同 App 版本修复 plugin 时应复用已校验的组件 cache；只有强制部署边界才重新下载制品。
+  // 同 App 版本修复 plugin 时仍使用本次事务校验过的随包制品。
   const forceRefreshRuntimeAsset = Boolean(options.force);
   const permissionRepairSucceeded = await repairLegacyRemoteOfficialPluginDirectoryPermissions({
     backend,

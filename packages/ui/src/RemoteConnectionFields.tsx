@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
-  RemoteAssetInstallMode,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
@@ -65,7 +64,6 @@ export function RemoteConnectionFields({
   port,
   username,
   sshAuthMethod,
-  assetInstallMode,
   password,
   privateKeyPath,
   privateKeyPassphrase,
@@ -89,7 +87,6 @@ export function RemoteConnectionFields({
   setPort,
   setUsername,
   setSshAuthMethod,
-  setAssetInstallMode,
   setPassword,
   setPrivateKeyPath,
   setPrivateKeyPassphrase,
@@ -103,7 +100,6 @@ export function RemoteConnectionFields({
   port: string;
   username: string;
   sshAuthMethod: SSHAuthMethod;
-  assetInstallMode: RemoteAssetInstallMode;
   password: string;
   privateKeyPath: string;
   privateKeyPassphrase: string;
@@ -127,7 +123,6 @@ export function RemoteConnectionFields({
   setPort: (value: string) => void;
   setUsername: (value: string) => void;
   setSshAuthMethod: (value: SSHAuthMethod) => void;
-  setAssetInstallMode: (value: RemoteAssetInstallMode) => void;
   setPassword: (value: string) => void;
   setPrivateKeyPath: (value: string) => void;
   setPrivateKeyPassphrase: (value: string) => void;
@@ -478,40 +473,6 @@ export function RemoteConnectionFields({
               />
             </div>
           )}
-
-          <div>
-            <label className="mb-1 block text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "ssh.assetInstallMode" })}
-            </label>
-            <div className="inline-flex w-full max-w-md flex-col items-stretch rounded-lg border border-input-border bg-input p-[3px] sm:w-fit sm:flex-row sm:items-center">
-              {(["local-download-upload", "remote-download"] as const).map((value) => {
-                const selected = assetInstallMode === value;
-
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setAssetInstallMode(value)}
-                    className={cn(
-                      "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-1 text-center text-ui-base font-medium transition-colors sm:flex-none",
-                      selected
-                        ? "bg-background text-foreground"
-                        : "text-foreground-subtle hover:text-foreground",
-                    )}
-                  >
-                    <span className="min-w-0 break-words">
-                      {intl.formatMessage({
-                        id: `ssh.assetInstallMode.${value}`,
-                      })}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "ssh.assetInstallModeDescription" })}
-            </p>
-          </div>
         </div>
       );
     case "wsl":

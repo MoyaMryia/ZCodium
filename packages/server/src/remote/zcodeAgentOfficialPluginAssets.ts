@@ -1,6 +1,6 @@
+import { remoteComponentRequiredPaths } from "@zcode/shared/bundled-remote-assets";
 import {
   BUILTIN_PLUGIN_ASSETS,
-  BUILTIN_PLUGIN_REQUIRED_PATHS,
   BUILTIN_PLUGIN_TOP_LEVEL_PATHS,
 } from "@zcode/shared/builtin-plugin-assets";
 import { posix } from "node:path";
@@ -12,7 +12,11 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = BUILTIN_PLUGIN_ASSETS.
   ({ directory }) => directory,
 );
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS = BUILTIN_PLUGIN_TOP_LEVEL_PATHS;
-export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = BUILTIN_PLUGIN_REQUIRED_PATHS;
+export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = remoteComponentRequiredPaths(
+  "glm",
+)
+  .filter((path) => path.startsWith("packages/"))
+  .map((path) => path.slice("packages/".length));
 
 export function buildRemoteAgentOfficialPluginDir(remoteProviderDir: string): string {
   return posix.join(remoteProviderDir, REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME);

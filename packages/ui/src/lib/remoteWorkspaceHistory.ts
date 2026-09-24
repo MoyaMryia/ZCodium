@@ -186,7 +186,6 @@ function createRemoteTargetSnapshot(
         port: target.port,
         username: target.username,
         ...(target.sshConfigAlias?.trim() ? { sshConfigAlias: target.sshConfigAlias.trim() } : {}),
-        assetInstallMode: target.assetInstallMode,
         privateKeyPath: target.privateKeyPath,
         passwordCredentialKey:
           target.password && target.password.length > 0
@@ -232,7 +231,6 @@ export function createRemoteTargetFromSnapshot(
         port: snapshot.port,
         username: snapshot.username,
         ...(snapshot.sshConfigAlias ? { sshConfigAlias: snapshot.sshConfigAlias } : {}),
-        ...(snapshot.assetInstallMode ? { assetInstallMode: snapshot.assetInstallMode } : {}),
         ...(snapshot.privateKeyPath ? { privateKeyPath: snapshot.privateKeyPath } : {}),
         ...(credentials.password ? { password: credentials.password } : {}),
         ...(credentials.privateKeyPassphrase

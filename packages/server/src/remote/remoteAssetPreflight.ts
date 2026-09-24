@@ -1,11 +1,9 @@
 import type { IRemoteBackend, StdioStream } from "@zcode/server/remote/backend.js";
 import { waitForClose } from "@zcode/server/remote/deployShared.js";
 
-export type RemoteDownloadTool = "curl" | "wget";
 export type RemoteSha256Tool = "sha256sum" | "shasum" | "openssl";
 
 export interface RemoteAssetTools {
-  download: RemoteDownloadTool;
   tar: "tar";
   sha256: RemoteSha256Tool;
 }
@@ -18,7 +16,7 @@ export async function detectRemoteAssetTools(
   backend: IRemoteBackend,
   loggers: RemoteAssetPreflightLoggers,
 ): Promise<RemoteAssetTools> {
-  loggers.log("[remote-assets] preflight: checking remote download tools");
+  loggers.log("[remote-assets] preflight: checking remote verification tools");
 
   const stream = await backend.exec(buildPreflightCommand());
   const stdoutPromise = collectStdout(stream);
@@ -26,42 +24,30 @@ export async function detectRemoteAssetTools(
   const stdout = await stdoutPromise;
 
   const values = parseToolLines(stdout);
-  const download = parseDownloadTool(values.download);
   const tar = values.tar === "tar" ? "tar" : null;
   const sha256 = parseSha256Tool(values.sha256);
 
-  if (!download) {
-    throw new Error(
-      "远端服务器缺少 curl 或 wget，无法直接下载 ZCode 远程资源。请安装 curl/wget，或切回“本地下载后上传”。",
-    );
-  }
   if (!tar) {
-    throw new Error(
-      "远端服务器缺少 tar，无法解压 ZCode 远程资源。请安装 tar，或切回“本地下载后上传”。",
-    );
+    throw new Error("远端服务器缺少 tar，无法解压 ZCode 远程资源。请安装 tar。");
   }
   if (!sha256) {
     throw new Error(
-      "远端服务器缺少 sha256sum、shasum 或 openssl，无法校验 ZCode 远程资源。请安装其中一个校验工具，或切回“本地下载后上传”。",
+      "远端服务器缺少 sha256sum、shasum 或 openssl，无法校验 ZCode 远程资源。请安装其中一个校验工具。",
     );
   }
 
-  loggers.log(
-    `[remote-assets] preflight: selected tools download=${download} tar=${tar} sha256=${sha256}`,
-  );
+  loggers.log(`[remote-assets] preflight: selected tools tar=${tar} sha256=${sha256}`);
 
-  return { download, tar, sha256 };
+  return { tar, sha256 };
 }
 
 function buildPreflightCommand(): string {
   return [
-    "download=",
-    "if command -v curl >/dev/null 2>&1; then download=curl; elif command -v wget >/dev/null 2>&1; then download=wget; fi",
     "tar_tool=",
     "if command -v tar >/dev/null 2>&1; then tar_tool=tar; fi",
     "sha_tool=",
     "if command -v sha256sum >/dev/null 2>&1; then sha_tool=sha256sum; elif command -v shasum >/dev/null 2>&1; then sha_tool=shasum; elif command -v openssl >/dev/null 2>&1; then sha_tool=openssl; fi",
-    'printf \'download=%s\ntar=%s\nsha256=%s\n\' "$download" "$tar_tool" "$sha_tool"',
+    'printf \'tar=%s\nsha256=%s\n\' "$tar_tool" "$sha_tool"',
   ].join("; ");
 }
 
@@ -75,10 +61,6 @@ function parseToolLines(stdout: string): Record<string, string> {
     values[line.slice(0, separatorIndex)] = line.slice(separatorIndex + 1).trim();
   }
   return values;
-}
-
-function parseDownloadTool(value?: string): RemoteDownloadTool | null {
-  return value === "curl" || value === "wget" ? value : null;
 }
 
 function parseSha256Tool(value?: string): RemoteSha256Tool | null {

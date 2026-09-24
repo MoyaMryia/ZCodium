@@ -1,4 +1,3 @@
-import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 
 export interface SSHConnectOptions {
@@ -10,7 +9,6 @@ export interface SSHConnectOptions {
   password?: string;
   privateKeyPath?: string;
   privateKeyPassphrase?: string;
-  assetInstallMode?: RemoteAssetInstallMode;
   resourcePackages?: RemoteResourcePackageSelection;
 }
 

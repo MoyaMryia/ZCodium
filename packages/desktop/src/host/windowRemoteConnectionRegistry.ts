@@ -8,10 +8,7 @@ import {
 } from "@zcode/shared";
 
 interface WindowRemoteAssetDirs {
-  mockCdnDir?: string;
-  remoteCdnBaseUrl?: string;
-  remoteCdnBaseUrls?: string[];
-  remoteCacheDir?: string;
+  bundledRemoteAssetsDir?: string;
 }
 
 export interface WindowRemoteConnectionCloseEvent {

@@ -46,10 +46,36 @@ jobs:
       - name: Release tests
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
+      - name: Install browser for remote form checks
+        run: pnpm exec playwright-core install --with-deps chromium
+      - name: Remote form browser checks
+        run: node scripts/ci/remote-form-smoke.mjs
+
+  remote-assets:
+    name: Bundled Linux remote runtime
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - name: Build remote components from source
+        run: pnpm prepare:remote-assets
+      - name: Verify native remote runtime
+        run: node scripts/ci/remote-assets-smoke.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: bundled-remote-linux-x64
+          path: packages/desktop/bundled-remote-assets/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   build:
     name: Build (${{ matrix.platform }} x64)
-    needs: checks
+    needs: [checks, remote-assets]
     strategy:
       fail-fast: false
       matrix:
@@ -76,6 +102,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends rpm libarchive-tools zstd
       - uses: ./.github/actions/setup-workspace
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: bundled-remote-linux-x64
+          path: packages/desktop/bundled-remote-assets
+      - name: Verify bundled remote components
+        run: node scripts/bundle-remote-assets.mjs verify
       - name: Prepare desktop runtime
         run: pnpm prepare:desktop-runtime
       - name: Build workspace and desktop

@@ -5,7 +5,6 @@ import { z } from "zod";
 import { zcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
 import { browserCommandSchema } from "./browser-use/commands.js";
 import { browserCommandResultSchema } from "./browser-use/result.js";
-import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { zcodeProviderSchema } from "./providers.js";
@@ -71,7 +70,6 @@ export const sshConnectOptionsSchema = z.object({
   password: z.string().optional(),
   privateKeyPath: z.string().optional(),
   privateKeyPassphrase: z.string().optional(),
-  assetInstallMode: z.enum(REMOTE_ASSET_INSTALL_MODES).optional(),
   resourcePackages: z
     .object({
       selectedPackageIds: z.array(z.string().refine(isKnownRemoteResourcePackageId)).optional(),
@@ -136,10 +134,7 @@ export const broadcastMessageSchema = z.object({
 });
 
 export const remoteAssetDirsSchema = z.object({
-  mockCdnDir: z.string().optional(),
-  remoteCdnBaseUrl: z.string().optional(),
-  remoteCdnBaseUrls: z.array(z.string()).optional(),
-  remoteCacheDir: z.string().optional(),
+  bundledRemoteAssetsDir: z.string().optional(),
 });
 
 const hostAgentWarmupTargetSchema = z.object({

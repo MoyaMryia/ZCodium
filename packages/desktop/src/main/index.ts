@@ -705,8 +705,7 @@ app.on("browser-window-created", (_event, win) => {
 const remoteSessionManager = createRemoteWorkspaceSessionManager({
   logger,
   windowHostProcessMap,
-  resolveRemoteAssetDirs: () =>
-    resolveRemoteAssetDirs({ locale: currentApplicationLocale }, hostProcessLocalEnv),
+  resolveRemoteAssetDirs,
   resolveWslTarget: resolveCanonicalWslTarget,
 });
 

@@ -40,7 +40,6 @@ export { DEFAULT_LOCALE } from "./protocol.js";
 export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
 export type { ZCodeEnv, ZCodeProductFlavor } from "./env.js";
-export type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 export type {
   RemoteResourcePackageId,
   RemoteResourcePackageSelection,
@@ -132,7 +131,6 @@ export * from "./feedback.js";
 export * from "./e2e-test-bridge.js";
 export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
-export * from "./remoteAssetInstallMode.js";
 export * from "./onboardingRecord.js";
 export * from "./remoteResourcePackages.js";
 export * from "./plan-identity.js";

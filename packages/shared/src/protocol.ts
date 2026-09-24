@@ -1,4 +1,3 @@
-import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
@@ -131,7 +130,6 @@ export interface SSHRemoteTargetSnapshot {
   /** 用户建立连接时选择的 SSH config Host alias，仅用于 UI 展示。 */
   sshConfigAlias?: string;
   privateKeyPath?: string;
-  assetInstallMode?: RemoteAssetInstallMode;
   resourcePackages?: RemoteResourcePackageSelection;
   /**
    * SSH 密码不会写入 setting.json。

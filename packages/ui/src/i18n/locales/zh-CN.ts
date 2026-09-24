@@ -1571,11 +1571,6 @@ const zhCN: Record<string, string> = {
   "ssh.authMethod": "认证方式",
   "ssh.auth.password": "密码",
   "ssh.auth.privateKey": "私钥",
-  "ssh.assetInstallMode": "资源下载方式",
-  "ssh.assetInstallMode.local-download-upload": "本地下载后上传",
-  "ssh.assetInstallMode.remote-download": "远端服务器下载",
-  "ssh.assetInstallModeDescription":
-    "远端服务器下载可减少上传等待，但服务器需要能访问 ZCodium CDN，并具备下载、解压和校验工具。",
   "ssh.password": "密码",
   "ssh.passwordPlaceholder": "输入 SSH 密码",
   "ssh.privateKey": "私钥",

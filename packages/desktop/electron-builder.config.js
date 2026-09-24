@@ -14,6 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { runCommand, runCommandAndReadStdout } from "../../scripts/spawn-command.mjs";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
+import { verifyBundledRemoteAssets } from "../../scripts/bundle-remote-assets.mjs";
 import { noticesFileName, stageElectronNotices } from "../../scripts/third-party-notices.mjs";
 import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tools-config.mjs";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
@@ -532,6 +533,10 @@ export default {
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
   ],
   beforePack: async (context) => {
+    await verifyBundledRemoteAssets(
+      resolve(import.meta.dirname, "bundled-remote-assets"),
+      context.packager.appInfo.version,
+    );
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>
       restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform }),
     );
@@ -571,6 +576,10 @@ export default {
     await stageElectronNotices(context.appOutDir, resources, framework.version);
   },
   afterPack: async (context) => {
+    await verifyBundledRemoteAssets(
+      join(resolvePackagedResourcesDir(context), "remote-assets"),
+      context.packager.appInfo.version,
+    );
     const actualWindowsTarget =
       context.electronPlatformName === "win32"
         ? resolveElectronBuilderWindowsTarget({
@@ -600,6 +609,7 @@ export default {
     }
   },
   extraResources: [
+    { from: "bundled-remote-assets", to: "remote-assets" },
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
     ...(targetPlatform.os === "darwin"
       ? [
