@@ -2455,18 +2455,8 @@ export function createLocalServices(options: {
       }),
     )
     .register(ICodingPlanSubscriptionService, codingPlanSubscriptionService)
-    .register(
-      IClientConfigService,
-      createClientConfigService({
-        apiClient,
-        resolveRequestContext: async () => ({
-          endpointOrigin: await resolveCurrentZCodeEndpointOrigin(),
-          appVersion: ZCODE_VERSION,
-          platform: `${process.platform}-${process.arch}`,
-        }),
-      }),
-    )
-    .register(IClientScenesService, createClientScenesService({ apiClient }))
+    .register(IClientConfigService, createClientConfigService())
+    .register(IClientScenesService, createClientScenesService())
     .register(
       IOffPeakTaskService,
       (() => {
@@ -2712,10 +2702,7 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
 // 机器人（AstrBot 桥接）实现依赖 node:crypto / node:fs，只能从 @zcode/services/node 引入。
 // 官方 bots 服务（createBotsService）见上方；AstrBot 桥接作为独立 provider 并存。
 export { AstrBotBridgeService } from "./bots/astrbotBridgeService.js";
-export type {
-  AstrBotBridgeServiceOptions,
-  BotsBindCode,
-} from "./bots/astrbotBridgeService.js";
+export type { AstrBotBridgeServiceOptions, BotsBindCode } from "./bots/astrbotBridgeService.js";
 export type { BotsRuntimePort, BotsWorkspaceRef } from "./bots/botsRuntimePort.js";
 export { projectTaskStreamEvent } from "./bots/botsEventProjector.js";
 export type { BotsProjectedEvent, BotsStreamTerminal } from "./bots/botsEventProjector.js";

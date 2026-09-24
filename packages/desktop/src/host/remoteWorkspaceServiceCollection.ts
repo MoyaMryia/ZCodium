@@ -360,7 +360,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     )
     .register(ICodingPlanSubscriptionService, localCodingPlanSubscriptionService)
     .register(IClientConfigService, params.clientConfigService)
-    .register(IClientScenesService, createClientScenesService({ apiClient: localApiClient }))
+    .register(IClientScenesService, createClientScenesService())
     // 远端 workspace 的项目级 skills/plugins/commands 位于 SSH/Docker 文件系统。
     // 这里必须透出远端服务，避免本机服务拿远端 workspacePath 去本机目录扫描。
     .register(ISkillsService, params.connectionServices.skillsService)

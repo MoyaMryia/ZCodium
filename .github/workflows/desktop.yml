@@ -50,6 +50,8 @@ jobs:
         run: pnpm exec playwright-core install --with-deps chromium
       - name: Remote form browser checks
         run: node scripts/ci/remote-form-smoke.mjs
+      - name: Bundled catalog browser checks
+        run: node scripts/ci/client-catalog-smoke.mjs
 
   remote-assets:
     name: Bundled Linux remote runtime
