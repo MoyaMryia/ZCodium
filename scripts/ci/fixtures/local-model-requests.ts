@@ -12,3 +12,5 @@ export {
   createStreamTextOptions,
 } from "../../../apps/zcode-cli/packages/adapters/src/model/runner-options.ts";
 export { maybeStartSessionTitleGeneration } from "../../../apps/zcode-cli/packages/core/src/runtime/methods/session-title.ts";
+export { createRuntimeAiSdkModelExecutionConfig } from "../../../apps/zcode-cli/packages/bootstrap/src/model-config.ts";
+export { createModelAdapter } from "../../../apps/zcode-cli/packages/bootstrap/src/model-factory.ts";

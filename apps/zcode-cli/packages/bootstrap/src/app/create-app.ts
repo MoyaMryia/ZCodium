@@ -512,9 +512,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     };
 
     const modelExecutionConfig = createRuntimeAiSdkModelExecutionConfig(options.env, {
-      appVersion,
       network: configResult.config.network,
-      sourceTitle: options.sourceTitle,
     });
     const modelAdapter =
       options.modelAdapter ??

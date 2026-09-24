@@ -221,7 +221,6 @@ export async function runZCodeProtocolAgent(
                   }),
               }
             : {}),
-          sourceTitle: "electron",
           onToolExecResource: (params) =>
             connection.send({ method: zcodeProtocolNotifications.toolExecResource, params }),
         }),

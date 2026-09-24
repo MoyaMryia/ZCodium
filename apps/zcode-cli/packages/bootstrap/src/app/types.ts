@@ -27,7 +27,6 @@ import type {
 import type { ZCodeModelOption } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 export type { ZCodeModelOption } from "@zcode/shared";
-import type { ModelProviderSourceTitle } from "../model-config.js";
 import type { ZCodeInstalledPluginData } from "../plugins.js";
 import type {
   AutomationPort,
@@ -125,11 +124,6 @@ export interface ZCodeAppOptions {
   version?: string;
   traceContext?: TraceContext;
   runtimeConfig?: ZCodeAppRuntimeConfigInput;
-  /**
-   * stdio 协议模式的 agent 进程由 Electron host 拉起，模型服务需要看到 electron 来源。
-   * 普通 CLI 不传，继续使用 cli 默认值。
-   */
-  sourceTitle?: ModelProviderSourceTitle;
   eventStore?: SessionEventStorePort;
   sessionStore?: SessionStorePort;
   sessionMailboxPort?: SessionMailboxPort;

@@ -10,7 +10,51 @@ const {
   AiSdkModelExecution,
   createGenerateTextOptions,
   createStreamTextOptions,
+  createRuntimeAiSdkModelExecutionConfig,
+  createModelAdapter,
 } = await tsImport("./fixtures/local-model-requests.ts", import.meta.url);
+
+function assertNoImplicitClientMetadata(headers) {
+  for (const name of [
+    "http-referer",
+    "x-title",
+    "x-release-channel",
+    "x-client-language",
+    "x-client-timezone",
+    "x-zcode-agent",
+    "x-zcode-app-version",
+    "x-platform",
+    "x-os-category",
+    "x-os-version",
+  ]) {
+    assert.equal(headers[name], undefined, name);
+  }
+  assert.ok(!headers["user-agent"]?.includes("ZCode/"));
+}
+
+test("runtime model config preserves network settings without collecting client metadata", (t) => {
+  const env = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error("Client metadata environment must not be read");
+      },
+    },
+  );
+  t.mock.method(Intl, "DateTimeFormat", () => {
+    throw new Error("Locale and timezone must not be collected");
+  });
+  const network = {
+    httpProxy: "http://fixture.invalid:8080",
+    noProxy: "localhost",
+    caCertFile: "fixture-ca.pem",
+  };
+  const config = createRuntimeAiSdkModelExecutionConfig(env, { network });
+  assert.equal(config.env, env);
+  assert.deepEqual(config.network, network);
+  assert.equal(config.defaultHeaders, undefined);
+  assert.equal(createRuntimeAiSdkModelExecutionConfig(env).network, undefined);
+});
 
 const modelOptions = { maxOutputTokens: 64, reasoningLevel: "disabled" };
 const modelConfig = {
@@ -142,7 +186,7 @@ test(
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
     const adapter = new AiSdkModelAdapter({
-      env: {},
+      ...createRuntimeAiSdkModelExecutionConfig({ ZCODE_APP_VERSION: "99.0.0-fixture" }),
       retry: { maxAttempts: 2, baseDelayMs: 0, jitter: false },
     });
     const providerConfig = {
@@ -178,6 +222,7 @@ test(
       assert.equal(result.text, "Fixture answer");
       assert.equal(requests.length, 2);
       for (const headers of requests) {
+        assertNoImplicitClientMetadata(headers);
         assert.equal(headers.authorization, "Bearer fixture-user-key");
         assert.equal(headers["x-fixture-user"], "fixture-header");
         assert.ok(
@@ -255,8 +300,11 @@ test(
       res.end("data: [DONE]\n\n");
     });
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const adapter = new AiSdkModelAdapter({
+    const adapter = createModelAdapter({
       env: {},
+      executionConfig: createRuntimeAiSdkModelExecutionConfig({
+        ZCODE_APP_VERSION: "99.0.0-fixture",
+      }),
       statusSink: { publish: (event) => statuses.push(event) },
     });
     const model = adapter.createModel({
@@ -301,6 +349,7 @@ test(
       assert.equal(events.find((event) => event.type === "finish").usage.totalTokens, 5);
       assert.ok(completed.durationMs >= 0);
       assert.equal(requests.length, 1);
+      assertNoImplicitClientMetadata(requests[0]);
       assert.equal(requests[0].authorization, "Bearer fixture-key");
       for (const name of [
         "x-zcode-trace-id",

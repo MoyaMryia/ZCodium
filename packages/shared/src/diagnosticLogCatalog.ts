@@ -2596,7 +2596,6 @@ export const diagnosticModules: readonly string[] = [
   "apps/zcode-cli/packages/bootstrap/src/permission-options.ts",
   "apps/zcode-cli/packages/bootstrap/src/plugins.ts",
   "apps/zcode-cli/packages/bootstrap/src/process-resource-sampler.ts",
-  "apps/zcode-cli/packages/bootstrap/src/runtime-platform-headers.ts",
   "apps/zcode-cli/packages/bootstrap/src/session-transcript.ts",
   "apps/zcode-cli/packages/bootstrap/src/sessions.ts",
   "apps/zcode-cli/packages/bootstrap/src/skill-command-overrides.ts",
