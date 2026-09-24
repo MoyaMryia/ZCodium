@@ -2,13 +2,11 @@ import type { ApiClient } from "@zcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { ICodingPlanSubscriptionService } from "./codingPlanSubscription.js";
 import { BigModelCodingPlanSubscriptionProvider } from "./bigmodelCodingPlanSubscriptionProvider.js";
-import type { ModelSelectionView } from "@zcode/provider";
 import { ZaiCodingPlanSubscriptionProvider } from "./zaiCodingPlanSubscriptionProvider.js";
 
 interface CodingPlanSubscriptionServiceDependencies {
   apiClient: ApiClient;
   credentialService: Pick<ICredentialService, "load">;
-  resolveOffPeakModelSelectionView?: () => Promise<ModelSelectionView>;
 }
 
 /** 账号查询按 family 路由；通用客户端配置由同一提供方读取。 */
@@ -25,7 +23,6 @@ export function createCodingPlanSubscriptionService(
 
   return {
     getStaticTeamProducts: () => bigmodelProvider.getStaticTeamProducts(),
-    getOffPeakClientConfig: (options) => bigmodelProvider.getOffPeakClientConfig(options),
     // 动态工作流灰度：与 client/configs 同源，
     // 因此和其它平台级配置一样固定走 bigmodel provider，与 family 无关。
     getDynamicWorkflowClientConfig: (options) =>

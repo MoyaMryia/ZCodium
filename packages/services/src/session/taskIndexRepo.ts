@@ -541,7 +541,7 @@ export class TaskIndexRepo {
    * 存量回填（幂等，每次 bootstrap 自愈）：打点上线前产生的 off-peak 会话行没有
    * offPeakTaskId。off_peak_tasks 与 tasks 同库（tasks-index.sqlite），按 session 绑定
    * join 只补投影列——rowToMeta 以列兜底即可生效，下次 syncTaskMeta 会自动回填 meta_json。
-   * 全新安装时 off_peak_tasks 可能尚未由 OffPeakTaskRepo 建表，需 guard。
+   * 只兼容读取旧表；缺少历史表时不创建数据，直接跳过。
    */
   private backfillOffPeakTaskMarkers(): void {
     const database = this.getDatabase();

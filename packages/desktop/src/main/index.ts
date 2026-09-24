@@ -599,17 +599,8 @@ function forwardCronRunResult(
 ): void {
   cronScheduler?.handleCronRunResult(result);
 }
-function forwardOffPeakRunResult(
-  result: Parameters<CronSchedulerHandle["handleOffPeakRunResult"]>[0],
-): void {
-  cronScheduler?.handleOffPeakRunResult(result);
-}
 function wakeCronScheduler(automationId: string): void {
   cronScheduler?.wake(automationId);
-}
-function wakeOffPeakScheduler(offPeakTaskId?: string): void {
-  // 复用同一条 scheduler-wake 通道（tick 同时覆盖 cron 与 off-peak 分支），仅日志标签区分。
-  cronScheduler?.wake(`offpeak:${offPeakTaskId ?? "sync"}`);
 }
 // 选一个本地 host 执行派发：本期本地 workspace 由任一本地窗口 host 的 createTask 按 path 拉起/复用 agent。
 function resolveCronDispatchHost(): ElectronUtilityProcess | null {
@@ -1538,9 +1529,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           onCuaOperationStateSourceExited: (source) =>
             windowsCuaOperationIndicator.clearSource(source),
           onCronRunResult: forwardCronRunResult,
-          onOffPeakRunResult: forwardOffPeakRunResult,
           onCronSchedulerWakeRequested: wakeCronScheduler,
-          onOffPeakSchedulerWakeRequested: wakeOffPeakScheduler,
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
           // Bugfix: bot service 运行在本地窗口 host 内，/reconnect 必须能从本地 host 请求 main 创建远端 session。
           handleBotRemoteWorkspaceReconnectRequest: async ({
@@ -1773,7 +1762,6 @@ app.whenReady().then(async () => {
         logger,
         resolveDispatchHost: resolveCronDispatchHost,
         // keep-awake 已改为纯设置驱动；计数上报保留给后续诊断/配额用途，不再联动 blocker。
-        onOffPeakActiveCountChanged: () => {},
       });
     } catch (error) {
       logger.error("[cron-scheduler] failed to spawn scheduler process:", error);

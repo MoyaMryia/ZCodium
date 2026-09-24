@@ -68,6 +68,7 @@ jobs:
       - name: Self-managed model settings
         run: |
           pnpm --filter @zcode/desktop build:no-runtime-assets
+          node scripts/ci/local-scheduler-smoke.mjs
           node scripts/ci/self-managed-models-smoke.mjs
           node scripts/ci/model-choice-smoke.mjs
           node scripts/ci/local-usage-smoke.mjs

@@ -347,23 +347,6 @@ export const hostCronRunMessageSchema = z.object({
   mode: z.string().optional(),
 });
 
-// main → host：闲时任务派发（仿 cron-run，字段独立不复用）。首跑不带 conversationId/sessionId，
-// host createTask 新建 session；3h 续跑 / 中断恢复带上两者 resume 同一会话。
-// serverTicketId 供 idle plan 适配层注入 X-Off-Peak-Ticket-ID 请求头（run 作用域）。
-export const hostOffPeakRunMessageSchema = z.object({
-  type: z.literal("off-peak-run"),
-  offPeakTaskId: nonEmptyStringSchema,
-  workspacePath: nonEmptyStringSchema,
-  workspaceIdentity: z.string().optional(),
-  prompt: nonEmptyStringSchema,
-  // 权限四档映射现有 ZCodeTaskMode；与 cron-run 的 mode 同样按宽松 string 传输
-  permissionMode: nonEmptyStringSchema,
-  modelSelection: modelSelectionSchema,
-  conversationId: z.string().optional(),
-  sessionId: z.string().optional(),
-  serverTicketId: z.string().optional(),
-});
-
 // main → host：browser-use 命令执行结果（按 requestId 关联到 host 的 pending）。
 export const hostBrowserExecuteResultMessageSchema = z.object({
   type: z.literal("browser-execute-result"),
@@ -443,7 +426,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostSessionMessageDeliverMessageSchema,
   hostSessionMessageDeliveryResultMessageSchema,
   hostCronRunMessageSchema,
-  hostOffPeakRunMessageSchema,
   hostBrowserExecuteResultMessageSchema,
   hostLocalMediaPreviewPathAuthorizeResultMessageSchema,
   hostCuaPipFocusChangedMessageSchema,
@@ -793,27 +775,10 @@ export const hostCronRunResultResponseSchema = z.object({
   failureKind: z.enum(["transient", "permanent"]).optional(),
 });
 
-// host → main：闲时任务派发结果。ok=session 已确保存在且 prompt 已发出；迟到结果用 offPeakTaskId 兜底结算。
-export const hostOffPeakRunResultResponseSchema = z.object({
-  type: z.literal("off-peak-run-result"),
-  offPeakTaskId: nonEmptyStringSchema,
-  ok: z.boolean(),
-  conversationId: z.string().optional(),
-  sessionId: z.string().optional(),
-  error: z.string().optional(),
-  failureKind: z.enum(["transient", "permanent"]).optional(),
-});
-
 // host → main：manual run 落库后的 scheduler 唤醒请求；业务数据仍由 scheduler 从 sqlite 读取。
 export const hostCronSchedulerWakeRequestResponseSchema = z.object({
   type: z.literal("cron-scheduler-wake-request"),
   automationId: nonEmptyStringSchema,
-});
-
-// host → main：闲时任务 schedulable 翻转后的 scheduler 唤醒；业务数据仍由 scheduler 从 sqlite 读取。
-export const hostOffPeakSchedulerWakeRequestResponseSchema = z.object({
-  type: z.literal("off-peak-scheduler-wake-request"),
-  offPeakTaskId: z.string().optional(),
 });
 
 // host → main：执行一条 browser-use 命令（main 用 WebContentsView+CDP 执行）。
@@ -949,9 +914,7 @@ export const hostResponseMessageSchema = z.discriminatedUnion("type", [
   hostProviderProvisioningSourceChangedResponseSchema,
   hostProviderProvisioningExecutionResultResponseSchema,
   hostCronRunResultResponseSchema,
-  hostOffPeakRunResultResponseSchema,
   hostCronSchedulerWakeRequestResponseSchema,
-  hostOffPeakSchedulerWakeRequestResponseSchema,
 ]);
 
 export const zcodeTaskPersistStatusSchema = z.enum(["running", "completed", "error"]);
