@@ -30,5 +30,11 @@ export declare function createNodeReplMcpRuntime(input?: {
 }): NodeReplMcpRuntime;
 export { installNodeReplProcessGuards, installNodeReplShutdownTriggers };
 export declare function main(): Promise<void>;
-export declare function captureComputerUseRuntimeFromEnvironment(env?: NodeJS.ProcessEnv): ComputerUseRuntime | undefined;
+/**
+ * 按平台装配 Computer Use 运行时：
+ * - Linux 老 GNOME 自动组装 compat（探测 shell/portal/WinRects 版本）；
+ * - macOS / Linux 新合成器 / X11 走 cua-driver 原生。
+ * 仅当 env 指定 driver socket / embedded 时才构造；driver 缺失保持 fail-closed。
+ */
+export declare function captureComputerUseRuntimeFromEnvironment(env?: NodeJS.ProcessEnv): Promise<ComputerUseRuntime | undefined>;
 //# sourceMappingURL=server.d.ts.map

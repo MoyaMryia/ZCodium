@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { cp, mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
@@ -67,6 +67,13 @@ export const buildNodeReplHostBundle = async ({
       );
     }
   }
+  // 兼容层 GJS helper 是外部脚本（gjs 运行）与 Shell 扩展，不参与 esbuild 打包；
+  // 但 helper-client 以 `new URL("./helper/cua-wayland-input.js", import.meta.url)` 定位它，
+  // bundle 部署后 import.meta.url 指向 dist/mcp/server.js，所以必须整目录拷到 dist/mcp/helper/。
+  const cuaHelperDirSource = resolve(packageRoot, "../../../..", "packages", "zcode-cua", "compatible", "helper");
+  const cuaHelperDirTarget = resolve(dirname(outfile), "helper");
+  await mkdir(cuaHelperDirTarget, { recursive: true });
+  await cp(cuaHelperDirSource, cuaHelperDirTarget, { recursive: true });
   return { outfile, cuaHelperBuildId };
 };
 
