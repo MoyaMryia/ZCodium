@@ -5,20 +5,11 @@ import {
   type AccountProviderConfigSnapshot,
   type AccountProviderStates,
 } from "@zcode/provider";
-import {
-  isBuiltinModelProviderId,
-  resolveRuntimeZCodeEndpointOrigin,
-  ZCODE_VERSION,
-} from "@zcode/shared";
-import { dirname, join } from "node:path";
+import { isBuiltinModelProviderId } from "@zcode/shared";
 import {
   NodeModelSelectionConfigRepository,
   NodeProviderRegistryRuntime,
   resolveNodeProviderRuntimePaths,
-  downloadZCodeBuiltinRelease,
-  resolveZCodeBuiltinClientPlatform,
-  ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
-  type ZCodeBuiltinRefreshEvent,
 } from "@zcode/provider-node";
 import {
   createSharedZCodeCredentialStore,
@@ -36,9 +27,7 @@ export interface ProcessProviderRegistryRuntimeOptions {
     readonly credentialStore?: SharedZCodeCredentialStore;
     readonly legacyCliUserConfigFilePath?: string;
     readonly onAccountInitializationError?: (error: unknown) => void;
-    readonly request?: typeof fetch;
-    readonly onBuiltinRefreshError?: (error: unknown) => void;
-    readonly onBuiltinRefreshResult?: (event: ZCodeBuiltinRefreshEvent) => void;
+    readonly onConfigCheckError?: (error: unknown) => void;
   };
 }
 
@@ -56,34 +45,9 @@ export async function startProcessProviderRegistryRuntime(
     ? (options.standalone.credentialStore ?? createSharedZCodeCredentialStore({ env: { ...env } }))
     : undefined;
   let standaloneAccount: AccountProviderService | undefined;
-  const bundledFile = options.standalone
-    ? env[ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV]?.trim()
-    : undefined;
   const runtime = new NodeProviderRegistryRuntime({
     ...paths,
-    ...(bundledFile
-      ? {
-          zcodeBuiltinFilePath: bundledFile,
-          zcodeBuiltinActiveFilePath: paths.zcodeBuiltinFilePath,
-          zcodeBuiltinRemote: {
-            controlFilePath: join(
-              dirname(paths.zcodeBuiltinFilePath),
-              "zcode-builtin-refresh.json",
-            ),
-            resolveEndpointKey: () => resolveRuntimeZCodeEndpointOrigin(env),
-            fetchRelease: (endpointOrigin, signal) =>
-              downloadZCodeBuiltinRelease({
-                endpointOrigin,
-                signal,
-                appVersion: ZCODE_VERSION,
-                platform: resolveZCodeBuiltinClientPlatform(),
-                request: options.standalone?.request ?? globalThis.fetch,
-              }),
-            onRefreshResult: options.standalone?.onBuiltinRefreshResult,
-          },
-        }
-      : {}),
-    onZCodeBuiltinRefreshError: options.standalone?.onBuiltinRefreshError,
+    onConfigCheckError: options.standalone?.onConfigCheckError,
     accountSource,
     ...(credentialStore
       ? {
@@ -123,7 +87,7 @@ export async function startProcessProviderRegistryRuntime(
       : {}),
   });
   const disposeRecovery = standaloneAccount
-    ? runtime.onDidCheckZCodeBuiltin(async () => {
+    ? runtime.onDidCheckConfig(async () => {
         const [config, account] = await Promise.all([
           runtime.configService.read(),
           standaloneAccount!.read(),

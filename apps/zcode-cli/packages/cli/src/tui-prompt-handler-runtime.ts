@@ -4,7 +4,7 @@
 // 公开面仍从 tui-prompt-handler.ts 导出。
 import { loadBootstrapModule } from "./bootstrap-loader.js";
 import { loadCliDotenv } from "./env.js";
-import { createCliProviderRefreshReporter } from "./provider-runtime-env.js";
+import { createCliProviderCheckReporter } from "./provider-runtime-env.js";
 import { resolveResumeSession } from "./resume.js";
 import type { CliResumeRequest, RunDependencies } from "./cli-types.js";
 
@@ -60,7 +60,7 @@ export async function prepareTuiAppRuntime(
       ? {}
       : {
           standalone: {
-            ...createCliProviderRefreshReporter(),
+            ...createCliProviderCheckReporter(),
             ...(deps.userConfigPath ? { legacyCliUserConfigFilePath: deps.userConfigPath } : {}),
           },
         },

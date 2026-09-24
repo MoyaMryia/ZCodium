@@ -126,6 +126,8 @@ pnpm dev:desktop:test
 ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
 ```
 
+内置模型与供应商目录随应用和 CLI 发布，运行时不会从官方服务下载更新，也不会使用历史下载缓存。个人模型、API 密钥与自定义端点仍通过现有设置管理。
+
 ### 远程功能（SSH/WSL）
 
 Linux x64 与 Windows x64 桌面安装包内置 Linux x64 远端运行资源。连接 SSH、WSL 或 Linux 容器时，应用校验随包组件并上传安装；远端无需访问组件 CDN。已有匹配组件会复用，缺少必需文件时自动修复。目前远端目标仅支持 Linux x64。

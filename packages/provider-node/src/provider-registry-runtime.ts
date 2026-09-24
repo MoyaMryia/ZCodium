@@ -57,8 +57,8 @@ export class NodeProviderRegistryRuntime {
     return this.#configRuntime.personalRepository;
   }
 
-  onDidCheckZCodeBuiltin(listener: () => Promise<void>): () => void {
-    return this.#configRuntime.onDidCheckZCodeBuiltin(listener);
+  onDidCheckConfig(listener: () => Promise<void>): () => void {
+    return this.#configRuntime.onDidCheckConfig(listener);
   }
 
   dispose(): void {

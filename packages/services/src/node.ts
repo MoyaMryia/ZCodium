@@ -370,7 +370,6 @@ import { bindAccountProviderInvalidation } from "./model-provider/accountProvide
 import { AccountProviderApiClient } from "./model-provider/accountProviderApiClient.js";
 import { AccountProviderApiKeyResolver } from "./model-provider/accountProviderApiKeyResolver.js";
 import { createProviderConfigRuntime } from "./model-provider/providerConfigRuntime.js";
-import { fetchZCodeBuiltinRemoteRelease } from "./model-provider/zcodeBuiltinRemoteConfig.js";
 import {
   createProviderRuntimeFromConfigRuntime,
   type ProviderRuntime,
@@ -391,7 +390,6 @@ import {
 import { createProviderProvisioningTarget } from "./model-provider/providerProvisioningTarget.js";
 import { IProviderProvisioningTargetService } from "./model-provider/providerProvisioning.js";
 import { buildOffPeakModelSelectionView } from "./model-provider/offPeakModelSelectionView.js";
-import { resolveClientConfigPlatform } from "./runtime-tools/clientPlatform.js";
 import {
   createAccountRequestAuthService,
   type IAccountRequestAuthService,
@@ -518,7 +516,6 @@ import {
   ZAI_PROVIDER_ID,
   zcodeAccountAccessSchema,
   zcodeProviderAccountAccessSchema,
-  ZCODE_VERSION,
   buildRuntimeZCodeApiUrl,
 } from "@zcode/shared";
 
@@ -1509,30 +1506,10 @@ export function createLocalServices(options: {
     }),
   );
   const providerConfigLog = createServiceLogger("provider-config");
-  const clientConfigPlatform = resolveClientConfigPlatform();
   const providerConfigRuntime = createProviderConfigRuntime({
     zcodeBuiltinFilePath: options.zcodeBuiltinProviderConfigFilePath,
-    zcodeBuiltinEnvironment: {
-      environmentConfigRoot: resolveAppConfigDir(),
-      platform: clientConfigPlatform,
-      appVersion: ZCODE_VERSION,
-      resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-      onRefreshResult: (event) => {
-        if (event.result === "updated")
-          providerConfigLog.info(undefined, "ZCode Built-in CDN 配置已更新", event);
-        else providerConfigLog.debug(undefined, "ZCode Built-in 刷新检查", event);
-      },
-      fetchRelease: (endpointOrigin, signal) =>
-        fetchZCodeBuiltinRemoteRelease({
-          apiClient,
-          endpointOrigin,
-          signal,
-          appVersion: ZCODE_VERSION,
-          platform: clientConfigPlatform,
-        }),
-    },
-    onZCodeBuiltinRefreshError: (error) => {
-      providerConfigLog.warn(undefined, "ZCode Built-in Config 远端刷新失败", { error });
+    onConfigCheckError: (error) => {
+      providerConfigLog.warn(undefined, "Provider Config 依赖恢复失败，将继续重试", { error });
     },
     onPersonalConfigRecovery: (event) => {
       providerConfigLog.warn(
@@ -2219,9 +2196,8 @@ export function createLocalServices(options: {
         // 直接调用 buildCuaProductHelperAgentEnv 的旧路径。
         ...cuaProductHelperEnv,
         ...createNodeProviderRuntimePathEnv({
-          // Built-in Active 路径按当前 Endpoint 隔离，不能通过同步的固定路径
-          // getter 读取；Agent spawn 必须等待本轮 Endpoint Source 完成解析和物化。
-          zcodeBuiltinFilePath: await providerConfigRuntime.resolveZCodeBuiltinActiveFilePath(),
+          // Host 与 Agent 共用同一随包配置路径，避免来源或内容 revision 不一致。
+          zcodeBuiltinFilePath: await providerConfigRuntime.resolveZCodeBuiltinFilePath(),
           personalFilePath: join(resolveAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
         }),
       };

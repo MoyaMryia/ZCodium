@@ -4,34 +4,20 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   materializeZCodeBuiltinProviderConfig,
-  NodeZCodeBuiltinProviderConfigSource,
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
-  resolveZCodeBuiltinCachePaths,
-  resolveZCodeBuiltinClientPlatform,
-  ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV,
   ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV,
   ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV,
-  type ZCodeBuiltinRefreshEvent,
 } from "@zcode/provider-node";
-import { resolveRuntimeZCodeEndpointOrigin, ZCODE_VERSION } from "@zcode/shared";
 import type { CliEnv } from "./env.js";
 
 export const SEA_ZCODE_BUILTIN_PROVIDER_CONFIG_ASSET_KEY = "zcode-provider/zcode-builtin.json";
 
-export function createCliProviderRefreshReporter(
+export function createCliProviderCheckReporter(
   stderr: Pick<NodeJS.WriteStream, "write"> = process.stderr,
 ) {
   return {
-    onBuiltinRefreshError(error: unknown) {
-      stderr.write(`ZCode Built-in 刷新失败: ${JSON.stringify(safeLogArgs([error]))}\n`);
-    },
-    onBuiltinRefreshResult(event: ZCodeBuiltinRefreshEvent) {
-      // TTL 检查不是生产事件；成功更新才默认留痕，不能输出 CDN URL 查询参数或内容。
-      if (event.result === "updated" || process.env.NODE_ENV !== "production") {
-        stderr.write(
-          `ZCode Built-in ${event.result}${event.reason ? ` (${event.reason})` : ""}${event.revision === undefined ? "" : ` revision=${event.revision} source=CDN`}\n`,
-        );
-      }
+    onConfigCheckError(error: unknown) {
+      stderr.write(`Provider Config 依赖恢复失败: ${JSON.stringify(safeLogArgs([error]))}\n`);
     },
   };
 }
@@ -44,8 +30,6 @@ interface PrepareCliProviderRuntimeEnvOptions {
   readonly dataBaseDir?: string;
   readonly entrypoint?: string;
   readonly sea?: SeaProviderConfigAssets;
-  readonly appVersion?: string;
-  readonly platform?: string;
 }
 
 /** 为运行 Core 或写入模型选择的 CLI Entry 定位同一 Environment 的 Provider Config。 */
@@ -73,30 +57,9 @@ export async function prepareCliProviderRuntimeEnv(
     }));
   const personalFilePath =
     explicitPersonal ?? join(dataBaseDir, ".zcodium", "v2", PERSONAL_PROVIDER_CONFIG_FILE_NAME);
-  const appVersion = options.appVersion ?? ZCODE_VERSION;
-  const platform = options.platform ?? resolveZCodeBuiltinClientPlatform();
-  const zcodeEndpointOrigin = resolveRuntimeZCodeEndpointOrigin(options.env);
-  const cachePaths = resolveZCodeBuiltinCachePaths({
-    environmentConfigRoot: join(dataBaseDir, ".zcodium", "v2"),
-    platform,
-    appVersion,
-    zcodeEndpointOrigin,
-  });
-  const source = new NodeZCodeBuiltinProviderConfigSource({
-    bundledFilePath: zcodeBuiltinFilePath,
-    activeFilePath: cachePaths.activeFilePath,
-    watch: false,
-  });
-  // 入口只准备资源和路径；下载由 Prompt/TUI 长生命周期 Runtime 持有并取消。
-  try {
-    await source.read();
-  } finally {
-    source.dispose();
-  }
 
   return {
-    [ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: cachePaths.activeFilePath,
-    [ZCODE_BUILTIN_PROVIDER_BUNDLED_CONFIG_FILE_ENV]: zcodeBuiltinFilePath,
+    [ZCODE_BUILTIN_PROVIDER_CONFIG_FILE_ENV]: zcodeBuiltinFilePath,
     [ZCODE_PERSONAL_PROVIDER_CONFIG_FILE_ENV]: personalFilePath,
   };
 }

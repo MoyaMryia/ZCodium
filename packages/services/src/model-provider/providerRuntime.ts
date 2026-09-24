@@ -84,7 +84,7 @@ export class ProviderRuntime {
     this.configService = this.#configRuntime.configService;
     const accountSource: RefreshableProviderSource<AccountProviderConfigSnapshot> =
       dependencies.accountSource ?? new EmptyAccountProviderConfigSource(this.configService);
-    this.#disposeBuiltinRecovery = this.#configRuntime.onDidCheckZCodeBuiltin(async () => {
+    this.#disposeBuiltinRecovery = this.#configRuntime.onDidCheckConfig(async () => {
       const [config, account] = await Promise.all([
         this.configService.read(),
         accountSource.read(),
@@ -184,7 +184,6 @@ function createSettingsMutationTarget(
     refresh: (reason) => registryService.refresh(reason),
     refreshSources: async (reason) => {
       const sourceResults = await Promise.allSettled([
-        configRuntime.refreshZCodeBuiltin({ force: true }),
         accountSource.refresh?.(reason) ?? Promise.resolve(),
       ]);
       const snapshot = await registryService.refresh(reason);

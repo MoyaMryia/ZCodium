@@ -190,7 +190,7 @@ export const runPrompt = async (
         ? {}
         : {
             standalone: {
-              ...createCliProviderRefreshReporter(ctx.stderr),
+              ...createCliProviderCheckReporter(ctx.stderr),
               ...(deps.userConfigPath ? { legacyCliUserConfigFilePath: deps.userConfigPath } : {}),
             },
           },
@@ -619,4 +619,4 @@ function writeHeadlessWorkspaceHookTrustDiagnostic(
     ) + "\n",
   );
 }
-import { createCliProviderRefreshReporter } from "./provider-runtime-env.js";
+import { createCliProviderCheckReporter } from "./provider-runtime-env.js";
