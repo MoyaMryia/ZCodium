@@ -1,9 +1,8 @@
 import { useEffect } from "react";
-import type { CuaAccessibilitySettingsResult, CuaPermissionKind } from "@zcode/shared";
+import type { CuaPermissionKind, CuaPermissionRequestResult } from "@zcode/shared";
 import { requiredCuaPermissionsForRequestAccessStatus } from "@zcode/shared/zcode-protocol-v4";
 import {
   isCuaPermissionStatusAvailable,
-  type CuaPermissionRestartOptions,
   type CuaPermissionStatusResult,
   type ZCodeAgentCuaPermissionObservation,
 } from "@zcode/services";
@@ -11,8 +10,6 @@ import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { shouldRestartHelperAfterCuaPermissionReturn } from "@/lib/cuaPermissionAction.js";
-import { createCuaPermissionOnboardingOperationId } from "@/lib/cuaPermissionOnboardingOperation.js";
 import { fetchCuaPermissionStatus } from "@/lib/cuaPermissionStatusStore.js";
 import { logger } from "@/logger.js";
 import { requiredCuaPermissionsForFreshStatus } from "@/settings/cuaPermissionPreparation.js";
@@ -20,8 +17,8 @@ import { requiredCuaPermissionsForFreshStatus } from "@/settings/cuaPermissionPr
 interface CuaPermissionPromptDependencies {
   getStatus(): Promise<CuaPermissionStatusResult>;
   confirm(required: CuaPermissionKind[]): Promise<boolean>;
-  openOnboarding(required: CuaPermissionKind[]): Promise<CuaAccessibilitySettingsResult>;
-  restartHelper(options: CuaPermissionRestartOptions): Promise<{ ok: boolean; reason?: string }>;
+  requestPermissions(): Promise<CuaPermissionRequestResult | undefined>;
+  openSystemSettings(): Promise<boolean>;
   refresh(): void;
   isDisposed?(): boolean;
 }
@@ -79,34 +76,17 @@ async function runCuaPermissionPrompt(
   if (!(await dependencies.confirm(beforeConfirm))) return;
   assertCuaPermissionPromptActive(dependencies);
 
-  // 原因：确认框停留期间可能已从另一窗口授权，打开设置前必须再读一次 Helper 真值。
+  // 原因：确认框停留期间可能已从另一窗口授权，动作前必须再读一次真值。
   const afterConfirm = await readMissing();
   if (afterConfirm.length === 0) return;
-  const result = await runWithOneRetry(
-    dependencies,
-    () => dependencies.openOnboarding(afterConfirm),
-    (value) =>
-      !value.success && !value.canceled
-        ? `CUA permission onboarding failed: ${value.error ?? "unknown"}`
-        : undefined,
-  );
-  if (result.canceled) return;
-  if (shouldRestartHelperAfterCuaPermissionReturn(result)) {
-    // 原因：Helper 重启失败时只能重试重启本身，重复打开系统设置会打断用户操作。
-    await runWithOneRetry(
-      dependencies,
-      () =>
-        dependencies.restartHelper({
-          reason: "permission_granted",
-          ...(result.sessionId ? { onboardingSessionId: result.sessionId } : {}),
-        }),
-      (value) => (value.ok ? undefined : `CUA Helper restart failed: ${value.reason ?? "unknown"}`),
-    );
+  // 先直接向系统申请（main 进程触发，TCC 归属 ZCode.app）；拿不到授权就退回打开设置面板，
+  // 让用户自己勾选。不再有 Helper 可重启。
+  const requested = await runWithOneRetry(dependencies, dependencies.requestPermissions);
+  if (!requested?.ok) {
+    await runWithOneRetry(dependencies, dependencies.openSystemSettings);
   }
-  if (result.success && result.returnedFromSettings) {
-    assertCuaPermissionPromptActive(dependencies);
-    dependencies.refresh();
-  }
+  assertCuaPermissionPromptActive(dependencies);
+  dependencies.refresh();
 }
 
 export function CuaPermissionObservationAttachment() {
@@ -117,9 +97,11 @@ export function CuaPermissionObservationAttachment() {
 
   useEffect(() => {
     const permissionService = services.cuaPermissionService;
+    const canRequest = typeof platform.requestCuaPermissions === "function";
+    const canOpenSettings = typeof platform.openCuaPermissionSystemSettings === "function";
     if (
       !permissionService ||
-      !platform.openCuaPermissionOnboarding ||
+      (!canRequest && !canOpenSettings) ||
       typeof services.zcodeAgentService.onDynamicCuaPermissionObservation !== "function"
     ) {
       return;
@@ -128,7 +110,6 @@ export function CuaPermissionObservationAttachment() {
     const handled = new Set<string>();
     const pending = new Set<string>();
     let chain = Promise.resolve();
-    let activeOperationId: string | null = null;
     let disposed = false;
     const subscription = services.zcodeAgentService.onDynamicCuaPermissionObservation()(
       (observation) => {
@@ -154,27 +135,14 @@ export function CuaPermissionObservationAttachment() {
                   confirmLabel: intl.formatMessage({ id: "cuaPermission.live.confirm" }),
                   cancelLabel: intl.formatMessage({ id: "cuaPermission.live.cancel" }),
                 }),
-              openOnboarding: async (required) => {
-                const operationId = createCuaPermissionOnboardingOperationId();
-                activeOperationId = operationId;
-                try {
-                  return (
-                    (await platform.openCuaPermissionOnboarding?.({
-                      operationId,
-                      initialPermission: required[0],
-                      requiredPermissions: required,
-                    })) ?? { success: false, error: "unavailable" }
-                  );
-                } finally {
-                  if (activeOperationId === operationId) activeOperationId = null;
-                }
-              },
-              restartHelper: (options) =>
-                permissionService.restartHelper(
-                  observation.workspacePath,
-                  observation.workspaceIdentity,
-                  options,
-                ),
+              requestPermissions: async () =>
+                (await platform.requestCuaPermissions?.()) ?? {
+                  ok: false,
+                  accessibility: false,
+                  screenRecording: false,
+                },
+              openSystemSettings: async () =>
+                (await platform.openCuaPermissionSystemSettings?.()) ?? false,
               refresh: () =>
                 fetchCuaPermissionStatus({
                   service: permissionService,
@@ -203,7 +171,6 @@ export function CuaPermissionObservationAttachment() {
       // 原因：先封闭生命周期边界，避免已排队任务在 subscription 释放后继续触发旧 workspace 副作用。
       disposed = true;
       subscription.dispose();
-      if (activeOperationId) platform.cancelCuaPermissionOnboarding?.(activeOperationId);
     };
   }, [confirmDialog, intl, platform, services]);
 
