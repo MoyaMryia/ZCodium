@@ -114,3 +114,32 @@ export function assembleComputerUseRuntime({
     requiresMacOsPermissions,
   };
 }
+
+async function loadCuaDriver() {
+  try {
+    const mod = await import("@trycua/cua-driver");
+    return mod?.CuaDriver;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 异步装配：自己 `import("@trycua/cua-driver")` 拿 SDK，再交给同步装配。
+ * 依赖包的 `exports` 只有 `import` 条件，无法同步 require，所以 host 走这条。
+ */
+export async function assembleComputerUseRuntimeAsync({
+  platform = process.platform,
+  env = process.env,
+  probes = {},
+  socketPath,
+  compat,
+  driverModule,
+} = {}) {
+  const CuaDriver = driverModule ?? (await loadCuaDriver());
+  const connectDriver = CuaDriver
+    ? (path) =>
+        path && typeof CuaDriver.connect === "function" ? CuaDriver.connect(path) : CuaDriver.create?.(undefined)
+    : undefined;
+  return assembleComputerUseRuntime({ platform, env, probes, socketPath, compat, connectDriver });
+}

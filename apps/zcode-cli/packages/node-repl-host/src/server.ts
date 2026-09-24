@@ -1,7 +1,6 @@
 import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- shared node_repl host 的 worker、CUA bridge 和生命周期必须保持同一边界。 */
 import { resolve } from "node:path";
-import { createRequire } from "node:module";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { INVALID_PARAMS, Server, type Tool } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
@@ -17,7 +16,7 @@ import {
   type NodeReplRunResult,
 } from "@zcode/core/repl";
 import { type ComputerUseRuntime } from "@zcode/zcode-cua";
-import { assembleComputerUseRuntime, probeGnomeEnvironment } from "@zcode/zcode-cua/platform";
+import { assembleComputerUseRuntimeAsync, probeGnomeEnvironment } from "@zcode/zcode-cua/platform";
 import { z } from "zod";
 import { createBrowserBridgeGlobals, type ActiveNodeReplCall } from "./browser-bridge.js";
 import {
@@ -165,7 +164,7 @@ export function createNodeReplMcpRuntime(
   input: { executeJs?: NodeReplExecutor; cuaRuntime?: ComputerUseRuntime } = {},
 ): NodeReplMcpRuntime {
   const executeJs = input.executeJs ?? executeJsInWorker;
-  const cuaRuntime = input.cuaRuntime ?? captureComputerUseRuntimeFromEnvironment();
+  const cuaRuntime = input.cuaRuntime;
   const cuaBroker = cuaRuntime
     ? createNodeReplCuaBroker({ runtime: cuaRuntime, platform: process.platform })
     : undefined;
@@ -318,7 +317,7 @@ export async function main(): Promise<void> {
   // process.env，必然得到空值，导致 node_repl 永久把 Computer Use 判为 unavailable。
   // 这里在 main() 生命周期内先捕获 runtime；Worker 只收到二次 bridge token，
   // 不会接触 Helper 的原始 socket/token。
-  const computerUseRuntime = captureComputerUseRuntimeFromEnvironment();
+  const computerUseRuntime = await captureComputerUseRuntimeFromEnvironment();
   const handle = serveStdio(
     () => {
       const runtime = createNodeReplMcpRuntime({ cuaRuntime: computerUseRuntime });
@@ -368,44 +367,22 @@ if (!isMainThread && isWorkerCallData(workerData)) {
 }
 
 /**
- * 同步构造 cua-driver client（同进程 SDK 或 daemon connect）。
- * `@trycua/cua-driver` 由桌面端/打包提供；缺失或 ESM 无法同步 require 时返回 undefined，
- * 运行时保持 fail-closed。桌面端也可直接通过 `input.cuaRuntime` 注入已构造的 runtime。
- */
-function connectCuaDriverSync(socketPath?: string): unknown {
-  try {
-    const require = createRequire(import.meta.url);
-    const mod = require("@trycua/cua-driver") as {
-      CuaDriver?: { connect?: (socket: string) => unknown; create?: (options: unknown) => unknown };
-    };
-    const CuaDriver = mod?.CuaDriver;
-    if (!CuaDriver) return undefined;
-    return socketPath && typeof CuaDriver.connect === "function"
-      ? CuaDriver.connect(socketPath)
-      : CuaDriver.create?.(undefined);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * 按平台装配 Computer Use 运行时：
  * - Linux 老 GNOME 自动组装 compat（探测 shell/portal/WinRects 版本）；
  * - macOS / Linux 新合成器 / X11 走 cua-driver 原生。
- * 仅当 env 指定 driver socket / embedded 时才构造。
+ * 仅当 env 指定 driver socket / embedded 时才构造；driver 缺失保持 fail-closed。
  */
-export function captureComputerUseRuntimeFromEnvironment(
+export async function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
-): ComputerUseRuntime | undefined {
+): Promise<ComputerUseRuntime | undefined> {
   const socketPath =
     env.ZCODE_CUA_DRIVER_SOCKET?.trim() ?? env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
   const enabled = Boolean(socketPath) || env.ZCODE_CUA_DRIVER_EMBEDDED === "1";
   if (!enabled) return undefined;
-  const { runtime } = assembleComputerUseRuntime({
+  const { runtime } = await assembleComputerUseRuntimeAsync({
     env,
     socketPath,
     probes: process.platform === "linux" ? probeGnomeEnvironment() : {},
-    connectDriver: (path) => connectCuaDriverSync(path) as never,
   });
   return runtime;
 }

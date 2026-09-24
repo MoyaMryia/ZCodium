@@ -44,3 +44,7 @@ export declare function probeGnomeEnvironment(): {
 export declare function assembleComputerUseRuntime(
   options?: AssembleComputerUseRuntimeOptions,
 ): AssembledComputerUseRuntime;
+
+export declare function assembleComputerUseRuntimeAsync(
+  options?: Omit<AssembleComputerUseRuntimeOptions, "client" | "connectDriver"> & { driverModule?: unknown },
+): Promise<AssembledComputerUseRuntime>;

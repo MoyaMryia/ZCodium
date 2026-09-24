@@ -174,8 +174,12 @@ export function createCuaDriverRuntime(client, options = {}) {
           // 兼容层收尾失败不应阻断 driver 回收。
         }
       }
-      if (typeof client.dispose !== "function") return;
-      await client.dispose();
+      if (typeof client.dispose === "function") {
+        await client.dispose();
+        return;
+      }
+      // cua-driver SDK 用 shutdown() 而非 dispose()。
+      if (typeof client.shutdown === "function") await client.shutdown();
     },
   };
 }
