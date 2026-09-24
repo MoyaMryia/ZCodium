@@ -3647,6 +3647,11 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.presetDescription":
     "Built-in Z.ai and BigModel providers with OAuth-assisted configuration.",
   "settings.modelProvider.presetEmpty": "Not synced yet. Complete OAuth login first.",
+  "settings.modelProvider.connectionsTitle": "Model connections",
+  "settings.modelProvider.loadFailed": "Could not load model settings. Try again.",
+  "settings.modelProvider.refreshFailed":
+    "Could not refresh. Your current configuration is unchanged.",
+  "settings.modelProvider.deleteFailed": "Could not delete this connection. Try again.",
   "settings.modelProvider.customTitle": "Custom providers",
   "settings.modelProvider.refresh": "Refresh",
   "settings.modelProvider.reorderProvider": "Drag to reorder provider",

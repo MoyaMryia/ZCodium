@@ -3173,6 +3173,10 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.presetDescription":
     "内置 Z.ai 与 BigModel 供应商，支持通过 OAuth 辅助完成配置。",
   "settings.modelProvider.presetEmpty": "尚未同步，请先完成 OAuth 登录。",
+  "settings.modelProvider.connectionsTitle": "模型连接",
+  "settings.modelProvider.loadFailed": "无法读取模型配置，请重试。",
+  "settings.modelProvider.refreshFailed": "刷新失败，当前配置已保留。",
+  "settings.modelProvider.deleteFailed": "删除失败，连接已保留。",
   "settings.modelProvider.customTitle": "自定义供应商",
   "settings.modelProvider.refresh": "刷新",
   "settings.modelProvider.reorderProvider": "拖拽调整供应商顺序",
