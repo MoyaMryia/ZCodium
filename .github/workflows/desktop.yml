@@ -83,7 +83,10 @@ jobs:
       - name: Verify self-managed image search configuration
         run: node scripts/ci/image-search-config-smoke.mjs
       - name: Startup without official account restoration
-        run: node scripts/ci/root-startup-smoke.mjs
+        run: |
+          pnpm --filter @zcode/web build
+          node scripts/ci/root-startup-smoke.mjs
+          node scripts/ci/web-entry-without-oauth-smoke.mjs
       - name: Conversation file browser checks
         run: |
           node scripts/ci/conversation-export-smoke.mjs

@@ -11,9 +11,6 @@ import {
 } from "@zcode/ui";
 import "@zcode/ui/styles.css";
 import { connectViaWebSocket } from "@zcode/client";
-import { WebCallbackPage } from "./auth/WebCallbackPage.js";
-import { createWebAuthService } from "./auth/webAuthService.js";
-import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "./communityUrl.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
@@ -55,7 +52,6 @@ async function resolveFeedbackUrl(): Promise<string | undefined> {
 }
 
 const root = createRoot(document.getElementById("root")!);
-const webAuthService = createWebAuthService();
 
 interface WebBootstrapResult {
   wsUrl: string;
@@ -66,31 +62,12 @@ interface WebBootstrapResult {
   allowOpenWorkspace?: boolean;
 }
 
-function isWebOAuthCallback(params: URLSearchParams): boolean {
-  return (
-    ["/cn/share/callback", "/share/callback"].includes(window.location.pathname) &&
-    params.has("state") &&
-    (params.has("code") || params.has("error"))
-  );
-}
-
-function renderWebAuthCallbackPage(): void {
-  document.title = "ZCode - Sign In";
-  const callbackState = parseOAuthState(
-    new URLSearchParams(window.location.search).get("state") ?? "",
-  );
-  const safeRetryTarget = resolveSafeAppReturnTo(callbackState?.app_return_to);
-  root.render(
-    <WebCallbackPage
-      authService={webAuthService}
-      onSuccess={({ appReturnTo }) => {
-        window.location.replace(appReturnTo ?? "/");
-      }}
-      onRetry={() => {
-        window.location.replace(safeRetryTarget ?? "/");
-      }}
-    />,
-  );
+function clearRetiredLoginCallback(): void {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  if (["/cn/share/callback", "/share/callback"].includes(path)) {
+    // 旧授权链接可能携带 code/token/跳转目标；移除整段参数，不解析或转发给本机服务。
+    window.history.replaceState(null, "", "/");
+  }
 }
 
 function createWebPlatform(): IPlatformService {
@@ -313,11 +290,7 @@ function renderWebBootstrapError(error: unknown): void {
 }
 
 async function bootstrapWebApp() {
-  const params = new URLSearchParams(window.location.search);
-  if (isWebOAuthCallback(params)) {
-    renderWebAuthCallbackPage();
-    return;
-  }
+  clearRetiredLoginCallback();
 
   let bootstrap: WebBootstrapResult;
   try {
