@@ -31,6 +31,10 @@
       "types": "./request-access-contract.d.ts",
       "import": "./request-access-contract.js"
     },
+    "./permissions": {
+      "types": "./permissions.d.ts",
+      "import": "./permissions.js"
+    },
     "./pip-session": {
       "types": "./pip-session.d.ts",
       "import": "./pip-session.js"
