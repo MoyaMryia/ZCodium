@@ -43,7 +43,7 @@ export { useConfirmDialog } from "./useConfirmDialog.js";
 export { useAlertDialog } from "./useAlertDialog.js";
 
 // 凭据服务
-export { useCredentials, useAuthToken } from "./useCredentials.js";
+export { useCredentials } from "./useCredentials.js";
 export { useZCodeAgentService } from "./useZCodeAgentService.js";
 
 // Git pane

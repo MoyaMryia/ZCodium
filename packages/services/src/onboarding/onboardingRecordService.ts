@@ -1,7 +1,6 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { onboardingRecordFileSchema } from "@zcode/shared";
-import { appSettingsOccupationEnum } from "@zcode/shared";
 import type {
   OnboardingRecordEntry,
   OnboardingRecordEntryInput,
@@ -10,11 +9,7 @@ import type {
 import { atomicWriteText } from "../fs/atomicFileUtils.js";
 import { getAppConfigDir } from "../paths.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
-import type {
-  CreateOnboardingRecordServiceOptions,
-  IOnboardingRecordService,
-  OnboardingSettingsSyncPatch,
-} from "./onboardingRecord.js";
+import type { IOnboardingRecordService } from "./onboardingRecord.js";
 
 const logger = createServiceLogger("onboardingRecordService");
 
@@ -27,7 +22,7 @@ function getRecordFile(): string {
 
 /**
  * 读取记录文件；文件不存在返回 null，内容损坏（手改/写坏）时同样返回 null 并 warn——
- * 损坏文件等价于"从未记录"，重新触发引导后在下次 append 时重建。
+ * 损坏文件等价于"从未记录"，用户手动完成引导后在下次 append 时重建。
  */
 async function readRecordFile(filePath: string): Promise<OnboardingRecordFile | null> {
   let raw: string;
@@ -46,128 +41,60 @@ async function readRecordFile(filePath: string): Promise<OnboardingRecordFile | 
   }
 }
 
-export function createOnboardingRecordService(
-  options: CreateOnboardingRecordServiceOptions,
-): IOnboardingRecordService {
-  // 串行化写：引导保存与并发触发判定同时发生时不丢条目。
+function latestEntry(file: OnboardingRecordFile | null): OnboardingRecordEntry | null {
+  return (file?.entries ?? []).reduce<OnboardingRecordEntry | null>((latest, entry) => {
+    if (!latest) return entry;
+    const currentTime = Date.parse(entry.completedAt);
+    const latestTime = Date.parse(latest.completedAt);
+    // 旧文件按账号覆盖原位置，数组末项不一定最近；无效时间仅按原有顺序兼容。
+    return Number.isFinite(currentTime) && Number.isFinite(latestTime) && currentTime < latestTime
+      ? latest
+      : entry;
+  }, null);
+}
+
+export function createOnboardingRecordService(): IOnboardingRecordService {
   let writeQueue: Promise<unknown> = Promise.resolve();
   const enqueueWrite = <T>(task: () => Promise<T>): Promise<T> => {
     const queued = writeQueue.then(task, task) as Promise<T>;
     writeQueue = queued.catch(() => {});
     return queued;
   };
+  const readCurrent = async () => {
+    // 读取必须等待已接受写入，避免关闭引导后立即重开时预填旧偏好。
+    await writeQueue;
+    return readRecordFile(getRecordFile());
+  };
+  const writeEntry = async (entry: OnboardingRecordEntryInput) => {
+    const filePath = getRecordFile();
+    // schema 剥离旧身份/上传字段；写回只保留本机最近答案，不继续维护账号档案。
+    const file = onboardingRecordFileSchema.parse({ version: 1, entries: [entry] });
+    await mkdir(join(filePath, ".."), { recursive: true });
+    await atomicWriteText(filePath, JSON.stringify(file, null, 2));
+  };
 
   return {
-    async appendRecord(entry: OnboardingRecordEntryInput): Promise<void> {
-      const userId = await options.loadUserId();
-      await enqueueWrite(async () => {
-        const filePath = getRecordFile();
-        const existing = await readRecordFile(filePath);
-        const file: OnboardingRecordFile = existing ?? { version: 1, entries: [] };
-        const record: OnboardingRecordEntry = {
-          userId,
-          ...entry,
-        };
-        // 每 userId（含 null）至多一条：同一用户重复完成引导（debug 重置后再答等）覆盖旧条目，
-        // 而不是追加——覆盖后的新答案用于本地设置恢复。
-        const previousIndex = file.entries.findIndex((item) => item.userId === userId);
-        const validated = onboardingRecordFileSchema.shape.entries.element.parse(record);
-        if (previousIndex >= 0) file.entries[previousIndex] = validated;
-        else file.entries.push(validated);
-        await mkdir(join(filePath, ".."), { recursive: true });
-        await atomicWriteText(filePath, JSON.stringify(file, null, 2));
+    appendRecord(entry) {
+      const validated = onboardingRecordFileSchema.shape.entries.element.parse(entry);
+      return enqueueWrite(() => writeEntry(validated));
+    },
+    async getLatestEntry() {
+      return latestEntry(await readCurrent());
+    },
+    updateRecordPreferences(patch) {
+      // 在入队时冻结补丁，防止调用方在排队期间修改已接受的偏好。
+      const accepted = onboardingRecordFileSchema.shape.entries.element
+        .pick({ memoryEnabled: true, proactiveSuggestionsEnabled: true })
+        .partial()
+        .parse(patch);
+      return enqueueWrite(async () => {
+        const latest = latestEntry(await readRecordFile(getRecordFile()));
+        if (latest) await writeEntry({ ...latest, ...accepted });
       });
     },
-
-    async claimAnonymousRecord(): Promise<void> {
-      const userId = await options.loadUserId();
-      if (!userId) return;
-      await enqueueWrite(async () => {
-        const filePath = getRecordFile();
-        const file = await readRecordFile(filePath);
-        if (!file) return;
-        if (file.entries.some((entry) => entry.userId === userId)) return;
-        // 兼容旧版重复文件取最后一条 null；移交是改写，不保留匿名副本。
-        for (let i = file.entries.length - 1; i >= 0; i -= 1) {
-          if (file.entries[i]!.userId === null) {
-            file.entries[i] = onboardingRecordFileSchema.shape.entries.element.parse({
-              ...file.entries[i]!,
-              userId,
-            });
-            break;
-          }
-        }
-        await atomicWriteText(filePath, JSON.stringify(file, null, 2));
-      });
-    },
-
-    async shouldOnboard(): Promise<boolean> {
-      const userId = await options.loadUserId();
-      const file = await readRecordFile(getRecordFile());
-      if (!file) return true;
-      return !file.entries.some((entry) => entry.userId === userId);
-    },
-
-    async getLatestEntry(): Promise<OnboardingRecordEntry | null> {
-      const userId = await options.loadUserId();
-      const file = await readRecordFile(getRecordFile());
-      if (!file) return null;
-      let latest: OnboardingRecordEntry | undefined;
-      for (const entry of file.entries) {
-        if (entry.userId === userId) latest = entry;
-      }
-      return latest ?? null;
-    },
-
-    async syncSettingsFromRecord(): Promise<OnboardingSettingsSyncPatch | null> {
-      const userId = await options.loadUserId();
-      const file = await readRecordFile(getRecordFile());
-      if (!file) return null;
-      // append 是覆盖语义，正常每 userId 至多一条；兼容旧版本的重复追加文件时取最后一条。
-      let latest: OnboardingRecordEntry | undefined;
-      for (const entry of file.entries) {
-        if (entry.userId === userId) latest = entry;
-      }
-      if (!latest) return null;
-      // 跳过页记 null：回填保守默认，与引导跳过写 settings 的行为一致（职业 other、偏好关）。
-      // record 的 occupation 是非枚举字符串（职业列表会演进），窄化到 settings 的枚举；
-      // 旧版本可能落过已收窄/未知的职业值，未知值回填 other，与推荐池的兜底一致。
-      const occupation = appSettingsOccupationEnum.safeParse(latest.occupation);
-      return {
-        onboardingOccupation: (occupation.success ? occupation.data : null) ?? "other",
-        proactiveSuggestionsEnabled: latest.proactiveSuggestionsEnabled ?? false,
-        memoryEnabled: latest.memoryEnabled ?? false,
-      };
-    },
-
-    async updateRecordPreferences(
-      patch: Partial<
-        Pick<OnboardingRecordEntryInput, "memoryEnabled" | "proactiveSuggestionsEnabled">
-      >,
-    ): Promise<void> {
-      const userId = await options.loadUserId();
-      await enqueueWrite(async () => {
-        const filePath = getRecordFile();
-        const file = await readRecordFile(filePath);
-        if (!file) return;
-        const index = file.entries.findLastIndex((entry) => entry.userId === userId);
-        if (index < 0) return;
-        file.entries[index] = onboardingRecordFileSchema.shape.entries.element.parse({
-          ...file.entries[index],
-          ...patch,
-        });
-        await atomicWriteText(filePath, JSON.stringify(file, null, 2));
-      });
-    },
-
-    async getRecords(): Promise<OnboardingRecordFile | null> {
-      return readRecordFile(getRecordFile());
-    },
-
-    async clearRecords(): Promise<void> {
-      await enqueueWrite(async () => {
-        await rm(getRecordFile(), { force: true });
-      });
+    getRecords: readCurrent,
+    clearRecords() {
+      return enqueueWrite(() => rm(getRecordFile(), { force: true }));
     },
   };
 }

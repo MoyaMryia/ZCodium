@@ -3,7 +3,6 @@ import { OccupationOnboardingVisual } from "@/onboarding/OccupationOnboardingVis
 import { occupations, type OccupationValue } from "@/onboarding/occupationOptions.js";
 import { OnboardingModeSelector } from "@/onboarding/OnboardingModeSelector.js";
 import { OnboardingOccupationGrid } from "@/onboarding/OnboardingOccupationGrid.js";
-import { useOnboardingTrigger } from "@/onboarding/useOnboardingTrigger.js";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useOnboardingRecordService } from "@/hooks/useOnboardingRecordService.js";
@@ -19,7 +18,7 @@ import { logger } from "@/logger.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 import type { OnboardingRecordEntry } from "@zcode/shared";
 
-/** 追加本地引导记录（userId 由 host 补全）；channel 缺失挂起时 5 秒超时按写失败处理。 */
+/** 追加本地引导记录；channel 缺失挂起时 5 秒超时按写失败处理。 */
 async function appendOnboardingRecord(
   service: NonNullable<ReturnType<typeof useOnboardingRecordService>>,
   entry: Parameters<typeof service.appendRecord>[0],
@@ -51,7 +50,6 @@ export function OccupationOnboarding({
   const shortcutBindings = useEffectiveShortcutBindings();
   const requested = useZCodeStore((state) => state.newUserOnboardingOpen);
   const setRequested = useZCodeStore((state) => state.setNewUserOnboardingOpen);
-  const userId = useZCodeStore((state) => state.user?.id) ?? null;
   const { intl } = useZCodeIntl();
   const t = (key: string) => intl.formatMessage({ id: `occupationOnboarding.${key}` });
   const [occupation, setOccupation] = useState<OccupationValue | null>("developer");
@@ -69,20 +67,12 @@ export function OccupationOnboarding({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [error, setError] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const [needsOnboarding, markOnboarded] = useOnboardingTrigger({
-    onboardingRecord,
-    userId,
-    hasStoredOccupation: Boolean(settings?.onboardingOccupation),
-    update,
-  });
-  const onboardingVisible = requested || (needsOnboarding === true && !dismissed);
+  const onboardingVisible = requested;
 
   const closeOnboarding = useCallback(() => {
     if (savingRef.current) return;
 
     setStep(0);
-    setDismissed(true);
     setRequested(false);
   }, [intl, setRequested]);
   useEffect(() => {
@@ -95,6 +85,7 @@ export function OccupationOnboarding({
         event.preventDefault();
         event.stopImmediatePropagation();
         if (saving) return;
+        userEditedRef.current = true;
         const nextMode = savedInterfaceMode === "office" ? "coding" : "office";
         setInterfaceMode(nextMode);
         setMode(nextMode);
@@ -106,7 +97,7 @@ export function OccupationOnboarding({
       }
       if (event.key === "Escape" && onboardingVisible && !saving) {
         // 直接退出引导（设置里主动打开的场景尤其需要）：不保存、不改记录，
-        // 本次会话不再显示，下次启动按记录重新触发。
+        // 后续只在用户再次手动打开时显示。
         event.preventDefault();
         event.stopImmediatePropagation();
         closeOnboarding();
@@ -138,13 +129,13 @@ export function OccupationOnboarding({
     setInterfaceMode,
     mode,
   ]);
-  // 引导再次打开（换账号触发 / 快捷键手动打开）时，用该用户在 record 里的最近作答预填，
+  // 手动打开引导时，用本机最近作答预填，
   // 而不是每次都从写死的默认选项开始；跳过页记 null 的字段落默认值。
   const [latestEntry, setLatestEntry] = useState<OnboardingRecordEntry | null>(null);
   // 预填异步后到时不得覆盖用户已经做出的选择。
   const userEditedRef = useRef(false);
   useEffect(() => {
-    if (!onboardingRecord) return;
+    if (!onboardingRecord || !requested) return;
     let cancelled = false;
     onboardingRecord.getLatestEntry().then(
       (entry) => {
@@ -157,7 +148,7 @@ export function OccupationOnboarding({
     return () => {
       cancelled = true;
     };
-  }, [onboardingRecord, userId]);
+  }, [onboardingRecord, requested]);
   const markUserEdited = () => {
     userEditedRef.current = true;
   };
@@ -172,7 +163,7 @@ export function OccupationOnboarding({
     );
     const initialMode = entry?.interfaceMode ?? savedInterfaceMode;
     setMode(initialMode);
-    // 编程模式默认关闭主动工作记忆；办公模式才恢复该用户之前的勾选。
+    // 编程模式默认关闭主动工作记忆；办公模式才恢复上次的勾选。
     setMemory(initialMode === "office" && (entry?.memoryEnabled ?? true));
     setSuggestions(entry?.proactiveSuggestionsEnabled ?? initialMode === "office");
     setMigration(false);
@@ -191,10 +182,6 @@ export function OccupationOnboarding({
     // eslint-disable-line react-hooks/exhaustive-deps
   }, [latestEntry]);
   if (!settings) return showChildrenWhileLoading ? <>{children}</> : null;
-  // 判定进行中先不渲染，避免引导闪现后立即消失（判定为需引导）或先闪引导再进主界面。
-  // 只有疑似首跑（settings 里也没有职业）才等待记录判定；存量用户（已有
-  // onboardingOccupation）不等 RPC 直接进主界面，杜绝黑屏。
-  if (!requested && needsOnboarding === null && !settings.onboardingOccupation) return null;
   if (!onboardingVisible) return <>{children}</>;
   const save = async (skip = false) => {
     if (savingRef.current) return;
@@ -215,13 +202,12 @@ export function OccupationOnboarding({
 
       // 偏好保存成功后结束引导，本地完成记录的错误单独处理。
       setStep(0);
-      setDismissed(true);
       setRequested(false);
       if (!skip && migration) requestOnboardingDialog("migration");
       logger.info("[occupation-onboarding] 偏好保存完成", { interfaceMode: mode });
       if (onboardingRecord) {
         try {
-          // 追加本地引导记录（userId 由 host 按登录态补全）。
+          // 追加本地引导记录。
           // appendRecord 走 RPC，channel 缺失时会挂起导致保存按钮永远转圈，加超时保护。
           // 跳过是显式答案：该页被跳过时记 null（occupation 在第 1 步跳过时已是 null，
           // mode 在第 2 步跳过时置 null，偏好页整体跳过时两个布尔记 null）。
@@ -232,9 +218,8 @@ export function OccupationOnboarding({
             proactiveSuggestionsEnabled: skip ? null : mode === "office" && suggestions,
             completedAt: new Date().toISOString(),
           });
-          markOnboarded();
         } catch (cause) {
-          // 偏好已保存成功，记录写失败只留 warn 日志，不打断用户；下次启动按记录会再次触发引导。
+          // 偏好已保存成功，记录写失败只留 warn 日志，不打断用户；用户仍可手动打开引导重试。
           logger.warn("[occupation-onboarding] 写入引导记录失败", { error: String(cause) });
         }
       }
@@ -377,6 +362,8 @@ export function OccupationOnboarding({
                       disabled={saving || (step === 0 && !occupation)}
                       className="h-11 flex-1 rounded-xl px-5 text-ui-base"
                       onClick={() => {
+                        // 历史作答可能晚于点击返回；推进步骤也代表用户确认，不能被预填拉回首页。
+                        markUserEdited();
                         if (!preferences) setStep(step === 0 ? 1 : 2);
                         else void save();
                       }}

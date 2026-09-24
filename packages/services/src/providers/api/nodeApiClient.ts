@@ -13,8 +13,6 @@ const log = createServiceLogger("node-api-client");
 
 interface NodeApiClientOptions {
   fetchImpl?: typeof fetch;
-  onZcodeJwtInvalid?: (input: string | URL, headers: Headers) => void;
-  isZcodeJwtRequest?: (input: string | URL, headers: Headers) => boolean | Promise<boolean>;
   resolveZCodeEndpointOrigin?: () => Promise<string> | string;
 }
 
@@ -44,13 +42,9 @@ function isRequestForEndpoint(input: string | URL, endpointOrigin: string): bool
 export class NodeApiClient implements ApiClient {
   private readonly fetchImpl?: typeof fetch;
   private readonly resolveZCodeEndpointOrigin?: () => Promise<string> | string;
-  private readonly onZcodeJwtInvalid?: (input: string | URL, headers: Headers) => void;
-  private readonly isZcodeJwtRequest?: NodeApiClientOptions["isZcodeJwtRequest"];
 
   constructor(options: NodeApiClientOptions = {}) {
     this.fetchImpl = options.fetchImpl;
-    this.onZcodeJwtInvalid = options.onZcodeJwtInvalid;
-    this.isZcodeJwtRequest = options.isZcodeJwtRequest;
     this.resolveZCodeEndpointOrigin = options.resolveZCodeEndpointOrigin;
   }
 
@@ -98,15 +92,6 @@ export class NodeApiClient implements ApiClient {
         headers: requestHeaders,
         ...(signal ? { signal } : {}),
       });
-      if (response.status === 401) {
-        try {
-          if (await this.isZcodeJwtRequest?.(requestInput, new Headers(requestHeaders))) {
-            this.onZcodeJwtInvalid?.(requestInput, new Headers(requestHeaders));
-          }
-        } catch (error) {
-          log.warn("zcode jwt invalid response observation failed", { error });
-        }
-      }
       return response;
     } catch (error) {
       if (error instanceof ApiError) {
