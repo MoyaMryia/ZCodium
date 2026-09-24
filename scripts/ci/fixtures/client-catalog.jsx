@@ -5,6 +5,7 @@ import { ZCodeIntlProvider, useZCodeIntl } from "../../../packages/ui/src/i18n/I
 import { useDraftSuggestedPromptItems } from "../../../packages/ui/src/v4/useDraftSuggestedPromptItems.js";
 import { ConversationDraftSuggestedPrompts } from "../../../packages/ui/src/v4/ConversationDraftSuggestedPrompts.js";
 import { resolveDraftSuggestedPromptText } from "../../../packages/ui/src/v4/draftSuggestedPromptItems.js";
+import { getRecommendedPromptPool } from "../../../packages/ui/src/v4/featureSuggestedPrompts.js";
 import { useAutomationTemplates } from "../../../packages/ui/src/settings/useAutomationTemplates.js";
 import {
   materializeScheduledTemplateDraft,
@@ -12,6 +13,10 @@ import {
 } from "../../../packages/ui/src/settings/automationTemplateCatalog.js";
 
 const bundled = createClientScenesService();
+const query = new URLSearchParams(location.search);
+const featureMode = query.get("mode");
+const featureItems = featureMode ? getRecommendedPromptPool(featureMode === "office") : null;
+window.featureItems = featureItems;
 window.catalogReadCount = 0;
 const clientScenesService = {
   async list() {
@@ -32,9 +37,14 @@ function Catalog() {
   return (
     <>
       <ConversationDraftSuggestedPrompts
-        items={items}
+        items={featureItems ?? items}
+        layout={featureItems ? "list" : "chips"}
         onSelect={(item) =>
-          setSelected({ prompt: resolveDraftSuggestedPromptText(item.prompt, locale) })
+          setSelected({
+            id: item.id,
+            plugin: item.plugin?.stableId,
+            prompt: resolveDraftSuggestedPromptText(item.prompt, locale),
+          })
         }
       />
       {templates.scheduled.map((template) => (

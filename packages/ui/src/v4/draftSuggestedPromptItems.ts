@@ -10,9 +10,9 @@ export type DraftSuggestedPromptAction = typeof DRAFT_SUGGESTED_PROMPT_NAVIGATE_
 
 export interface DraftSuggestedPromptItem {
   id: string;
-  /** Lucide canonical 名称，只来自 ClientSceneItem.img；不使用 imgs。 */
+  /** Lucide canonical 名称，来自本地推荐或 ClientSceneItem.img；不使用 imgs。 */
   iconName?: string;
-  /** 官方推荐项的市场图标。 */
+  /** 推荐项的随包图片资源。 */
   iconUrl?: string;
   /** 复用插件市场图标的展示样式，不代表绑定插件。 */
   iconStyle?: "plugin";

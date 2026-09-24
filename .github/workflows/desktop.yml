@@ -57,8 +57,6 @@ jobs:
         run: pnpm exec playwright-core install --with-deps chromium
       - name: Remote form browser checks
         run: node scripts/ci/remote-form-smoke.mjs
-      - name: Bundled catalog browser checks
-        run: node scripts/ci/client-catalog-smoke.mjs
       - name: Bundled help browser checks
         run: node scripts/ci/bundled-help-smoke.mjs
       - name: Local feedback browser checks
@@ -76,6 +74,8 @@ jobs:
           node scripts/ci/local-context-smoke.mjs
           node scripts/ci/session-local-errors-smoke.mjs
           node scripts/ci/local-onboarding-smoke.mjs
+      - name: Bundled catalog browser checks
+        run: node scripts/ci/client-catalog-smoke.mjs
       - name: Model setup without official purchases
         run: node scripts/ci/no-official-purchase-smoke.mjs
       - name: Local preferences without official accounts

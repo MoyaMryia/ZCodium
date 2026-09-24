@@ -3,6 +3,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { tsImport } from "tsx/esm/api";
 import { Cron } from "croner";
+import { build } from "esbuild";
+import { createRequire } from "node:module";
 
 const { createClientScenesService } = await tsImport(
   "../../packages/services/src/client-scenes/clientScenesService.ts",
@@ -32,6 +34,43 @@ const forbiddenNetwork = {
     throw new Error("endpoint/device context forbidden");
   },
 };
+
+test("feature recommendation icons are bundled and retain localized prompts and plugin identities", async () => {
+  const { outputFiles } = await build({
+    entryPoints: [
+      fileURLToPath(
+        new URL("../../packages/ui/src/v4/featureSuggestedPrompts.ts", import.meta.url),
+      ),
+    ],
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "esm",
+    alias: { "@": fileURLToPath(new URL("../../packages/ui/src", import.meta.url)) },
+    loader: { ".png": "dataurl" },
+  });
+  const { getRecommendedPromptPool } = await import(
+    `data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString("base64")}`
+  );
+  const require = createRequire(new URL("../../packages/ui/package.json", import.meta.url));
+  const { dynamicIconImports } = await import(require.resolve("lucide-react/dynamic.mjs"));
+  for (const mode of ["office", "coding"]) {
+    const items = getRecommendedPromptPool(mode === "office");
+    assert.ok(items.length > 5);
+    assert.equal(new Set(items.map((item) => item.id)).size, items.length);
+    for (const item of items) {
+      assert.equal(item.mode, mode);
+      assert.doesNotMatch(
+        JSON.stringify([item.label, item.prompt]),
+        /闲时|idle[- ]time|off[- ]peak/i,
+      );
+      assert.ok(item.label.cn && item.label.en && item.prompt.cn && item.prompt.en);
+      if (item.iconUrl) assert.match(item.iconUrl, /^data:image\//);
+      else assert.ok(Object.hasOwn(dynamicIconImports, item.iconName), item.id);
+      if (item.plugin) assert.ok(item.prompt.en.includes(`plugin://${item.plugin.stableId}`));
+    }
+  }
+});
 
 test("bundled recommendations and scheduled templates remain usable without any network context", async (t) => {
   const originalFetch = globalThis.fetch;
