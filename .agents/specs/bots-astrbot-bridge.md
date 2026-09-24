@@ -113,6 +113,14 @@ server→client  error      协议级错误
 - `awaiting_input` 时服务端保留 pending 交互；插件把选项渲染成文本并结束本次流，
   用户下一条消息触发对应 `*.respond`，继续原任务。
 
+### v2.1 轮次细化（服务端为官方 provider 后）
+
+- **每命令一个 stream**：`beginTurn` 为每条 command 起新 stream；若该命令启动了任务流
+  （官方 `notifyTaskLifecycle("started")`），命令流提升为任务流，任务期间出站继续走该流，
+  终态/等待交互时收口。非任务命令（`/status` 等）在 inbound 处理结束后立即 `status{completed}`。
+- **channel 固定 `astrbot`**：ZCodium 不感知底层平台；插件用平台前缀填充
+  `externalUserId`/`chatId` 保证跨平台唯一，真实平台对接完全由插件决定。
+
 ### delivery payload
 
 | type        | 字段                                             | 插件动作                                 |
