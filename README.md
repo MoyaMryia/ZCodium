@@ -26,25 +26,31 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 ### 与官方包的能力差异
 
-以下为截至 3.14.1 的核对结果。上游 `328c1a0 feat: update v3.14.3` 已把此前只在安装包里的 `bots`（Telegram / 飞书 / Lark / 企业微信四套 adapter 与平台选择 GUI）和手机远控等并入开源仓库；本仓库已合并 3.14.3，下表部分“缺口”因此由上游直接补齐，完整差异需按 3.14.3 重新核对。
+以下按**官方 3.14.3 安装包**核对（`ZCode-3.14.3-win-x64.exe`，`appVersion: 3.14.3`，构建于 2026-09-22）。核对方法：从安装包取出 `resources/app.asar` 内 `out/renderer/assets/IntlProvider-*.js` 的语言表，与 [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/) 做键差集。上游随 3.14.3 新开源的内容已计入下表，不再是“待核对”状态。
 
 **已补全**：
 
 - 内置插件与技能：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide、zcode-cua。安装包只分发源码资源完整且明确注册的插件；范围见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)、[.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md) 与 [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md)。
 - Computer Use 的模型可见面：`apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
-**尚未补全**（3.14.1 时按 i18n 键缺口定位，共 528 个键；3.14.3 合并后待重新核对）：
+**尚未补全**（共 258 键）：
 
-| 领域               | 缺口   | 说明                                                           |
-| ------------------ | ------ | -------------------------------------------------------------- |
-| `bots`             | 258 键 | Telegram / 飞书 / Lark / 企业微信 机器人通知                   |
-| `webRemoteControl` | 104 键 | 手机远控桌面                                                   |
-| `manualClaimPlan`  | 53 键  | 权益领取与验证码流程                                           |
-| `mode`             | 38 键  | 会话模式扩展                                                   |
-| `settings`         | 24 键  | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 多协议端点模板 |
-| 其他               | 51 键  | `server`、`appHeader`、`rewards`、`onboarding` 等              |
+| 领域               | 缺口  | 说明                                                     |
+| ------------------ | ----- | -------------------------------------------------------- |
+| `webRemoteControl` | 89 键 | 手机远控桌面；仓库只有 botChannel 渠道选择外壳           |
+| `manualClaimPlan`  | 53 键 | 权益领取与验证码流程                                     |
+| `mode`             | 38 键 | 会话模式扩展                                             |
+| `settings`         | 26 键 | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 端点模板 |
+| `server`           | 12 键 | Server 入口                                              |
+| `appHeader`        | 8 键  | Provider 配置入口                                        |
+| `marketingTouch`   | 7 键  | 权益触达                                                 |
+| `taskList`         | 6 键  | Codex / Claude 新建任务                                  |
+| `chat`             | 5 键  | agent 切换                                               |
+| `rewards`          | 5 键  | 权益菜单                                                 |
+| `onboarding`       | 4 键  | agent 设置步骤                                           |
+| 其他               | 5 键  | `remote`、`zcode`、`titleBar`                            |
 
-其中 `bots`、`webRemoteControl` 已随 3.14.3 由上游开源并并入本仓库，实际待补全为余下四项与其他，按 3.14.1 口径约 166 键；3.14.3 合并后的准确数字需要重新核对。
+`bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 只进来了渠道选择一层（15 键，另含自研 AstrBot 2 键），远控本体仍未实现，因此是当前最大缺口。反向还有 33 个键是本仓库特有、官方包没有的，主要来自 AstrBot 桥接与 `.zcodium` 命名空间。
 
 **有意不补全**：
 
@@ -93,6 +99,7 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 ## 更新
 
 - 2026-09-24：AstrBot 桥接整合为官方 `BotsService` 的传输 provider，并在官方 Bots GUI 与手机远控入口接入（#11–#14）。
+- 2026-09-24：按官方 3.14.3 安装包重新核对 i18n 键缺口，`bots` 259 键已归零，剩余 258 键；核对方法记入「与官方包的能力差异」。
 - 2026-09-24：Computer Use 运行时改为复用 `@trycua/cua-driver` 作为唯一原生引擎，移除自研 desk-pilot；client 由上层注入，缺失时保持 fail-closed，老 GNOME / Wayland 另走物理输入兼容层。
 - 2026-09-24：合并上游 3.14.3（`328c1a0`），纳入官方 bots 与手机远控等新开源内容；继续保留 `.zcodium` 数据命名空间。
 - 2026-09-24：根目录 `package.json` 版本改为 `3.14.3-modified`，用于标识本仓库产物，详见下方「版本标识」。

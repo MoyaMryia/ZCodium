@@ -26,25 +26,31 @@ Backfilling methods include supplying the missing built-in plugins and skills, l
 
 ### Capability delta versus the official package
 
-Verified against 3.14.1. Upstream `328c1a0 feat: update v3.14.3` has since open-sourced the `bots` stack (four platform adapters plus the platform-selection GUI) and phone remote control, among others; this repository has merged 3.14.3, so some gaps below are now covered by upstream and the full delta needs re-verification against 3.14.3.
+Verified against the **official 3.14.3 installer** (`ZCode-3.14.3-win-x64.exe`, `appVersion: 3.14.3`, built 2026-09-22). Method: pull the locale table from `out/renderer/assets/IntlProvider-*.js` inside the installer's `resources/app.asar`, then diff its keys against [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/). Content upstream newly open-sourced in 3.14.3 is already reflected in the table below; nothing here is left as "to be re-verified".
 
 **Backfilled**:
 
 - Ten built-in plugins and skills: documents, pdf, presentations, spreadsheets, skill-creator, plugin-creator, image-search, restore-legacy-sessions, zcode-guide, zcode-cua. Open-source commit `44b25ed46c` removed their sources while the official package still ships them. Scope: [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md), [.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md), and [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md).
 - The Computer Use model-visible surface: `apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`, skill, and docs. The native runtime (koffi/sharp, roughly 20 MiB) is not published with the package, matching upstream's `runtimeTopLevelPaths: []`.
 
-**Not yet backfilled** (located via i18n key gaps at 3.14.1, 528 keys total; to be re-verified after the 3.14.3 merge):
+**Not yet backfilled** (258 keys total):
 
-| Area               | Gap      | Notes                                                                                            |
-| ------------------ | -------- | ------------------------------------------------------------------------------------------------ |
-| `bots`             | 258 keys | Telegram / Feishu / Lark / WeCom bot notifications                                               |
-| `webRemoteControl` | 104 keys | Phone remote control of the desktop app                                                          |
-| `manualClaimPlan`  | 53 keys  | Benefit claiming and captcha flow                                                                |
-| `mode`             | 38 keys  | Session mode extensions                                                                          |
-| `settings`         | 24 keys  | Includes Claude model slot mapping and Anthropic/OpenAI/Gemini multi-protocol endpoint templates |
-| Other              | 51 keys  | `server`, `appHeader`, `rewards`, `onboarding`, and others                                       |
+| Area               | Gap     | Notes                                                                        |
+| ------------------ | ------- | ---------------------------------------------------------------------------- |
+| `webRemoteControl` | 89 keys | Phone remote control of the desktop; only the botChannel picker shell exists |
+| `manualClaimPlan`  | 53 keys | Benefit claiming and captcha flow                                            |
+| `mode`             | 38 keys | Session mode extensions                                                      |
+| `settings`         | 26 keys | Includes Claude model slot mapping and multi-protocol endpoint templates     |
+| `server`           | 12 keys | Server entry                                                                 |
+| `appHeader`        | 8 keys  | Provider configuration entry                                                 |
+| `marketingTouch`   | 7 keys  | Benefit touchpoints                                                          |
+| `taskList`         | 6 keys  | Codex / Claude new-task flows                                                |
+| `chat`             | 5 keys  | agent switching                                                              |
+| `rewards`          | 5 keys  | Benefits menu                                                                |
+| `onboarding`       | 4 keys  | agent settings step                                                          |
+| Other              | 5 keys  | `remote`, `zcode`, `titleBar`                                                |
 
-Of these, `bots` and `webRemoteControl` were open-sourced by upstream in 3.14.3 and are now merged in this repository. What remains is the other four areas plus "other" — roughly 166 keys by the 3.14.1 count. The exact number needs re-verification after the 3.14.3 merge.
+`bots` is closed: all 259 of its keys were open-sourced by upstream in 3.14.3 and entered this repository with the merge, leaving a gap of 0. For `webRemoteControl`, only the channel-selection layer came in (15 keys, plus 2 in-house AstrBot keys); the remote-control feature itself is still missing, making it the largest remaining gap. In the other direction, 33 keys exist only in this repository and not in the official package — mostly the AstrBot bridge and the `.zcodium` namespace.
 
 **Deliberately not backfilled**:
 
@@ -77,6 +83,7 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 ## Updates
 
 - 2026-09-24: Folded the AstrBot bridge into the official `BotsService` as a transport provider, and wired it into the official Bots GUI and the phone remote-control entry (#11–#14).
+- 2026-09-24: Re-verified the i18n key gap against the official 3.14.3 installer — `bots` is down to 0 keys and 258 keys remain; the method is documented under "Capability delta versus the official package".
 - 2026-09-24: Switched the Computer Use runtime to `@trycua/cua-driver` as the single native engine and removed the in-house desk-pilot; the client is injected by the upper layer, the runtime stays fail-closed without one, and older GNOME / Wayland goes through a separate physical-input compatibility layer.
 - 2026-09-24: Merged upstream 3.14.3 (`328c1a0`); adopted the official bots and the newly open-sourced remote-control surfaces, keeping the `.zcodium` data namespace.
 - 2026-09-24: Bumped the root `package.json` version to `3.14.3-modified` to mark this repository's artifacts; see Versioning below.
