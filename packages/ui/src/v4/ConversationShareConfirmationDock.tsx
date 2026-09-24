@@ -1,14 +1,11 @@
 /* oxlint-disable eslint(max-lines) -- 确认、发布进度和结构化失败详情必须共享同一 dock 状态与操作上下文。 */
-import { memo, useRef } from "react";
-import { Circle, CircleAlert, CircleCheck, CircleX, LoaderCircle, ShieldCheck } from "lucide-react";
+import { memo } from "react";
+import { Circle, CircleAlert, CircleCheck, CircleX, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { ConversationShareAccessMode } from "@zcode/shared";
-import { ConversationSharePermissionPicker } from "@/ConversationSharePermissionPicker.js";
 import {
-  DEFAULT_CONVERSATION_SHARE_ACCESS_MODE,
   type ConversationShareDisplayError,
   type ConversationShareDisplayWarnings,
   type ConversationShareProgressPhase,
@@ -22,21 +19,20 @@ import {
 
 const SHARE_PROGRESS_PHASES: readonly ConversationShareProgressPhase[] = [
   "collecting",
-  "uploading",
-  "checking",
+  "packing",
+  "saving",
 ];
 
 const SHARE_PHASE_LABEL_IDS: Record<ConversationShareProgressPhase, string> = {
   collecting: "conversationShare.phase.collecting",
-  uploading: "conversationShare.phase.uploading",
-  checking: "conversationShare.phase.checking",
+  packing: "conversationShare.phase.packing",
+  saving: "conversationShare.phase.saving",
 };
 
 interface ConversationShareConfirmationDockProps {
   selectedCount: number;
   totalCount: number;
   title?: string;
-  accessMode?: ConversationShareAccessMode;
   progressLabel?: string;
   progressPhase?: ConversationShareProgressPhase;
   completedArtifacts?: number;
@@ -45,9 +41,6 @@ interface ConversationShareConfirmationDockProps {
   onBack: () => void;
   onConfirm: () => void;
   onTitleChange?: (title: string) => void;
-  onAccessModeChange?: (accessMode: ConversationShareAccessMode) => void;
-  disclosureAccepted?: boolean;
-  onDisclosureAcceptedChange?: (accepted: boolean) => void;
   pending?: boolean;
   error?: ConversationShareDisplayError | null;
   warnings?: ConversationShareDisplayWarnings | null;
@@ -64,7 +57,6 @@ function ConversationShareConfirmationDockImpl({
   selectedCount,
   totalCount,
   title = "Share",
-  accessMode = DEFAULT_CONVERSATION_SHARE_ACCESS_MODE,
   progressLabel,
   progressPhase = "collecting",
   completedArtifacts = 0,
@@ -73,9 +65,6 @@ function ConversationShareConfirmationDockImpl({
   onBack,
   onConfirm,
   onTitleChange = NOOP,
-  onAccessModeChange = NOOP,
-  disclosureAccepted = false,
-  onDisclosureAcceptedChange = NOOP,
   pending = false,
   error = null,
   warnings = null,
@@ -86,50 +75,14 @@ function ConversationShareConfirmationDockImpl({
 }: ConversationShareConfirmationDockProps) {
   const { intl, locale } = useZCodeIntl();
   const errorDetailsLabel = intl.formatMessage({ id: "conversationShare.issue.details" });
-  const disclosureRef = useRef<HTMLElement>(null);
-  const checkboxRef = useRef<HTMLInputElement>(null);
-  const reviewAnimationRef = useRef<Animation | null>(null);
-  const handleConfirm = () => {
-    if (!error && !disclosureAccepted) {
-      // 未确认时只定位检查入口，不能把点击直接交给发布回调；重复点击先取消上次动画。
-      disclosureRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-      checkboxRef.current?.focus({ preventScroll: true });
-      reviewAnimationRef.current?.cancel();
-      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        reviewAnimationRef.current =
-          disclosureRef.current?.animate(
-            [
-              { backgroundColor: "var(--color-surface)" },
-              {
-                backgroundColor:
-                  "color-mix(in srgb, var(--color-warning) 20%, var(--color-surface))",
-                offset: 0.35,
-              },
-              { backgroundColor: "var(--color-surface)" },
-            ],
-            { duration: 600, easing: "ease-out" },
-          ) ?? null;
-      }
-      return;
-    }
-    onConfirm();
-  };
   const publishView = pending || error !== null;
-  const progressPercent =
-    progressPhase === "collecting" ? 20 : progressPhase === "uploading" ? 58 : 82;
   const failedProgressMessageId =
     progressPhase === "collecting"
       ? "conversationShare.progress.collectingFailed"
-      : progressPhase === "uploading"
-        ? "conversationShare.progress.uploadingFailed"
-        : "conversationShare.progress.checkingFailed";
+      : progressPhase === "packing"
+        ? "conversationShare.progress.packingFailed"
+        : "conversationShare.progress.savingFailed";
   const progressPhaseIndex = SHARE_PROGRESS_PHASES.indexOf(progressPhase);
-  const accessSummaryMessageId =
-    accessMode === "public_readonly"
-      ? "conversationShare.permission.linkViewerSummary"
-      : accessMode === "public_importable"
-        ? "conversationShare.permission.linkEditorSummary"
-        : "conversationShare.permission.privateSummary";
   const footerMetaMessageId = error
     ? "conversationShare.publish.failedFooter"
     : pending
@@ -139,7 +92,6 @@ function ConversationShareConfirmationDockImpl({
     pending && !error
       ? {
           selected: selectedCount,
-          access: intl.formatMessage({ id: accessSummaryMessageId }),
         }
       : { selected: selectedCount, total: totalCount };
   const formatValue = (value: number | undefined, code: string): string => {
@@ -196,17 +148,10 @@ function ConversationShareConfirmationDockImpl({
             ) : null}
           </div>
           <span className="shrink-0 pt-0.5 text-ui-sm tabular-nums text-foreground-subtle">
-            {pending && !error
-              ? `${progressPercent}%`
-              : error
-                ? intl.formatMessage(
-                    { id: "conversationShare.partial.selectedSummary" },
-                    { selected: selectedCount, total: totalCount },
-                  )
-                : intl.formatMessage(
-                    { id: "conversationShare.partial.selectionCount" },
-                    { selected: selectedCount, total: totalCount },
-                  )}
+            {intl.formatMessage(
+              { id: "conversationShare.partial.selectionCount" },
+              { selected: selectedCount, total: totalCount },
+            )}
           </span>
         </div>
         {publishView ? (
@@ -215,23 +160,6 @@ function ConversationShareConfirmationDockImpl({
               <p role="status" className="text-ui-base font-medium">
                 {error ? intl.formatMessage({ id: failedProgressMessageId }) : progressLabel}
               </p>
-              <div
-                className="h-1.5 overflow-hidden rounded-full bg-background-subtle"
-                role="progressbar"
-                aria-label={intl.formatMessage({ id: "conversationShare.generatingLink" })}
-                aria-valuenow={progressPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div
-                  data-testid="conversation-share-progress-fill"
-                  className={cn(
-                    "h-full rounded-full transition-[width]",
-                    error ? "bg-destructive" : "bg-primary",
-                  )}
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
             </div>
             <div className="grid gap-3 text-ui-sm @min-[640px]/share:grid-cols-3">
               {SHARE_PROGRESS_PHASES.map((phase, index) => {
@@ -251,9 +179,7 @@ function ConversationShareConfirmationDockImpl({
                     ? CircleX
                     : active
                       ? LoaderCircle
-                      : phase === "checking"
-                        ? ShieldCheck
-                        : Circle;
+                      : Circle;
                 const phaseDescription = failed
                   ? intl.formatMessage({ id: "conversationShare.phase.failed" })
                   : completed
@@ -261,11 +187,11 @@ function ConversationShareConfirmationDockImpl({
                         id:
                           phase === "collecting"
                             ? "conversationShare.phase.collectingComplete"
-                            : "conversationShare.phase.uploadingComplete",
+                            : "conversationShare.phase.packingComplete",
                       })
-                    : active && phase === "uploading" && totalArtifacts > 0
+                    : active && phase === "packing" && totalArtifacts > 0
                       ? intl.formatMessage(
-                          { id: "conversationShare.phase.uploadingActive" },
+                          { id: "conversationShare.phase.packingActive" },
                           { completed: completedArtifacts, total: totalArtifacts },
                         )
                       : active
@@ -274,9 +200,9 @@ function ConversationShareConfirmationDockImpl({
                             id:
                               phase === "collecting"
                                 ? "conversationShare.phase.collectingPending"
-                                : phase === "uploading"
-                                  ? "conversationShare.phase.uploadingPending"
-                                  : "conversationShare.phase.checkingPending",
+                                : phase === "packing"
+                                  ? "conversationShare.phase.packingPending"
+                                  : "conversationShare.phase.savingPending",
                           });
                 return (
                   <div
@@ -326,164 +252,15 @@ function ConversationShareConfirmationDockImpl({
                 {intl.formatMessage({ id: "conversationShare.shareTitle" })}
                 <input
                   value={title}
+                  maxLength={512}
                   onChange={(event) => onTitleChange(event.currentTarget.value)}
                   className="h-9 w-full min-w-0 rounded-lg border border-input-border bg-input px-3 text-ui-base text-foreground outline-none focus:border-input-border-focused"
                 />
               </label>
-              <ConversationSharePermissionPicker
-                variant="compact"
-                permission={
-                  accessMode === "public_readonly"
-                    ? "link-viewer"
-                    : accessMode === "public_importable"
-                      ? "link-editor"
-                      : "private"
-                }
-                onChange={(permission) =>
-                  onAccessModeChange(
-                    permission === "link-viewer"
-                      ? "public_readonly"
-                      : permission === "link-editor"
-                        ? "public_importable"
-                        : "private",
-                  )
-                }
-              />
             </div>
-            {/* 设计原因：敏感信息确认需要保留警示语义，但把详细检查范围收进锚定浮层，避免确认 dock 被长文案撑高。 */}
-            <section
-              ref={disclosureRef}
-              data-testid="conversation-share-disclosure"
-              role="note"
-              className="mx-3 mb-3 mt-3 rounded-xl border border-border border-l-2 border-l-warning bg-surface p-3 text-ui-sm text-foreground"
-            >
-              <div className="flex items-start gap-2">
-                <span
-                  data-testid="conversation-share-disclosure-icon"
-                  className="hidden size-5 shrink-0 items-center justify-center pt-0.5 text-warning @min-[480px]/share:flex"
-                  aria-hidden="true"
-                >
-                  <ShieldCheck className="size-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div
-                    data-testid="conversation-share-disclosure-content-row"
-                    className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
-                  >
-                    <label className="flex min-w-0 items-start gap-2">
-                      <input
-                        ref={checkboxRef}
-                        type="checkbox"
-                        data-testid="conversation-share-disclosure-checkbox"
-                        checked={disclosureAccepted}
-                        onChange={(event) => {
-                          reviewAnimationRef.current?.cancel();
-                          onDisclosureAcceptedChange(event.currentTarget.checked);
-                        }}
-                        className="mt-0.5 size-4 shrink-0 accent-primary"
-                      />
-                      <span className="font-medium leading-5">
-                        {intl.formatMessage({ id: "conversationShare.disclosure.checkbox" })}
-                      </span>
-                    </label>
-                    <div
-                      data-testid="conversation-share-disclosure-supporting-row"
-                      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-xs leading-5 @min-[480px]/share:ml-auto @min-[480px]/share:justify-end"
-                    >
-                      <span
-                        data-testid="conversation-share-disclosure-description"
-                        className="min-w-0 text-ui-xs leading-5 text-foreground-subtle"
-                      >
-                        {intl.formatMessage({ id: "conversationShare.disclosure.description" })}
-                      </span>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            data-testid="conversation-share-disclosure-scope-trigger"
-                            className="inline-flex shrink-0 items-center text-ui-xs font-medium leading-5 text-foreground-subtle underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                          >
-                            {intl.formatMessage({
-                              id: "conversationShare.disclosure.scope.trigger",
-                            })}
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          side="top"
-                          align="end"
-                          sideOffset={8}
-                          data-testid="conversation-share-disclosure-scope-content"
-                          className="relative w-[min(28rem,calc(100vw-2rem))] gap-0 overflow-visible border-0 bg-transparent p-0 shadow-none"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className="pointer-events-none absolute bottom-[-0.375rem] right-7 z-0 size-3 rotate-45 border-b border-r border-popover-border bg-popover"
-                          />
-                          <div className="relative z-10 overflow-hidden rounded-xl border border-popover-border bg-popover text-ui-sm text-popover-foreground shadow-lg">
-                            <div className="border-b border-border px-4 py-3">
-                              <PopoverTitle className="text-ui-base font-semibold">
-                                {intl.formatMessage({
-                                  id: "conversationShare.disclosure.scope.title",
-                                })}
-                              </PopoverTitle>
-                            </div>
-                            <div className="grid gap-3 px-4 py-3">
-                              <div className="grid gap-1.5">
-                                <p className="text-ui-xs font-medium text-foreground-subtle">
-                                  {intl.formatMessage({
-                                    id: "conversationShare.disclosure.scope.reviewLabel",
-                                  })}
-                                </p>
-                                <ul className="grid gap-1.5">
-                                  {(["conversation", "tools", "generated"] as const).map(
-                                    (scope) => (
-                                      <li key={scope} className="flex items-start gap-2 leading-5">
-                                        <span
-                                          aria-hidden="true"
-                                          className="mt-2 size-1.5 shrink-0 rounded-full bg-warning"
-                                        />
-                                        <span>
-                                          {intl.formatMessage({
-                                            id: `conversationShare.disclosure.scope.${scope}`,
-                                          })}
-                                        </span>
-                                      </li>
-                                    ),
-                                  )}
-                                </ul>
-                              </div>
-                              <div className="grid gap-1.5">
-                                <p className="text-ui-xs font-medium text-foreground-subtle">
-                                  {intl.formatMessage({
-                                    id: "conversationShare.disclosure.scope.sensitiveLabel",
-                                  })}
-                                </p>
-                                <p className="flex items-start gap-2 leading-5">
-                                  <span
-                                    aria-hidden="true"
-                                    className="mt-2 size-1.5 shrink-0 rounded-full bg-warning"
-                                  />
-                                  <span>
-                                    {intl.formatMessage({
-                                      id: "conversationShare.disclosure.scope.sensitive",
-                                    })}
-                                  </span>
-                                </p>
-                              </div>
-                            </div>
-                            <p className="border-t border-border bg-surface px-4 py-3 text-ui-xs text-foreground-subtle">
-                              {intl.formatMessage({
-                                id: "conversationShare.disclosure.scope.note",
-                              })}
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <p role="note" className="m-3 text-ui-sm leading-5 text-foreground-subtle">
+              {intl.formatMessage({ id: "conversationShare.export.note" })}
+            </p>
           </>
         )}
         {error ? (
@@ -698,7 +475,7 @@ function ConversationShareConfirmationDockImpl({
             type="button"
             size="lg"
             disabled={pending || selectedCount === 0 || !title.trim()}
-            onClick={handleConfirm}
+            onClick={onConfirm}
             data-testid="conversation-share-confirm"
             className="col-span-2 h-auto min-h-9 whitespace-normal break-words px-3 @min-[480px]/share:order-last"
           >

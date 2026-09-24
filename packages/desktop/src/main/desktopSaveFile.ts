@@ -1,11 +1,13 @@
-import { copyFile, mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, open, rm } from "node:fs/promises";
 import { lookup } from "node:dns/promises";
+import type { LookupAddress } from "node:dns";
 import { BlockList } from "node:net";
 import type { LookupFunction } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { SaveFileRequest, SaveFileResult } from "@zcode/shared";
-import { PlatformChannels } from "@zcode/shared";
+import { writeSavedFile } from "./writeSavedFile.js";
+import { CONVERSATION_ARCHIVE_LIMITS, PlatformChannels } from "@zcode/shared";
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import { Agent, fetch as undiciFetch } from "undici";
 
@@ -59,12 +61,13 @@ function parseRemoteImageUrl(value: unknown): URL | null {
   }
 }
 
-async function resolvePublicRemoteUrl(url: URL): Promise<Awaited<ReturnType<typeof lookup>>> {
+// lookup 的重载 ReturnType 不是 all:true 的数组结果，显式声明实际使用的 DNS 契约。
+async function resolvePublicRemoteUrl(url: URL): Promise<LookupAddress[]> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     throw new SaveFileError("remote_address_not_allowed");
   }
-  let addresses: Awaited<ReturnType<typeof lookup>>;
+  let addresses: LookupAddress[];
   try {
     addresses = await lookup(hostname, { all: true, verbatim: true });
   } catch {
@@ -189,14 +192,15 @@ export function registerDesktopSaveFileIpcHandler(logger: { warn: (...args: unkn
       }
       const suggestedName = basename(payload.suggestedName.trim()).slice(0, 120);
       const sourceUrl = parseRemoteImageUrl(payload.sourceUrl);
-      const hasData = payload.data instanceof ArrayBuffer;
+      const data = payload.data;
+      const hasData = data instanceof ArrayBuffer;
       if (!suggestedName || (sourceUrl === null && !hasData)) {
         return { success: false, error: "invalid_file_payload" };
       }
-      if (hasData && payload.data.byteLength === 0) {
+      if (hasData && data.byteLength === 0) {
         return { success: false, error: "invalid_file_payload" };
       }
-      if (hasData && payload.data.byteLength > MAX_SAVE_FILE_BYTES) {
+      if (hasData && data.byteLength > CONVERSATION_ARCHIVE_LIMITS.archiveBytes) {
         return { success: false, error: "file_too_large" };
       }
 
@@ -213,16 +217,13 @@ export function registerDesktopSaveFileIpcHandler(logger: { warn: (...args: unkn
         if (sourceUrl) {
           await downloadRemoteFile(sourceUrl, result.filePath);
         } else if (hasData) {
-          await writeFile(result.filePath, new Uint8Array(payload.data));
+          await writeSavedFile(result.filePath, new Uint8Array(data));
         }
-        return { success: true, path: result.filePath };
+        return { success: true, path: result.filePath, name: basename(result.filePath) };
       } catch (error) {
         const errorCode = error instanceof SaveFileError ? error.code : "write_failed";
-        logger.warn(
-          `[save-file] 写入失败 path=${result.filePath} error=${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+        // 用户目录和底层异常可能包含隐私；固定错误码足够区分下载和写入失败。
+        logger.warn("[save-file] 写入失败", { code: errorCode });
         return { success: false, error: errorCode };
       }
     },

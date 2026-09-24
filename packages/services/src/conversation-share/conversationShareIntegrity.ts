@@ -1,15 +1,5 @@
 import { createHash } from "node:crypto";
 
-import {
-  conversationShareConfirmRequestSchema,
-  type ConversationShareArtifactDescriptor,
-  type ConversationShareConfirmRequest,
-} from "@zcode/shared";
-
-type ConversationShareConfirmRequestBase = Omit<ConversationShareConfirmRequest, "integrity"> & {
-  artifacts: ConversationShareArtifactDescriptor[];
-};
-
 function assertValidUnicode(value: string): void {
   for (let index = 0; index < value.length; index += 1) {
     const codeUnit = value.charCodeAt(index);
@@ -73,25 +63,6 @@ export function sha256ConversationShareJson(value: unknown): string {
   return createHash("sha256")
     .update(canonicalizeConversationShareJson(value), "utf8")
     .digest("hex");
-}
-
-export function buildConversationShareConfirmRequest(
-  input: ConversationShareConfirmRequestBase,
-): ConversationShareConfirmRequest {
-  const artifacts = [...input.artifacts].sort((left, right) =>
-    left.artifact_id.localeCompare(right.artifact_id),
-  );
-  const projectionSha256 = sha256ConversationShareJson(input.projection.rows);
-  const artifactSetSha256 = sha256ConversationShareJson(artifacts);
-  const { artifacts: _artifacts, ...confirmRequest } = input;
-
-  return conversationShareConfirmRequestSchema.parse({
-    ...confirmRequest,
-    integrity: {
-      projection_sha256: projectionSha256,
-      artifact_set_sha256: artifactSetSha256,
-    },
-  });
 }
 
 /**

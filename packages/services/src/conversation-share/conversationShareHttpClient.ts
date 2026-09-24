@@ -1,17 +1,9 @@
 /* oxlint-disable eslint(max-lines) -- 一个端点一个方法 + 统一的鉴权/脱敏/错误归一化 requestData，拆分会让 HTTP 契约失去单一入口。 */
 import {
-  conversationShareArtifactDescriptorSchema,
-  conversationShareArtifactUploadDataSchema,
-  conversationShareCapabilitiesWireSchema,
-  narrowConversationShareCapabilities,
-  conversationShareConfirmDataSchema,
-  conversationShareConfirmRequestSchema,
   conversationShareContinuationDataSchema,
   conversationShareContinuationRequestSchema,
   conversationShareErrorEnvelopeSchema,
   conversationShareKnownErrorCodeSchema,
-  conversationSharePreparationDataSchema,
-  conversationSharePreparationRequestSchema,
   conversationSharePreviewDataSchema,
   createConversationShareSuccessEnvelopeSchema,
   decodeConversationShareRows,
@@ -19,16 +11,9 @@ import {
   type ApiClient,
   type ApiRequestInit,
   type ConversationShareApiErrorCode,
-  type ConversationShareArtifactDescriptor,
-  type ConversationShareArtifactUpload,
-  type ConversationShareCapabilities,
-  type ConversationShareConfirmRequest,
   type ConversationShareContinuation,
   type ConversationShareContinuationRequest,
-  type ConversationSharePreparation,
-  type ConversationSharePreparationRequest,
   type ConversationSharePreview,
-  type ConversationShareRecord,
 } from "@zcode/shared";
 import type { z } from "zod";
 import { createServiceLogger } from "../logger/serviceLogger.js";
@@ -185,23 +170,6 @@ function parseRetryAfterMs(value: string | null, now = Date.now()): number | und
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
-// confirm 期间服务端同步跑安全检查，单次请求会被挂住远超 30s（实测 50s+ 被 abort）。只放宽这一个
-// 端点：全局抬到 2min 会让断网时的能力发现也僵 2min。与 confirmUntilReady 的轮询超时无关——
-// 后者管的是服务端已返回 pending 之后的重试窗口，救不了请求本身。
-const CONFIRM_TIMEOUT_MS = 120_000;
-// uploadArtifact 不能沿用 30s 默认超时——confirm 单请求会被挂 50s+，更大的
-// artifact 在慢速上行上必然超时，且上传无自动重试，超时即整个发布失败。按体积动态放宽：
-// 30s 建连/服务端处理余量 + 保底 128KB/s 上行带宽，下限仍是全局默认超时（小文件不被缩短）。
-const UPLOAD_TIMEOUT_BASE_MS = 30_000;
-const UPLOAD_MIN_THROUGHPUT_BYTES_PER_SEC = 128 * 1024;
-
-function computeUploadTimeoutMs(fileSizeBytes: number, floorMs: number): number {
-  return Math.max(
-    floorMs,
-    UPLOAD_TIMEOUT_BASE_MS + Math.ceil(fileSizeBytes / UPLOAD_MIN_THROUGHPUT_BYTES_PER_SEC) * 1_000,
-  );
-}
-
 function normalizeRequestId(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed && /^[A-Za-z0-9._:-]{1,128}$/u.test(trimmed) ? trimmed : undefined;
@@ -212,8 +180,6 @@ interface ConversationShareHttpClientOptions {
   baseUrl: string;
   tokenProvider: () => Promise<string | null>;
   timeoutMs?: number;
-  /** confirm 单次请求超时；缺省 2min。 */
-  confirmTimeoutMs?: number;
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -229,86 +195,12 @@ export class ConversationShareHttpClient {
   private readonly baseUrl: string;
   private readonly tokenProvider: () => Promise<string | null>;
   private readonly timeoutMs: number;
-  private readonly confirmTimeoutMs: number;
 
   constructor(options: ConversationShareHttpClientOptions) {
     this.apiClient = options.apiClient;
     this.baseUrl = options.baseUrl;
     this.tokenProvider = options.tokenProvider;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.confirmTimeoutMs = options.confirmTimeoutMs ?? CONFIRM_TIMEOUT_MS;
-  }
-
-  async getCapabilities(): Promise<ConversationShareCapabilities> {
-    const wire = await this.requestData(
-      "/shares/capabilities",
-      { method: "GET" },
-      conversationShareCapabilitiesWireSchema,
-      "required",
-    );
-    const { capabilities, unsupportedArtifactTypes, unsupportedAccessModes } =
-      narrowConversationShareCapabilities(wire);
-    if (unsupportedArtifactTypes.length > 0 || unsupportedAccessModes.length > 0) {
-      // 后端新增结果物类型/访问模式时留一条可检索的记录：能力发现不再被打死，
-      // 但需要知道该补哪一种。
-      log.info(undefined, "conversation share capabilities dropped unsupported values", {
-        types: unsupportedArtifactTypes,
-        accessModes: unsupportedAccessModes,
-        supportedCount: capabilities.allowed_artifacts.length,
-      });
-    }
-    return capabilities;
-  }
-
-  createPreparation(
-    input: ConversationSharePreparationRequest,
-  ): Promise<ConversationSharePreparation> {
-    const body = conversationSharePreparationRequestSchema.parse(input);
-    return this.requestData(
-      "/shares/preparations",
-      this.jsonRequest("POST", body),
-      conversationSharePreparationDataSchema,
-      "required",
-    );
-  }
-
-  uploadArtifact(
-    preparationId: string,
-    descriptor: ConversationShareArtifactDescriptor,
-    file: Blob,
-  ): Promise<ConversationShareArtifactUpload> {
-    const parsedDescriptor = conversationShareArtifactDescriptorSchema.parse(descriptor);
-    // 安全边界：只记录公开 ID、类型与字节数，不记录 descriptor、文件名、路径、正文或鉴权头。
-    log.debug(undefined, "conversation share artifact upload prepared", {
-      preparationId,
-      artifactId: parsedDescriptor.artifact_id,
-      artifactType: parsedDescriptor.artifact_type,
-      fileSizeBytes: file.size,
-    });
-    const form = new FormData();
-    form.append("descriptor", JSON.stringify(parsedDescriptor));
-    form.append("file", file, parsedDescriptor.display_name);
-    return this.requestData(
-      `/shares/preparations/${encodeURIComponent(preparationId)}/artifacts`,
-      { method: "POST", body: form },
-      conversationShareArtifactUploadDataSchema,
-      "required",
-      computeUploadTimeoutMs(file.size, this.timeoutMs),
-    );
-  }
-
-  confirm(
-    preparationId: string,
-    input: ConversationShareConfirmRequest,
-  ): Promise<ConversationShareRecord> {
-    const body = conversationShareConfirmRequestSchema.parse(input);
-    return this.requestData(
-      `/shares/preparations/${encodeURIComponent(preparationId)}/confirm`,
-      this.jsonRequest("POST", body),
-      conversationShareConfirmDataSchema,
-      "required",
-      this.confirmTimeoutMs,
-    );
   }
 
   async getPreview(shareCode: string): Promise<ConversationSharePreview> {

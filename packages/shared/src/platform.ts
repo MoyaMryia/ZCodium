@@ -256,6 +256,10 @@ export type SaveFileRequest =
     };
 
 export interface SaveFileResult {
+  /** 实际保存的文件名，不含目录。 */
+  name?: string;
+  /** 浏览器只确认已发起下载，无法确认用户是否最终保存到磁盘。 */
+  downloadStarted?: boolean;
   canceled?: boolean;
   error?: string;
   path?: string;
@@ -534,7 +538,7 @@ export interface IPlatformService {
   /** 打开系统多文件选择框，返回选中的文件路径；取消时返回空数组 */
   selectFiles?(): Promise<string[]>;
 
-  /** 使用宿主原生另存为对话框写入文件；普通 Web 端不实现 */
+  /** 桌面另存为，或 Web 浏览器下载；取消不是成功。 */
   saveFile?(payload: SaveFileRequest): Promise<SaveFileResult>;
 
   /**

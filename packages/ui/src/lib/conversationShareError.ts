@@ -151,8 +151,8 @@ function sanitizeIssue(issue: unknown): ConversationShareFailureIssue | null {
     ...(typeof value.limit === "number" ? { limit: value.limit } : {}),
     ...(typeof value.retryAfterMs === "number" ? { retryAfterMs: value.retryAfterMs } : {}),
     ...(value.phase === "collecting" ||
-    value.phase === "uploading" ||
-    value.phase === "checking" ||
+    value.phase === "packing" ||
+    value.phase === "saving" ||
     value.phase === "complete"
       ? { phase: value.phase }
       : {}),

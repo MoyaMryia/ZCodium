@@ -29,7 +29,6 @@ import {
   ZCODE_AGENT_PROVIDER,
 } from "@zcode/shared";
 import type {
-  ConversationShareAccessMode,
   GitChangeSourceId,
   GitRepositorySummary,
   ZCodeProvider,
@@ -53,7 +52,6 @@ import {
   resolveConversationSharePublishErrorMessageId,
   sanitizeConversationShareWarnings,
 } from "@/lib/conversationShareError.js";
-import { localizeConversationShareUrl } from "@zcode/shared";
 import type {
   ConversationShareAllowedArtifact,
   ConversationShareTurnPreflightResult,
@@ -68,6 +66,8 @@ import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import { buildChatSessionScrollMemoryKey } from "@/lib/chatSessionScrollMemory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useServices } from "@/hooks/useServices.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
+import { saveConversationExport } from "@/lib/saveConversationExport.js";
 
 import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { resolveWorkflowResumeHandler } from "@/v4/workflowResumeGate.js";
@@ -104,7 +104,6 @@ import { useSettings } from "@/hooks/useSettingService.js";
 import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import {
-  DEFAULT_CONVERSATION_SHARE_ACCESS_MODE,
   DEFAULT_CONVERSATION_SHARE_DOCK_STATE,
   getConversationShareDockState,
   getConversationShareSelectedProductTurnIds,
@@ -542,6 +541,7 @@ export function SessionPane({
   const { conversationShareService, modelSelectionService, zcodeSessionService, zcodeTaskService } =
     useServices();
   const { intl, locale } = useZCodeIntl();
+  const platform = usePlatform();
   const slashCommands = useSlashCommands(workspacePath, workspaceIdentity);
   const baseWorkspaceServices = useBaseWorkspaceServices();
   const workspaceHomePath = useWorkspaceHomePath({
@@ -564,12 +564,11 @@ export function SessionPane({
   );
   const shareDock = shareDockState ?? DEFAULT_CONVERSATION_SHARE_DOCK_STATE;
   const shareTitle = shareDock.title ?? snapshot?.meta.title?.trim() ?? sessionId ?? "";
-  const shareDisclosureAccepted = shareDock.disclosureAccepted;
   const sharePublishing = shareDock.publishing;
   const shareProgress = shareDock.progress;
   const shareCompletedArtifacts = shareDock.completedArtifacts;
   const shareTotalArtifacts = shareDock.totalArtifacts;
-  const publishedShareUrl = shareDock.publishedShareUrl;
+  const exportedFile = shareDock.exportedFile;
   const shareError = shareDock.error;
   const shareWarnings = shareDock.warnings;
   const shareActive = shareDraft?.scope === "partial";
@@ -596,7 +595,6 @@ export function SessionPane({
   const setAllShareRowsSelected = useConversationShareSelectionStore(
     (value) => value.setAllRowsSelected,
   );
-  const setShareAccessMode = useConversationShareSelectionStore((value) => value.setAccessMode);
   const showShareTimeline = useConversationShareSelectionStore((value) => value.showTimeline);
   const showShareSelectionPanel = useConversationShareSelectionStore(
     (value) => value.showSelectionPanel,
@@ -3831,8 +3829,14 @@ export function SessionPane({
     quotaBanner.upgradeProviderId,
   ]);
 
-  const handleConfirmShareDisclosure = useCallback(async () => {
-    if (!sessionId || !shareDraft || sharePublishing) return;
+  const handleExportConversation = useCallback(async () => {
+    if (
+      !sessionId ||
+      !shareDraft ||
+      getConversationShareDockState(useConversationShareSelectionStore.getState(), sessionId)
+        .publishing
+    )
+      return;
     const productTurnIds = getConversationShareSelectedProductTurnIds(
       useConversationShareSelectionStore.getState(),
       sessionId,
@@ -3840,7 +3844,6 @@ export function SessionPane({
     if (productTurnIds.length === 0 || !shareTitle.trim()) return;
     const attemptKey = JSON.stringify({
       title: shareTitle.trim(),
-      accessMode: shareDraft.accessMode,
       productTurnIds,
       revision: snapshot?.revision ?? null,
       logEpoch: snapshot?.logEpoch ?? null,
@@ -3860,7 +3863,7 @@ export function SessionPane({
     ) => {
       activePhase = progress.phase;
       updateShareDockState(sessionId, {
-        progress: progress.phase === "complete" ? "checking" : progress.phase,
+        progress: progress.phase === "complete" ? "saving" : progress.phase,
         completedArtifacts: progress.completedArtifacts,
         totalArtifacts: progress.totalArtifacts,
       });
@@ -3881,7 +3884,7 @@ export function SessionPane({
       progress: "collecting",
       completedArtifacts: 0,
       totalArtifacts: 0,
-      publishedShareUrl: null,
+      exportedFile: null,
       error: null,
       warnings: null,
     });
@@ -3893,17 +3896,23 @@ export function SessionPane({
           ...(remoteSessionId ? { remoteSessionId } : {}),
           sessionId,
           title: shareTitle.trim(),
-          accessMode: shareDraft.accessMode,
           selection: { kind: "productTurns", productTurnIds },
           clientRequestId: shareAttempt.clientRequestId,
-          disclosureAcceptedAt: shareAttempt.disclosureAcceptedAt,
           locale,
         },
         operationId,
       );
+      activePhase = "saving";
+      updateShareDockState(sessionId, { progress: "saving" });
+      const saved = await saveConversationExport(conversationShareService, platform, share);
+      if (saved.canceled) return;
+      if (!saved.success) throw new Error("Conversation export could not be saved");
       const warnings = collectedWarnings as ConversationShareDisplayWarnings | null;
       updateShareDockState(sessionId, {
-        publishedShareUrl: share.share_url,
+        exportedFile: {
+          name: saved.name ?? share.suggestedName,
+          downloadStarted: saved.downloadStarted ?? false,
+        },
         warnings,
       });
       // collectedWarnings 只在 progress 回调里赋值，TS 的控制流分析看不到跨闭包写入，
@@ -3916,14 +3925,18 @@ export function SessionPane({
           ),
         );
       } else {
-        toast(intl.formatMessage({ id: "conversationShare.publishSucceeded" }));
+        toast(
+          intl.formatMessage({
+            id: saved.downloadStarted
+              ? "conversationShare.export.downloadStarted"
+              : "conversationShare.publishSucceeded",
+          }),
+        );
       }
     } catch (error) {
       const details = getConversationShareErrorDetails(error);
-      // 401 等传输错误通常没有服务端 issues，不能再降级成 collecting 阶段的通用文案。
-      const resolvedMessageId = resolveConversationSharePublishErrorMessageId(error);
-      const messageId =
-        resolvedMessageId === "conversationShare.publishFailed" ? undefined : resolvedMessageId;
+      // 保存失败也要给出可重试的用户文案，不展示内部阶段名或不存在的服务端诊断。
+      const messageId = resolveConversationSharePublishErrorMessageId(error);
       updateShareDockState(sessionId, {
         error:
           details.issues && details.issues.length > 0
@@ -3938,7 +3951,7 @@ export function SessionPane({
                   {
                     code: resolveConversationShareFallbackIssueCode(details),
                     scope: "transport",
-                    phase: activePhase as "collecting" | "uploading" | "checking" | "complete",
+                    phase: activePhase as "collecting" | "packing" | "saving" | "complete",
                   },
                 ],
                 issueCount: 1,
@@ -3950,7 +3963,6 @@ export function SessionPane({
         sessionId,
         operationId,
         phase: activePhase,
-        accessMode: shareDraft.accessMode,
         selectedProductTurnCount: productTurnIds.length,
         remoteWorkspace: Boolean(workspaceIdentity || remoteSessionId),
         errorName: details.name,
@@ -3967,6 +3979,7 @@ export function SessionPane({
     }
   }, [
     conversationShareService,
+    platform,
     intl,
     remoteSessionId,
     sessionId,
@@ -3979,20 +3992,6 @@ export function SessionPane({
     workspaceIdentity,
     workspacePath,
   ]);
-
-  const handleCopyPublishedShare = useCallback(() => {
-    if (!publishedShareUrl || !navigator.clipboard?.writeText) return;
-    void navigator.clipboard.writeText(publishedShareUrl).then(
-      () => toast(intl.formatMessage({ id: "conversationShare.copySucceeded" })),
-      () => toast(intl.formatMessage({ id: "conversationShare.copyFailed" })),
-    );
-  }, [intl, publishedShareUrl]);
-
-  const handleOpenPublishedShare = useCallback(() => {
-    if (!publishedShareUrl || !onOpenBrowserUrl) return;
-    // 服务端保存规范 /cn/share/ 路径；打开时再按当前界面语言切换落地页路径。
-    onOpenBrowserUrl(localizeConversationShareUrl(publishedShareUrl, locale));
-  }, [locale, onOpenBrowserUrl, publishedShareUrl]);
 
   const handleCopyShareRequestId = useCallback(() => {
     const requestId = shareError?.requestId;
@@ -4030,13 +4029,13 @@ export function SessionPane({
   const handleShareSelectAll = useCallback(() => {
     if (!sessionId) return;
     setAllShareRowsSelected(sessionId, true);
-    updateShareDockState(sessionId, { disclosureAccepted: false, error: null });
+    updateShareDockState(sessionId, { error: null });
   }, [sessionId, setAllShareRowsSelected, updateShareDockState]);
 
   const handleShareDeselectAll = useCallback(() => {
     if (!sessionId) return;
     setAllShareRowsSelected(sessionId, false);
-    updateShareDockState(sessionId, { disclosureAccepted: false, error: null });
+    updateShareDockState(sessionId, { error: null });
   }, [sessionId, setAllShareRowsSelected, updateShareDockState]);
 
   const handleDismissShareError = useCallback(() => {
@@ -4052,7 +4051,7 @@ export function SessionPane({
       // 按 product turn 身份整轮移除：service 的 issue 已带 productTurnId，
       // 不再用 turnOrdinal 索引 UI 的 per-query 列表（两套编号会错位）。
       deselectShareProductTurn(sessionId, productTurnId);
-      updateShareDockState(sessionId, { disclosureAccepted: false, error: null });
+      updateShareDockState(sessionId, { error: null });
     },
     [deselectShareProductTurn, sessionId, updateShareDockState],
   );
@@ -4062,55 +4061,29 @@ export function SessionPane({
       if (!sessionId) return;
       updateShareDockState(sessionId, {
         title: value,
-        disclosureAccepted: false,
-        publishedShareUrl: null,
+        exportedFile: null,
         error: null,
         warnings: null,
       });
-    },
-    [sessionId, updateShareDockState],
-  );
-
-  const handleShareAccessModeChange = useCallback(
-    (accessMode: ConversationShareAccessMode) => {
-      if (!sessionId) return;
-      setShareAccessMode(sessionId, accessMode);
-      updateShareDockState(sessionId, {
-        disclosureAccepted: false,
-        publishedShareUrl: null,
-        error: null,
-        warnings: null,
-      });
-    },
-    [sessionId, setShareAccessMode, updateShareDockState],
-  );
-
-  // 内联回调会让 memo 确认 Dock 每次重渲染；依赖当前 session，避免切换后写回旧会话。
-  const handleShareDisclosureAcceptedChange = useCallback(
-    (accepted: boolean) => {
-      if (sessionId) {
-        updateShareDockState(sessionId, { disclosureAccepted: accepted });
-      }
     },
     [sessionId, updateShareDockState],
   );
 
   const handleShareBack = useCallback(() => {
-    if (sharePublishing || publishedShareUrl || !sessionId) return;
+    if (sharePublishing || exportedFile || !sessionId) return;
     updateShareDockState(sessionId, { error: null });
     goToShareSelection(sessionId);
-  }, [goToShareSelection, publishedShareUrl, sessionId, sharePublishing, updateShareDockState]);
+  }, [goToShareSelection, exportedFile, sessionId, sharePublishing, updateShareDockState]);
 
   const handleShareConfirm = useCallback(() => {
-    if (!shareDisclosureAccepted) return;
-    void handleConfirmShareDisclosure();
-  }, [handleConfirmShareDisclosure, shareDisclosureAccepted]);
+    void handleExportConversation();
+  }, [handleExportConversation]);
 
   const handleShareSelectionToggle = useCallback(
     (rowId: number) => {
       if (sessionId) toggleShareRow(sessionId, rowId);
       if (sessionId) {
-        updateShareDockState(sessionId, { disclosureAccepted: false, error: null });
+        updateShareDockState(sessionId, { error: null });
       }
     },
     [sessionId, toggleShareRow, updateShareDockState],
@@ -4250,12 +4223,11 @@ export function SessionPane({
         onDeselectTurn={handleDeselectShareTurn}
         onRetryPreflight={retrySharePreflight}
       />
-    ) : publishedShareUrl ? (
+    ) : exportedFile ? (
       <ConversationShareSuccessDock
-        title={shareTitle}
+        title={exportedFile.name}
+        downloadStarted={exportedFile.downloadStarted}
         warnings={shareWarnings}
-        onOpen={handleOpenPublishedShare}
-        onCopy={handleCopyPublishedShare}
         onDismiss={handleShareCancel}
       />
     ) : (
@@ -4263,13 +4235,12 @@ export function SessionPane({
         selectedCount={selectedShareProductTurnIds.length}
         totalCount={eligibleShareProductTurnIds.length}
         title={shareTitle}
-        accessMode={shareDraft?.accessMode ?? DEFAULT_CONVERSATION_SHARE_ACCESS_MODE}
         progressLabel={intl.formatMessage({
           id:
-            shareProgress === "uploading"
-              ? "conversationShare.progress.uploading"
-              : shareProgress === "checking"
-                ? "conversationShare.progress.checking"
+            shareProgress === "packing"
+              ? "conversationShare.progress.packing"
+              : shareProgress === "saving"
+                ? "conversationShare.progress.saving"
                 : "conversationShare.progress.collecting",
         })}
         progressPhase={shareProgress}
@@ -4283,9 +4254,6 @@ export function SessionPane({
         onCopyRequestId={handleCopyShareRequestId}
         onDeselectTurn={handleDeselectShareTurn}
         onTitleChange={handleShareTitleChange}
-        onAccessModeChange={handleShareAccessModeChange}
-        disclosureAccepted={shareDisclosureAccepted}
-        onDisclosureAcceptedChange={handleShareDisclosureAcceptedChange}
         onCancel={handleShareCancel}
         onBack={handleShareBack}
         onConfirm={handleShareConfirm}

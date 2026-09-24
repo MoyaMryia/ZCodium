@@ -16,6 +16,15 @@ export const CONVERSATION_ARCHIVE_LIMITS = Object.freeze({
   jsonNodes: 250_000,
 });
 
+export const CONVERSATION_ARCHIVE_CHUNK_BYTES = 512 * 1024;
+
+/** Host 内暂存的归档句柄，仅在创建它的连接内有效。 */
+export interface ConversationArchiveExport {
+  archiveId: string;
+  suggestedName: string;
+  byteLength: number;
+}
+
 export const conversationArchiveArtifactSchema = conversationShareArtifactDescriptorSchema
   .omit({ original_path: true })
   .extend({

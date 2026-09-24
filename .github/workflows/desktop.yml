@@ -58,6 +58,8 @@ jobs:
         run: node scripts/ci/local-feedback-smoke.mjs
       - name: Imported conversation browser checks
         run: node scripts/ci/local-share-context-smoke.mjs
+      - name: Conversation export browser checks
+        run: node scripts/ci/conversation-export-smoke.mjs
 
   remote-assets:
     name: Bundled Linux remote runtime

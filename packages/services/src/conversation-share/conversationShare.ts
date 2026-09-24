@@ -1,10 +1,9 @@
 /* oxlint-disable eslint(max-lines) -- Share 的错误/预检公共契约与跨 RPC 脱敏规则必须保持在同一边界，避免 UI、Host 和 API 各自漂移。 */
 import type {
-  ConversationShareAccessMode,
   ConversationShareCapabilities,
   ConversationShareContinuation,
   ConversationSharePreview,
-  ConversationShareRecord,
+  ConversationArchiveExport,
   Locale,
 } from "@zcode/shared";
 import { ServiceChannels } from "@zcode/shared";
@@ -25,11 +24,9 @@ export interface PublishTextConversationInput {
   remoteSessionId?: string;
   sessionId: string;
   title: string;
-  accessMode: ConversationShareAccessMode;
   selection: ConversationShareSelection;
   clientRequestId: string;
-  disclosureAcceptedAt: number;
-  /** 界面语言；决定返回的 share_url 落在中文站还是英文站。缺省不改写服务端下发的链接。 */
+  /** 界面语言。 */
   locale?: Locale;
 }
 
@@ -362,7 +359,7 @@ export class ConversationShareServiceError extends Error {
 
 export interface ConversationSharePublishProgress {
   operationId: string;
-  phase: "collecting" | "uploading" | "checking" | "complete";
+  phase: "collecting" | "packing" | "saving" | "complete";
   completedArtifacts: number;
   totalArtifacts: number;
   /**
@@ -427,7 +424,9 @@ export interface IConversationShareService {
   publish(
     input: PublishTextConversationInput,
     operationId: string,
-  ): Promise<ConversationShareRecord>;
+  ): Promise<ConversationArchiveExport>;
+  readExportChunk(archiveId: string, offset: number): Promise<string>;
+  releaseExport(archiveId: string): Promise<void>;
   onDynamicPublishProgress(operationId: string): Event<ConversationSharePublishProgress>;
   importShare(
     input: ImportConversationShareInput,
@@ -471,6 +470,8 @@ export function createUnsupportedConversationShareService(options: {
     getCapabilities: reject("getCapabilities"),
     preflight: reject("preflight"),
     publish: reject("publish"),
+    readExportChunk: reject("readExportChunk"),
+    releaseExport: async () => {},
     onDynamicPublishProgress: noEvents,
     importShare: reject("importShare"),
     onDynamicImportProgress: noEvents,

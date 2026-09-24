@@ -1,3 +1,4 @@
+import { saveBrowserFile } from "./saveBrowserFile.js";
 import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
 import { createRoot } from "react-dom/client";
@@ -187,6 +188,7 @@ async function renderConversationSharePage(): Promise<void> {
 function createWebPlatform(): IPlatformService {
   return {
     canSelectFilePath: false,
+    saveFile: saveBrowserFile,
     // Web 端无法打开系统目录选择框
     selectDirectory: () => Promise.resolve(null),
     // Web 端无法打开系统文件选择框

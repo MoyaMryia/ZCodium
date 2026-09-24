@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 发布、远端 staging、安全轮询和原子导入共享同一 attempt 生命周期，拆分会让清理与进度状态失去单一 owner。 */
+/* oxlint-disable eslint(max-lines) -- 会话快照、导出及原子导入由同一 Host service 管理。 */
 import { createHash, randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -9,9 +9,7 @@ import { z } from "zod";
 import type {
   ConversationShareArtifactDescriptor,
   ConversationShareCapabilities,
-  ConversationShareConfirmRequest,
   ConversationShareContinuation,
-  ConversationShareRecord,
   Locale,
 } from "@zcode/shared";
 import {
@@ -20,7 +18,6 @@ import {
   CONVERSATION_PREVIEW_CARD_VISIBLE_LIMIT,
   extractConversationPreviewFileReferences,
   type ConversationPreviewArtifactCandidate,
-  localizeConversationShareUrl,
   resolveRuntimeZCodeEndpointOrigin,
 } from "@zcode/shared";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
@@ -51,25 +48,19 @@ import {
   type ImportConversationShareResult,
   type ImportedConversationShare,
 } from "./conversationShare.js";
-import {
-  ConversationShareClientError,
-  type ConversationShareHttpClient,
-} from "./conversationShareHttpClient.js";
+import type { ConversationShareHttpClient } from "./conversationShareHttpClient.js";
 import {
   buildConversationShareArtifactSnapshot,
   getConversationSharePreviewCandidateFingerprint,
   type ConversationSharePreviewPreflightSnapshot,
 } from "./conversationShareArtifactDiscovery.js";
-import {
-  buildConversationShareConfirmRequest,
-  sha256ConversationShareJson,
-} from "./conversationShareIntegrity.js";
+import { encodeConversationArchive } from "./conversationArchive.js";
+import { ConversationArchiveExports } from "./conversationArchiveExports.js";
+import { conversationArchiveCapabilities } from "./conversationArchiveCapabilities.js";
 import { buildConversationSharePublicProjection } from "./conversationSharePublicProjection.js";
 import type { ConversationShareArtifactSource } from "./conversationShareArtifactSource.js";
 import { formatSharedContextV1 } from "./sharedContextFormatter.js";
 
-const DEFAULT_CONFIRM_POLL_INTERVAL_MS = 5_000;
-const DEFAULT_CONFIRM_POLL_TIMEOUT_MS = 120_000;
 // download 兜底不能是裸 fetch（无 AbortSignal/超时）：对象存储连接挂住时导入会停在
 // downloading 阶段直到 undici 默认 ~300s 兜底，体验上等于卡死。120s 覆盖慢速下行的大 artifact。
 const DOWNLOAD_TIMEOUT_MS = 120_000;
@@ -80,10 +71,6 @@ const PREVIEW_PREFLIGHT_SNAPSHOT_MAX_ENTRIES = 200;
 // 预检 stat 的并发上限：本地几乎无差别，SSH/远程 workspace 下每次 stat 都是一次
 // 网络往返，串行会让「下一步」长时间停在 checking。上限保证不把远端 host 打爆。
 const SHARE_PREFLIGHT_STAT_CONCURRENCY = 6;
-
-function wait(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
-}
 
 /**
  * 有界并发 map，保持输出与输入同序。
@@ -163,10 +150,7 @@ interface ConversationShareServiceOptions {
   zcodeAgentService: ConversationShareAgentService;
   client: ConversationShareHttpClient;
   artifactSource: ConversationShareArtifactSource;
-  confirmPollIntervalMs?: number;
-  confirmPollTimeoutMs?: number;
   now?: () => number;
-  sleep?: (delayMs: number) => Promise<void>;
   zcodeSessionService?: Pick<IZCodeSessionService, "createSession" | "listSessions">;
   download?: (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
   /** 单个 artifact 下载的超时（含读 body）；缺省 120s。 */
@@ -240,15 +224,6 @@ const IMPORTED_SHARE_TITLE_PREFIX: Readonly<Record<Locale, string>> = {
 
 function formatImportedShareSessionTitle(shareTitle: string, locale: Locale | undefined): string {
   return `${IMPORTED_SHARE_TITLE_PREFIX[locale ?? "zh-CN"]}${shareTitle.trim()}`;
-}
-
-function localizePublishedShare(
-  share: ConversationShareRecord,
-  locale: Locale | undefined,
-): ConversationShareRecord {
-  if (!locale) return share;
-  const shareUrl = localizeConversationShareUrl(share.share_url, locale);
-  return shareUrl === share.share_url ? share : { ...share, share_url: shareUrl };
 }
 
 /** 本端产出的只读副本格式版本；与 wire 的 schema_version 各自独立演进。 */
@@ -662,13 +637,12 @@ function selectRows(
 }
 
 export class ConversationShareService implements IConversationShareService {
+  private readonly archiveExports = new ConversationArchiveExports();
+  private readonly exportOwner = Symbol("conversation-export");
   private readonly zcodeAgentService: ConversationShareAgentService;
   private readonly client: ConversationShareHttpClient;
   private readonly artifactSource: ConversationShareArtifactSource;
-  private readonly confirmPollIntervalMs: number;
-  private readonly confirmPollTimeoutMs: number;
   private readonly now: () => number;
-  private readonly sleep: (delayMs: number) => Promise<void>;
   private readonly progressEmitters = new Map<string, Emitter<ConversationSharePublishProgress>>();
   private readonly importProgressEmitters = new Map<
     string,
@@ -709,10 +683,7 @@ export class ConversationShareService implements IConversationShareService {
     this.zcodeAgentService = options.zcodeAgentService;
     this.client = options.client;
     this.artifactSource = options.artifactSource;
-    this.confirmPollIntervalMs = options.confirmPollIntervalMs ?? DEFAULT_CONFIRM_POLL_INTERVAL_MS;
-    this.confirmPollTimeoutMs = options.confirmPollTimeoutMs ?? DEFAULT_CONFIRM_POLL_TIMEOUT_MS;
     this.now = options.now ?? Date.now;
-    this.sleep = options.sleep ?? wait;
     this.zcodeSessionService = options.zcodeSessionService;
     this.download = options.download ?? ((url, init) => fetch(url, { signal: init?.signal }));
     this.downloadTimeoutMs = options.downloadTimeoutMs ?? DOWNLOAD_TIMEOUT_MS;
@@ -735,8 +706,8 @@ export class ConversationShareService implements IConversationShareService {
     }
   }
 
-  getCapabilities() {
-    return this.client.getCapabilities();
+  async getCapabilities() {
+    return conversationArchiveCapabilities();
   }
 
   /** 写入预检快照，并在超过上限时按插入序淘汰最旧条目（Map 保持插入序）。 */
@@ -781,7 +752,7 @@ export class ConversationShareService implements IConversationShareService {
     input: ConversationSharePreflightInput,
     agentService: ConversationShareAgentService,
   ): Promise<ConversationSharePreflightResult> {
-    const capabilities = await this.client.getCapabilities();
+    const capabilities = await this.getCapabilities();
     const supportedArtifactTypes = allowedArtifactSummaries(capabilities);
     const conversation = await this.loadAllRows(input, agentService);
     const blockingIssues: ConversationShareFailureIssue[] = [];
@@ -1216,6 +1187,7 @@ export class ConversationShareService implements IConversationShareService {
   [conversationShareConnectionScopeFactory](
     agentService: ConversationShareAgentService,
   ): IConversationShareService {
+    const exportOwner = Symbol("attachment-conversation-export");
     return {
       getCapabilities: () => this.getCapabilities(),
       preflight: async (input) => {
@@ -1225,7 +1197,10 @@ export class ConversationShareService implements IConversationShareService {
           throw normalizeConversationShareConnectionError(error);
         }
       },
-      publish: (input, operationId) => this.publishWithAgent(input, operationId, agentService),
+      publish: (input, operationId) =>
+        this.publishWithAgent(input, operationId, agentService, exportOwner),
+      readExportChunk: async (id, offset) => this.archiveExports.read(exportOwner, id, offset),
+      releaseExport: async (id) => this.archiveExports.release(exportOwner, id),
       onDynamicPublishProgress: (operationId) => this.onDynamicPublishProgress(operationId),
       importShare: (input, operationId) => this.importShare(input, operationId),
       onDynamicImportProgress: (operationId) => this.onDynamicImportProgress(operationId),
@@ -1831,6 +1806,14 @@ export class ConversationShareService implements IConversationShareService {
     return run;
   }
 
+  async readExportChunk(id: string, offset: number): Promise<string> {
+    return this.archiveExports.read(this.exportOwner, id, offset);
+  }
+
+  async releaseExport(id: string): Promise<void> {
+    this.archiveExports.release(this.exportOwner, id);
+  }
+
   async publish(input: PublishTextConversationInput, operationId: string) {
     return this.publishWithAgent(input, operationId, this.zcodeAgentService);
   }
@@ -1839,15 +1822,17 @@ export class ConversationShareService implements IConversationShareService {
     input: PublishTextConversationInput,
     operationId: string,
     agentService: ConversationShareAgentService,
+    exportOwner = this.exportOwner,
   ) {
     this.logger.info(undefined, "conversation share publish started", {
       operationId,
-      accessMode: input.accessMode,
       selectionKind: input.selection.kind,
       remoteWorkspace: Boolean(input.workspaceIdentity || input.remoteSessionId),
     });
     try {
-      const result = await this.publishInternal(input, operationId, agentService);
+      const result = await this.archiveExports.create(exportOwner, input.title, () =>
+        this.publishInternal(input, operationId, agentService),
+      );
       this.logger.info(undefined, "conversation share publish completed", {
         operationId,
         phase: "complete",
@@ -1888,7 +1873,7 @@ export class ConversationShareService implements IConversationShareService {
     input: PublishTextConversationInput,
     operationId?: string,
     agentService: ConversationShareAgentService = this.zcodeAgentService,
-  ): Promise<ConversationShareRecord> {
+  ): Promise<Buffer> {
     const report = (
       phase: ConversationSharePublishProgress["phase"],
       completedArtifacts = 0,
@@ -1922,18 +1907,11 @@ export class ConversationShareService implements IConversationShareService {
     if (!input.title.trim() || !input.clientRequestId.trim()) {
       throwServiceError("invalid_contract", "Share title and request identity are required");
     }
-    if (!Number.isSafeInteger(input.disclosureAcceptedAt) || input.disclosureAcceptedAt <= 0) {
-      throwServiceError("disclosure_required", "Explicit disclosure confirmation is required");
-    }
     if (input.selection.kind === "rowAnchors" && input.selection.rowIds.length === 0) {
       throwServiceError("invalid_selection", "At least one conversation row must be selected");
     }
 
-    const capabilities = await this.client.getCapabilities();
-    if (!capabilities.access_modes.includes(input.accessMode)) {
-      throwServiceError("feature_disabled", "Requested share access mode is unavailable");
-    }
-
+    const capabilities = await this.getCapabilities();
     const conversation = await this.loadAllRows(input, agentService);
     const selected = selectRows(conversation.rows, input.selection);
     // 无法公开承载的已定稿结构先降级：删字段或丢整行，换成非阻断提示，
@@ -1963,8 +1941,8 @@ export class ConversationShareService implements IConversationShareService {
         { issues: structureIssues },
       );
     }
-    // 本地运行投影包含 subagent 详情与写入态 ID，后端 V1 会以 3205 拒绝；
-    // confirm 前必须先生成独立的公开投影，不能直接发送选中的本地 rows。
+    // 本地运行投影包含 subagent 详情与写入态 ID；导出必须使用独立公开投影，
+    // 避免把运行时身份和未选内容放入可移植文件。
     const registeredProjection = buildConversationSharePublicProjection({
       rows: selectedRows,
       selectedProductTurnIds: selected.productTurnIds,
@@ -2002,7 +1980,7 @@ export class ConversationShareService implements IConversationShareService {
     }
     if (publishWarnings.length > 0) {
       // 非阻断：正文引用的文件或用户输入附件无法物化时，发布照常继续，但要让分享者
-      // 知道哪些真实文件没有进入链接；内部 marker/inline image 已在前面静默移除。
+      // 知道哪些真实文件没有进入导出文件；内部 marker/inline image 已在前面静默移除。
       report("collecting", 0, 0, sanitizeConversationShareIssues(publishWarnings));
     }
     const publicProjection = buildConversationSharePublicProjection({
@@ -2028,99 +2006,24 @@ export class ConversationShareService implements IConversationShareService {
       );
     }
 
-    const confirmRequest = buildConversationShareConfirmRequest({
-      selected_product_turn_ids: publicProjection.selectedProductTurnIds,
-      projection: { rows: publicProjection.rows },
-      artifacts: publicProjection.artifacts.map((artifact) => artifact.descriptor),
-      disclosure_confirmation: {
-        version: 1,
-        accepted_at: input.disclosureAcceptedAt,
-        acknowledged_no_secret_detection: true,
-      },
-    });
-    if (
-      Buffer.byteLength(JSON.stringify(confirmRequest), "utf8") > capabilities.max_payload_bytes
-    ) {
-      const actualBytes = Buffer.byteLength(JSON.stringify(confirmRequest), "utf8");
-      throw new ConversationShareServiceError(
-        "limit_exceeded",
-        "Conversation share payload is too large",
-        {
-          issues: [
-            {
-              code: "payload_size_limit",
-              scope: "conversation",
-              actual: actualBytes,
-              limit: capabilities.max_payload_bytes,
-            },
-          ],
-        },
-      );
-    }
-
-    const payloadSha256 = sha256ConversationShareJson(confirmRequest);
-    const preparation = await this.client.createPreparation({
-      client_request_id: input.clientRequestId,
+    report("packing", 0, publicProjection.artifacts.length);
+    const archive = await encodeConversationArchive({
       title: input.title.trim(),
-      schema_version: 1,
-      access_mode: input.accessMode,
-      payload_sha256: payloadSha256,
-      artifact_count: publicProjection.artifacts.length,
+      selectedProductTurnIds: publicProjection.selectedProductTurnIds,
+      rows: publicProjection.rows,
+      artifacts: publicProjection.artifacts.map((artifact) => {
+        const bytes = artifactSnapshot.bytesBySourceRef.get(artifact.sourceRef);
+        if (!bytes)
+          throw new ConversationShareServiceError(
+            "invalid_contract",
+            "Conversation export artifact is missing",
+          );
+        const { original_path: _originalPath, ...descriptor } = artifact.descriptor;
+        return { descriptor, bytes };
+      }),
     });
-    if (preparation.status === "confirmed") {
-      report("complete", publicProjection.artifacts.length, publicProjection.artifacts.length);
-      return localizePublishedShare(preparation.share, input.locale);
-    }
-    report("uploading", 0, publicProjection.artifacts.length);
-    let uploadedArtifacts = 0;
-    for (const artifact of publicProjection.artifacts) {
-      const bytes = artifactSnapshot.bytesBySourceRef.get(artifact.sourceRef);
-      if (!bytes) {
-        throwServiceError(
-          "invalid_conversation",
-          "Conversation artifact bytes are missing from the publication snapshot",
-        );
-      }
-      const upload = await this.client.uploadArtifact(
-        preparation.preparation_id,
-        artifact.descriptor,
-        new Blob([Uint8Array.from(bytes).buffer], {
-          type: artifact.descriptor.mime_type,
-        }),
-      );
-      if (
-        upload.artifact_id !== artifact.descriptor.artifact_id ||
-        upload.size_bytes !== artifact.descriptor.size_bytes ||
-        upload.sha256 !== artifact.descriptor.sha256
-      ) {
-        throw new ConversationShareServiceError(
-          "upload_incomplete",
-          "Conversation artifact upload acknowledgement does not match the manifest",
-          {
-            issues: [
-              {
-                code: "upload_incomplete",
-                scope: "artifact",
-                artifactDisplayName: artifact.descriptor.display_name,
-                artifactType: artifact.descriptor.artifact_type,
-                extension: artifact.descriptor.extension,
-                mimeType: artifact.descriptor.mime_type,
-                actual: upload.size_bytes,
-                limit: artifact.descriptor.size_bytes,
-              },
-            ],
-          },
-        );
-      }
-      uploadedArtifacts += 1;
-      report("uploading", uploadedArtifacts, publicProjection.artifacts.length);
-    }
-    report("checking", uploadedArtifacts, publicProjection.artifacts.length);
-    const share = await this.confirmUntilReady(preparation.preparation_id, confirmRequest);
-    report("complete", uploadedArtifacts, publicProjection.artifacts.length);
-    // 服务端目前不接收 locale，只能把下发的链接改写到界面语言对应的站点；
-    // localizeConversationShareUrl 只认已知分享路径形状，其它形状原样保留。
-    return localizePublishedShare(share, input.locale);
+    report("complete", publicProjection.artifacts.length, publicProjection.artifacts.length);
+    return archive;
   }
 
   private getProgressEmitter(operationId: string): Emitter<ConversationSharePublishProgress> {
@@ -2324,61 +2227,6 @@ export class ConversationShareService implements IConversationShareService {
         "Conversation artifacts cannot be shared",
         { issues },
       );
-    }
-  }
-
-  private async confirmUntilReady(
-    preparationId: string,
-    request: ConversationShareConfirmRequest,
-  ): Promise<ConversationShareRecord> {
-    let deadline: number | undefined;
-    let lastRequestId: string | undefined;
-    let lastStatus: number | undefined;
-    let lastCode: number | undefined;
-    while (true) {
-      try {
-        return await this.client.confirm(preparationId, request);
-      } catch (error) {
-        if (
-          !(error instanceof ConversationShareClientError) ||
-          error.kind !== "safety_check_pending"
-        ) {
-          throw error;
-        }
-        lastRequestId = error.requestId ?? lastRequestId;
-        lastStatus = error.status ?? lastStatus;
-        lastCode = error.code ?? lastCode;
-
-        // 3215 是后端安全检查的非终态，同一 preparation/DTO 必须串行重试；
-        // 不能重新 prepare，也不能无限等待。
-        const currentTime = this.now();
-        deadline ??= currentTime + this.confirmPollTimeoutMs;
-        const remainingMs = deadline - currentTime;
-        if (remainingMs <= 0) {
-          throw new ConversationShareServiceError(
-            "safety_check_timeout",
-            "Conversation share safety check timed out",
-            {
-              ...(lastRequestId === undefined ? {} : { requestId: lastRequestId }),
-              ...(lastStatus === undefined ? {} : { status: lastStatus }),
-              ...(lastCode === undefined ? {} : { code: lastCode }),
-            },
-          );
-        }
-        const requestedDelayMs = error.retryAfterMs ?? this.confirmPollIntervalMs;
-        await this.sleep(Math.min(requestedDelayMs, remainingMs));
-        if (this.now() >= deadline) {
-          throw new ConversationShareServiceError(
-            "safety_check_timeout",
-            "Conversation share safety check timed out",
-            {
-              ...(lastRequestId === undefined ? {} : { requestId: lastRequestId }),
-              ...(lastStatus === undefined ? {} : { status: lastStatus }),
-              ...(lastCode === undefined ? {} : { code: lastCode }),
-            },
-          );
-        }
-      }
     }
   }
 
