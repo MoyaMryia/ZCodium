@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
 import { ChatErrorBanner } from "../../../packages/ui/src/ChatErrorBanner.js";
-import { CodingPlanStatusPanel } from "../../../packages/ui/src/settings/model-provider-section/StatusCards.js";
 import { WorkspaceSidebarUsageMenuItem } from "../../../packages/ui/src/WorkspaceSidebarUsageMenuItem.js";
 import {
   DropdownMenu,
@@ -16,7 +14,7 @@ const locale = params.get("locale") || "en-US";
 document.documentElement.classList.toggle("zai-light", params.get("theme") !== "dark");
 document.documentElement.classList.toggle("dark", params.get("theme") === "dark");
 document.documentElement.classList.toggle("zai-dark", params.get("theme") === "dark");
-window.purchaseFixture = { configured: 0, usage: 0, retries: 0 };
+window.purchaseFixture = { configured: 0, usage: 0 };
 const platform = {
   openFeedback() {
     throw new Error("Unexpected feedback action");
@@ -24,8 +22,6 @@ const platform = {
 };
 function Fixture() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [status, setStatus] = useState(params.get("status") || "notPurchased");
-  window.completePurchaseFixtureRetry = setStatus;
   return (
     <main className="min-h-screen bg-background text-foreground p-4 space-y-4">
       <ChatErrorBanner
@@ -52,19 +48,6 @@ function Fixture() {
           />
         </DropdownMenuContent>
       </DropdownMenu>
-      <section aria-label="Connection status">
-        <CodingPlanStatusPanel
-          providerId={BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan}
-          providerName="Fixture model"
-          status={status}
-          onRetry={() => {
-            window.purchaseFixture.retries++;
-            setStatus("checking");
-          }}
-          planLevel="Max"
-          quotaLimits={[]}
-        />
-      </section>
     </main>
   );
 }

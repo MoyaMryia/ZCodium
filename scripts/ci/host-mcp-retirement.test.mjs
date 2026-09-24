@@ -45,81 +45,48 @@ const localSnapshot = appUsageSnapshotSchema.parse({
 });
 
 function setup() {
-  const requests = [];
   const usageCalls = [];
-  let credentialReads = 0;
-  const snapshot = localSnapshot;
-  const service = createUsageStatsService({
-    env: {
-      ZCODE_BIGMODEL_USAGE_QUOTA_URL: "https://quota.example.invalid/api/monitor/usage/quota/limit",
-    },
-    apiClient: {
-      request: async (input) => {
-        const path = new URL(input).pathname;
-        requests.push(path);
-        assert.ok(!path.includes("/mcp/"), "retired official MCP usage must not be requested");
-        return Response.json(
-          path === "/api/biz/subscription/list"
-            ? {
-                code: 200,
-                data: [
-                  {
-                    productId: "coding-fixture",
-                    productName: "Coding fixture",
-                    status: "VALID",
-                    inCurrentPeriod: true,
-                  },
-                ],
-              }
-            : {
-                code: 200,
-                data: {
-                  limits: [
-                    {
-                      type: "TOKENS_LIMIT",
-                      currentValue: 1,
-                      usage: 100,
-                      remaining: 99,
-                      percentage: 1,
-                    },
-                  ],
-                },
-              },
-        );
+  const service = createUsageStatsService(
+    new Proxy(
+      {
+        zcodeAgentService: {
+          async getAppUsageStats(request) {
+            usageCalls.push(request);
+            return localSnapshot;
+          },
+        },
       },
-    },
-    accountRequestAuthService: {
-      resolveCurrent: async () => ({ apiKey: "fixture-plan-key" }),
-      assertCurrent: async () => {},
-    },
-    officialMcpCredentialSource: {
-      resolve: async () => {
-        credentialReads++;
-        return { ok: false, reason: "official_auth_unavailable" };
+      {
+        get(target, key) {
+          assert.equal(
+            key,
+            "zcodeAgentService",
+            `Usage must not read official dependency: ${String(key)}`,
+          );
+          return target[key];
+        },
       },
-    },
-    zcodeAgentService: {
-      getAppUsageStats: async (request) => {
-        usageCalls.push(request);
-        return snapshot;
-      },
-    },
-  });
-  return { service, requests, usageCalls, snapshot, credentialReads: () => credentialReads };
+    ),
+  );
+  return { service, usageCalls, snapshot: localSnapshot };
 }
 
-test("remaining plan queries never access retired MCP credentials or request MCP quota", async () => {
-  const f = setup();
-  const snapshot = await f.service.getEntitlementSnapshot({
-    preferredProviderId: "account:zai-individual-coding-plan",
-    accountAccess: { type: "zhipu-account", family: "zai", planKind: "individual-coding-plan" },
-    allowEnvApiKey: false,
-  });
-  assert.equal(f.credentialReads(), 0);
-  assert.equal(snapshot.mcpQuota, null);
-  assert.equal(snapshot.subscription.details[0].productName, "Coding fixture");
-  assert.equal(f.requests.length, 2);
-  assert.ok(f.requests.every((path) => !path.includes("mcp")));
+const { ProxyChannel } = await tsImport("../../packages/rpc/src/proxy-channel.ts", import.meta.url);
+test("retired quota, monitor and entitlement RPCs are absent without account or network dependencies", () => {
+  const { service } = setup();
+  assert.deepEqual(Object.keys(service), ["getAppUsageSnapshot"]);
+  const channel = ProxyChannel.fromService(service);
+  for (const method of [
+    "getSnapshot",
+    "getEntitlementSnapshot",
+    "getCodingPlanUsageSnapshot",
+    "getCodingPlanResetStatus",
+    "requestCodingPlanResetOpportunity",
+    "useCodingPlanReset",
+    "markCodingPlanResetHistoryRead",
+  ]) {
+    assert.throws(() => channel.call(undefined, method, [{}]), /Method not found/);
+  }
 });
 
 test("local usage remains a direct Agent database query without account or network reads", async () => {
@@ -127,17 +94,12 @@ test("local usage remains a direct Agent database query without account or netwo
   const request = { range: "7d", timeZone: "UTC" };
   assert.equal(await f.service.getAppUsageSnapshot(request), f.snapshot);
   assert.deepEqual(f.usageCalls, [request]);
-  assert.deepEqual(f.requests, []);
-  assert.equal(f.credentialReads(), 0);
 });
 
 test("local usage failures are preserved so the caller can retry without false empty success", async () => {
   let attempts = 0;
   const error = new Error("Fixture Agent database unavailable");
   const service = createUsageStatsService({
-    env: {},
-    apiClient: {},
-    accountRequestAuthService: {},
     zcodeAgentService: {
       getAppUsageStats: async () => {
         if (++attempts === 1) throw error;

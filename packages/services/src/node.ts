@@ -2272,15 +2272,7 @@ export function createLocalServices(options: {
     )
     .register(IFileWatcherService, createFileWatcherService())
     .register(IOAuthService, oauthService)
-    .register(
-      IUsageStatsService,
-      createUsageStatsService({
-        apiClient,
-        accountRequestAuthService,
-        credentialService,
-        zcodeAgentService,
-      }),
-    )
+    .register(IUsageStatsService, createUsageStatsService({ zcodeAgentService }))
     .register(ICodingPlanSubscriptionService, codingPlanSubscriptionService)
     .register(IClientConfigService, createClientConfigService())
     .register(IClientScenesService, createClientScenesService())

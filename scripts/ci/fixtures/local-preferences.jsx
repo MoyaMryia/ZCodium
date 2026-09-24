@@ -21,8 +21,15 @@ window.preferencesFixture = {
   zoomListeners: 0,
 };
 const fixture = window.preferencesFixture;
+const broadcastListeners = new Set();
+fixture.receiveBroadcast = (message) => {
+  for (const listener of broadcastListeners) listener(message);
+};
 const broadcastService = {
-  onMessage: () => ({ dispose() {} }),
+  onMessage(listener) {
+    broadcastListeners.add(listener);
+    return { dispose: () => broadcastListeners.delete(listener) };
+  },
   async send(message) {
     fixture.changes.push(message);
   },
@@ -89,6 +96,8 @@ const platform = {
   },
 };
 function Fixture() {
+  const storeState = useZCodeStore((state) => state);
+  fixture.readState = () => storeState;
   const { localePreference, setLocalePreference } = useZCodeIntl();
   const theme = useZCodeStore((state) => state.theme);
   const setTheme = useZCodeStore((state) => state.setTheme);

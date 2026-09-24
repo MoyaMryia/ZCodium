@@ -90,6 +90,40 @@ try {
     for (const width of [390, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       await visit(`locale=${locale}&theme=${width === 1280 ? "dark" : "light"}`);
+      const quotaStateKeys = await page.evaluate(() =>
+        Object.keys(window.preferencesFixture.readState()).filter((key) =>
+          /quota|codereset/i.test(key),
+        ),
+      );
+      assert.deepEqual(quotaStateKeys, [], "Global store must not retain retired quota state");
+      const changesBefore = await page.evaluate(() => {
+        const fixture = window.preferencesFixture;
+        const count = fixture.changes.length;
+        fixture.receiveBroadcast({
+          channel: "state:codereset-autoplayed",
+          payload: { sourceKey: "fixture" },
+        });
+        fixture.receiveBroadcast({ channel: "state:locale", payload: "fixture-broadcast-locale" });
+        fixture.receiveBroadcast({ channel: "state:theme", payload: "zai-dark" });
+        return count;
+      });
+      await page.waitForFunction(() => {
+        const state = window.preferencesFixture.readState();
+        return state.locale === "fixture-broadcast-locale" && state.theme === "zai-dark";
+      });
+      assert.equal(
+        await page.evaluate(() => window.preferencesFixture.changes.length),
+        changesBefore,
+        "Received settings changes must not echo back to other windows",
+      );
+      await page.evaluate(
+        (theme) =>
+          window.preferencesFixture.receiveBroadcast({
+            channel: "state:theme",
+            payload: theme,
+          }),
+        width === 1280 ? "zai-dark" : "zai-light",
+      );
       const trigger = page.getByTestId("sidebar-preferences-trigger");
       assert.equal(await trigger.getAttribute("aria-label"), zh ? "偏好设置" : "Preferences");
       assert.equal(await page.getByText("Retired account", { exact: true }).count(), 0);
