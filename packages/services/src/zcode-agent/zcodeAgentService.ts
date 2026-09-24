@@ -70,8 +70,6 @@ import {
   zcodeProviderRuntimeHeadersCancelledSchema,
   zcodeProviderRuntimeHeadersRequestParamsSchema,
   zcodeProviderTestModelConnectivityResultSchema,
-  zcodeOfficialMcpAuthHeadersRequestParamsSchema,
-  summarizeOfficialMcpIdentityHeaders,
   zcodeProtocolEmptyResultSchema,
   zcodeProtocolMethods,
   zcodeProtocolNotifications,
@@ -114,7 +112,6 @@ import {
   type ZCodeTaskMode,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
-import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
 import type {
   AccountRequestAuthMaterial,
   IAccountRequestAuthService,
@@ -903,41 +900,6 @@ interface CreateZCodeAgentServiceOptions extends Omit<
    * browser 命令返回 backend_unavailable，不影响其它功能。
    */
   browserControlExecutor?: BrowserAmbientContextExecutor;
-  /**
-   * 官方 Server MCP 身份头解析器。Agent 进程不持有用户身份权威，
-   * 经 interaction/requestOfficialMcpAuthHeaders 向 host 索取本次请求的身份头。
-   *
-   * 缺省时该请求一律返回 official_auth_unavailable，绝不降级为匿名请求——
-   * 例如 standalone CLI 没有 host auth port 的场景。
-   */
-  officialMcpAuthHeadersResolver?: {
-    resolveHeaders(request: {
-      mcpKey: string;
-      pluginId: string;
-      targetOrigin: string;
-      workspace: { workspaceIdentity?: string; workspaceKey: string; workspacePath: string };
-    }): Promise<
-      | { ok: true; headers: Record<string, string> }
-      | { ok: false; reason: "official_auth_unavailable" | "official_auth_plan_required" }
-    >;
-  };
-  /**
-   * 官方 MCP 可信 Origin 校验器。**host 是身份权威边界**，因此
-   * targetOrigin 的校验必须在这里执行，不能只依赖 agent adapter 的 fetch wrapper——那等于让
-   * 被审查方自己当审查者。desktop-attached remote 场景下 agent 跑在远端而 host 持有本地用户身份。
-   *
-   * 此校验约束凭据请求的目标 origin，不提供逐插件权限控制。
-   * HTTP 鉴权由宿主 fetch wrapper 注入，stdio 鉴权会将凭据交给插件进程；后者
-   * 必须按受信任的可执行代码管理。服务端仍须校验每次调用的身份、权限和配额。
-   *
-   * 缺省时一律拒绝（fail closed），不退化为"只做 schema 校验就发凭据"。
-   */
-  officialMcpTrustedOrigins?: {
-    isTrusted(input: { pluginId: string; mcpKey: string; origin: string }): Promise<{
-      detail?: string;
-      trusted: boolean;
-    }>;
-  };
   /** desktop-local Host 注入；只消费已校验、已去重的 live session event。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
   onCuaPipSessionLifecycle?: (
@@ -1112,7 +1074,6 @@ export function createZCodeAgentService(
    * 全量记 info 就是消息量级的日志膨胀。折中：每个三元组只在本进程内首次发放时记一条 info，
    * 之后仍走 debug。审计线索到"哪个插件、哪个 workspace、什么时候第一次拿"这个粒度。
    */
-  const officialMcpIssuanceAudit = createOfficialMcpIssuanceAudit();
   function cancelProviderRuntimeHeaders(
     key: string,
     pending: PendingProviderRuntimeHeadersRequest,
@@ -2208,112 +2169,6 @@ export function createZCodeAgentService(
             headersApplied: false,
             errorMessage: "Provider request auth is unavailable",
           });
-          return;
-        }
-
-        // 官方 Server MCP 身份头：纯 RPC 中继，host 自动解析并响应。
-        // 不 emitSessionEvent、不进 pending map——该请求没有 UI 语义，renderer 不参与。
-        if (request.method === zcodeProtocolMethods.interactionRequestOfficialMcpAuthHeaders) {
-          const parsed = zcodeOfficialMcpAuthHeadersRequestParamsSchema.safeParse(request.params);
-          if (!parsed.success) {
-            void client.respondError(request.id, {
-              code: -32602,
-              message: "Invalid interaction/requestOfficialMcpAuthHeaders params",
-              data: parsed.error.flatten(),
-            });
-            return;
-          }
-          // host 侧二次校验必须发生在**读取凭据之前**：未命中即返回，resolveHeaders 不被调用，
-          // 因此不会有任何凭据被读入内存。
-          void (async () => {
-            const trustedOrigins = options?.officialMcpTrustedOrigins;
-            const trust = trustedOrigins
-              ? await trustedOrigins
-                  .isTrusted({
-                    mcpKey: parsed.data.mcpKey,
-                    origin: parsed.data.targetOrigin,
-                    pluginId: parsed.data.pluginId,
-                  })
-                  // 判定自身异常也按不可信处理，绝不因为校验失败就放行。
-                  .catch(() => ({ detail: "validator_error", trusted: false }))
-              : { detail: "validator_missing", trusted: false };
-            if (!trust.trusted) {
-              // 只记录非敏感的请求上下文；凭据未被读取，自然也无从泄露。
-              logger.warn(request.trace?.traceId, "官方 MCP 身份头请求未通过 host 侧可信校验", {
-                detail: trust.detail ?? "unknown",
-                mcpKey: parsed.data.mcpKey,
-                pluginId: parsed.data.pluginId,
-                requestId: parsed.data.requestId,
-                targetOrigin: parsed.data.targetOrigin,
-                workspaceKey: parsed.data.workspace.workspaceKey,
-              });
-              void client.respond(request.id, {
-                ok: false,
-                reason: "official_mcp_origin_untrusted",
-              });
-              return;
-            }
-            const resolver = options?.officialMcpAuthHeadersResolver;
-            if (!resolver) {
-              void client.respond(request.id, {
-                ok: false,
-                reason: "official_auth_unavailable",
-              });
-              return;
-            }
-            try {
-              const resolveStartedAt = Date.now();
-              const result = await resolver.resolveHeaders({
-                mcpKey: parsed.data.mcpKey,
-                pluginId: parsed.data.pluginId,
-                targetOrigin: parsed.data.targetOrigin,
-                workspace: parsed.data.workspace,
-              });
-              // host 侧不能只在失败时留日志，成功路径完全静默会无法回答"到底发了哪几个头"。
-              // 只记 header 名与套餐维度：凭证值绝不入日志（日志留存周期不受控）。
-              if (result.ok) {
-                const firstIssuance = officialMcpIssuanceAudit.markFirst(
-                  parsed.data.pluginId,
-                  parsed.data.mcpKey,
-                  parsed.data.workspace.workspaceKey,
-                );
-                const logIssuance = firstIssuance ? logger.info : logger.debug;
-                logIssuance(request.trace?.traceId, "官方 MCP 身份头已解析", {
-                  firstIssuance,
-                  ...summarizeOfficialMcpIdentityHeaders(result.headers),
-                  mcpKey: parsed.data.mcpKey,
-                  pluginId: parsed.data.pluginId,
-                  requestId: parsed.data.requestId,
-                  resolveDurationMs: Date.now() - resolveStartedAt,
-                  targetOrigin: parsed.data.targetOrigin,
-                });
-              } else {
-                logger.info(request.trace?.traceId, "官方 MCP 身份头不可用", {
-                  mcpKey: parsed.data.mcpKey,
-                  pluginId: parsed.data.pluginId,
-                  reason: result.reason,
-                  requestId: parsed.data.requestId,
-                  resolveDurationMs: Date.now() - resolveStartedAt,
-                  targetOrigin: parsed.data.targetOrigin,
-                });
-              }
-              void client.respond(request.id, result);
-            } catch (error: unknown) {
-              // 解析异常按不可用返回而非 respondError：adapter 只按可枚举 reason 分流，
-              // 且此处绝不能让 MCP 退化成匿名请求。凭证原文不进日志。
-              logger.warn(request.trace?.traceId, "官方 MCP 身份头解析失败", {
-                error: error instanceof Error ? error.message : String(error),
-                mcpKey: parsed.data.mcpKey,
-                pluginId: parsed.data.pluginId,
-                requestId: parsed.data.requestId,
-                targetOrigin: parsed.data.targetOrigin,
-              });
-              void client.respond(request.id, {
-                ok: false,
-                reason: "official_auth_unavailable",
-              });
-            }
-          })();
           return;
         }
 
