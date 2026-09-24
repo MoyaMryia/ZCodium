@@ -1,8 +1,8 @@
 {
-  "feedback_url": "https://zhipu-ai.feishu.cn/share/base/form/shrcnrXlh93cJIUFYBFndnnL7pe",
-  "feedback_use_external_form": false,
+  "feedback_url": "https://github.com/axiom-desu/ZCodium/issues/new",
+  "feedback_use_external_form": true,
   "community_urls": {
-    "zh-CN": "https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&qr_code=true",
-    "en-US": "https://discord.gg/z9aBcQXZQ3"
+    "zh-CN": "https://github.com/axiom-desu/ZCodium",
+    "en-US": "https://github.com/axiom-desu/ZCodium"
   }
 }

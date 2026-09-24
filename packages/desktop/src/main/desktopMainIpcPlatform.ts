@@ -57,7 +57,6 @@ import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
 import { registerCuaPipActiveSessionIpc } from "./desktopCuaPipIpc.js";
 
 export function registerPlatformIpcHandlers(options: {
-  fetchHelpConfig?: () => Promise<unknown>;
   logger: {
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
@@ -331,7 +330,6 @@ export function registerPlatformIpcHandlers(options: {
 
     const communityUrl = await resolveCommunityUrl({
       locale: result.data,
-      fetchRemoteConfig: options.fetchHelpConfig,
       logger: options.logger,
     });
 

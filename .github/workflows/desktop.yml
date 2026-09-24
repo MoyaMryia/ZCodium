@@ -52,6 +52,8 @@ jobs:
         run: node scripts/ci/remote-form-smoke.mjs
       - name: Bundled catalog browser checks
         run: node scripts/ci/client-catalog-smoke.mjs
+      - name: Bundled help browser checks
+        run: node scripts/ci/bundled-help-smoke.mjs
 
   remote-assets:
     name: Bundled Linux remote runtime

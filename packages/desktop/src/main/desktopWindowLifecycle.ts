@@ -56,14 +56,6 @@ export function createWindow(options: {
   runtimeProcessEnvFallbackPatch: Record<string, string>;
   /** 仅供启动门禁和测试注入；超过该时间必须 fail-open 创建 Local Host。 */
   runtimeProcessEnvWaitTimeoutMs?: number;
-  /**
-   * 首个 Local Host 创建前的有界灰度裁决门。
-   *
-   * 缺省（undefined）时完全不触发 await，dom-ready handler 同步执行——保证既有调用方
-   * 与测试零回归。仅 desktop main 注入：在 spawnLocalHost 之前等待一次 rollout 裁决，
-   * 避免冷启动快照 { enabled:false } 被烤进首 Host env 后无法被异步成功结果覆盖。
-   */
-  awaitFirstHostSpawnDecision?: () => Promise<void>;
   /** Local Host map insertion completed; presentation facts can now be replayed safely. */
   onHostProcessReady?: (windowKey: number) => void;
   resolveBrowserViewOwner?: Parameters<typeof createBrowserWindow>[0]["resolveBrowserViewOwner"];
@@ -173,13 +165,6 @@ export function createWindow(options: {
         `[createWindow] killing previous host process for (${label}), pid=${oldChild.pid ?? "unknown"}`,
       );
       options.disposeHostProcess(oldChild, `${label}:reload`, 150);
-    }
-
-    // 首个 Local Host 创建前的有界灰度裁决门。用 `if` 守卫而非 `await cb?.()`——
-    // cb 缺省时不触发任何 await，async handler 同步跑完，保证既有调用方与测试零回归。
-    // 仅在需要 spawn 新 Host 的路径上等待（reattach 早退路径已在上方 return，不触发）。
-    if (options.awaitFirstHostSpawnDecision) {
-      await options.awaitFirstHostSpawnDecision();
     }
 
     const spawnLocalHost = (runtimeProcessEnvPatch: Record<string, string>) => {
