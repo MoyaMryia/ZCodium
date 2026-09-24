@@ -11,9 +11,6 @@ import type {
   Logger,
   Model,
   ModelOptions,
-  ModelRequestAuth,
-  ModelRequestDependencies,
-  ModelRequestAuthSourceInput,
   ModelStatusSink,
   ModelStreamEvent,
   ModelTextResult,
@@ -21,7 +18,6 @@ import type {
 import type { RegistryModelConfig, RegistryProviderConfig } from "@zcode/provider";
 import {
   AiSdkModelExecution,
-  type AiSdkResolvedModel,
   type AiSdkNetworkConfig,
   type AiSdkModelExecutionConfig,
   type EnvRecord,
@@ -72,7 +68,6 @@ export interface CreateAiSdkModelOptions {
   modelConfig: RegistryModelConfig;
   displayName?: string;
   options?: ModelOptions;
-  requestDependencies?: ModelRequestDependencies;
 }
 
 export class AiSdkModelAdapter {
@@ -112,44 +107,13 @@ export class AiSdkModelAdapter {
       optionSpecs: options.modelConfig.optionSpecs,
     });
     const properties = options.modelConfig.properties;
-    const resolved = {
-      ...boundResolution.resolved,
-      properties,
-      ...(options.providerConfig.access.type === "zhipu-account"
-        ? { accountAccess: options.providerConfig.access }
-        : {}),
-    };
+    const resolved = { ...boundResolution.resolved, properties };
     const optionSpecs = options.modelConfig.optionSpecs;
     const toLegacyRequest = (request: ModelExecutionRequest): AiSdkModelTextRequest => {
       const context = getCurrentModelInvocationContext();
       const invocationContext = context ?? {};
       const shouldAttachReasoningObservation = request.options.reasoningLevel !== undefined;
       const selectedReasoningLevel = request.options.reasoningLevel;
-      const requestAuthDependency = options.requestDependencies?.requestAuth;
-      const requestAuthRequired =
-        options.providerConfig.access.type === "zhipu-account" &&
-        options.providerConfig.access.mode === "off-peak";
-      // Host 官方身份端口已移除。旧账号型 Model 必须在网络请求前失败，
-      // 不能把缺失的官方身份当成匿名访问；Off-Peak 暂仍使用单独的执行作用域 Source。
-      const refreshRuntimeHeadersBeforeAttempt = requestAuthRequired
-        ? async (input: ModelRequestAuthSourceInput) => {
-            const requestAuth = await requestAuthDependency?.source?.resolve(input);
-            if (!hasRequestAuth(requestAuth)) {
-              throw new ModelProtocolError(
-                ModelErrorCode.ModelRequestAuthMissing,
-                `Model request auth is unavailable: ${resolved.providerId}/${resolved.modelId}`,
-              );
-            }
-            return { headersApplied: true, requestAuth };
-          }
-        : options.providerConfig.access.type === "zhipu-account"
-          ? async () => {
-              throw new ModelProtocolError(
-                ModelErrorCode.ModelRequestAuthMissing,
-                `Account model request auth is unavailable: ${resolved.providerId}/${resolved.modelId}`,
-              );
-            }
-          : undefined;
       return {
         messages: request.messages,
         tools: request.tools,
@@ -170,52 +134,18 @@ export class AiSdkModelAdapter {
               },
             }
           : {}),
-        // 显式覆盖旧调用上下文中的同名字段，禁止把退休的 Host 回调透传给普通模型。
-        refreshRuntimeHeadersBeforeAttempt: refreshRuntimeHeadersBeforeAttempt
-          ? (input) =>
-              refreshRuntimeHeadersBeforeAttempt({
-                ...input,
-                ...(options.providerConfig.access.type === "zhipu-account"
-                  ? { accountAccess: options.providerConfig.access }
-                  : {}),
-              })
-          : undefined,
       };
     };
     const resolveForRequest = (
-      request: AiSdkModelTextRequest,
       optionValues: Required<ModelOptions>,
-    ): ((requestAuth?: ModelRequestAuth) => ResolvedAiSdkModel) => {
+    ): (() => ResolvedAiSdkModel) => {
       const maxOutputTokens = requireMaxOutputTokens(optionValues);
-      return request.refreshRuntimeHeadersBeforeAttempt
-        ? (requestAuth) => ({
-            ...assertSameBoundModel(
-              resolved,
-              boundResolution.resolveRequest({
-                options: {
-                  maxOutputTokens,
-                  reasoningLevel: optionValues.reasoningLevel,
-                },
-                requestAuth,
-              }),
-            ),
-            properties,
-            ...(options.providerConfig.access.type === "zhipu-account"
-              ? { accountAccess: options.providerConfig.access }
-              : {}),
-          })
-        : () => ({
-            ...boundResolution.resolveRequest({
-              options: {
-                maxOutputTokens,
-                reasoningLevel: optionValues.reasoningLevel,
-              },
-            }),
-            properties,
-            ...(options.providerConfig.access.type === "zhipu-account"
-              ? { accountAccess: options.providerConfig.access }
-              : {}),
-          });
+      return () => ({
+        ...boundResolution.resolveRequest({
+          options: { maxOutputTokens, reasoningLevel: optionValues.reasoningLevel },
+        }),
+        properties,
+      });
     };
     return createModel({
       providerId: resolved.providerId,
@@ -233,7 +163,7 @@ export class AiSdkModelAdapter {
           return this.generateTextWithResolved(
             legacyRequest,
             resolved,
-            resolveForRequest(legacyRequest, request.options),
+            resolveForRequest(request.options),
           );
         },
         streamText: (request) => {
@@ -241,7 +171,7 @@ export class AiSdkModelAdapter {
           return this.streamTextWithResolved(
             legacyRequest,
             resolved,
-            resolveForRequest(legacyRequest, request.options),
+            resolveForRequest(request.options),
           );
         },
       },
@@ -294,23 +224,6 @@ function requireMaxOutputTokens(options: ModelOptions): number {
     );
   }
   return options.maxOutputTokens;
-}
-
-function hasRequestAuth(
-  requestAuth: ModelRequestAuth | undefined,
-): requestAuth is ModelRequestAuth {
-  if (requestAuth?.apiKey?.trim()) return true;
-  return Object.values(requestAuth?.headers ?? {}).some((value) => value.trim().length > 0);
-}
-
-function assertSameBoundModel(
-  bound: ResolvedAiSdkModel,
-  refreshed: AiSdkResolvedModel,
-): AiSdkResolvedModel {
-  if (bound.providerId !== refreshed.providerId || bound.modelId !== refreshed.modelId) {
-    throw new Error("Runtime header refresh changed the bound model identity.");
-  }
-  return refreshed;
 }
 
 function projectRequestHistory(

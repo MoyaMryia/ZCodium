@@ -332,7 +332,7 @@ export interface WorkflowDriver {
  * - `cause: "slot"`：下一个请求在进程级准入闸门前排队（driver 的 `tryAdmit` 未命中）；无其余字段。
  * - `cause: "backoff"`：runner 已排定重试（`model_retry_scheduled`），带 reason / attempt / delayMs / retryAfterMs。
  *   `reason` 是 contracts `ModelRetryReason` 的值（`rate_limited` / `provider_overloaded` / `server_error` /
- *   `network_error` / `timeout` / `stream_idle_timeout` / `stale_connection` / `offpeak_queued` …），
+ *   `network_error` / `timeout` / `stream_idle_timeout` / `stale_connection` …），
  *   纯包不 import contracts 故为开放字符串。`delayMs` 是相对量：引擎无时钟。
  */
 export interface AskWaitInfo {
@@ -347,7 +347,6 @@ export interface AskWaitInfo {
 export type ConcurrencyChangeReason =
   | "rate_limited"
   | "provider_overloaded"
-  | "offpeak_queued"
   | "recovered"
   | "idle_reset";
 

@@ -180,7 +180,6 @@ export async function executeTurnCommand(
         admittedModel =
           rewindCommand === null
             ? createTurnModel(this, {
-                requestDependencies: options?.modelExecution?.requestDependencies,
                 selection: admittedModelSelection,
               })
             : undefined;
@@ -556,7 +555,6 @@ export async function executeTurnCommand(
             ? {
                 subagentModelOverride: {
                   selection: options.intent.modelSelection,
-                  requestDependencies: options.modelExecution.requestDependencies,
                   background: options.modelExecution.subagents.background,
                 },
               }

@@ -460,7 +460,6 @@ function createSubagentOverrideModelFactory(
     return fallbackFactory({
       ...target,
       selection: override.selection,
-      requestDependencies: override.requestDependencies,
     });
   };
 }

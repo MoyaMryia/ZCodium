@@ -14,13 +14,11 @@ export function createTurnModel(
   runtime: AgentRuntimeInternal,
   options: {
     selection?: ModelSelection;
-    requestDependencies?: import("@zcode/contracts").ModelRequestDependencies;
   } = {},
 ): Model {
   const selection = options.selection ?? runtime.getSessionModelSelection();
   return createRuntimeModel(runtime, {
     selection,
-    requestDependencies: options.requestDependencies,
   });
 }
 
@@ -42,7 +40,6 @@ export async function applySubmissionExecutionState(
   if (selection) {
     model ??= createTurnModel(runtime, {
       selection,
-      requestDependencies: modelExecution?.requestDependencies,
     });
     if (modelExecution?.selectionScope !== "execution") {
       const appliedSelection = cloneModelSelection(selection);

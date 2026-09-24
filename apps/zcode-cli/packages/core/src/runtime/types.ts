@@ -8,7 +8,6 @@ import type {
   CoordinatorResponsePort,
   ForkCommitBundle,
   ForkChildSessionMetadata,
-  ModelRequestDependencies,
   ModelSelection,
   PluginReferenceCatalog,
   ResolvedUserInstructions,
@@ -368,8 +367,6 @@ export interface AgentRuntimeDeps {
 
 export interface RuntimeModelFactoryInput {
   selection: ModelSelection;
-  /** 只绑定到本次创建的 Model，不进入公共 ModelRequest 或 Session 持久化。 */
-  requestDependencies?: ModelRequestDependencies;
 }
 
 export type RuntimeModelFactory = (input: RuntimeModelFactoryInput) => Model;
@@ -391,7 +388,6 @@ export interface ModelExecutionContext {
   /** 仅当前 Turn 跳过自动 Project Memory Extraction；不修改 Session Memory 配置。 */
   memoryExtraction?: "skip";
   selectionScope: "execution";
-  requestDependencies?: ModelRequestDependencies;
   subagents?: {
     foregroundModel: "submission";
     background: "deny";

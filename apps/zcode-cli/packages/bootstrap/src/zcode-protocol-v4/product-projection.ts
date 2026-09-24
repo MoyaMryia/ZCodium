@@ -349,12 +349,13 @@ export type ConversationRowTargetResolution =
 const LEGACY_TURN_ERROR_RECOVERABLE_FALLBACK = true;
 
 function modelRetryReasonCode(
-  reason: Extract<ModelNetworkStatusPayload, { type: "model_retry_scheduled" }>["reason"],
+  reason:
+    | Extract<ModelNetworkStatusPayload, { type: "model_retry_scheduled" }>["reason"]
+    | "offpeak_queued",
 ): string {
   switch (reason) {
     case "rate_limited":
-      return "fault.provider.rateLimited";
-    // off-peak 排队（429/3105）语义上就是"上游让我们等"，UI 归入限流可恢复形态。
+    // 仅兼容读取历史重试事件；新请求不再产生官方闲时排队状态。
     case "offpeak_queued":
       return "fault.provider.rateLimited";
     case "provider_overloaded":

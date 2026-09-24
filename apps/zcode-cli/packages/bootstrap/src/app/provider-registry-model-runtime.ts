@@ -76,16 +76,6 @@ export class ApiProviderModelRuntime {
       modelId: registryModel.modelId,
       providerConfig: provider.config,
       modelConfig: config,
-      ...(provider.config.access.type === "zhipu-account" &&
-      provider.config.access.mode === "off-peak"
-        ? {
-            requestDependencies: {
-              requestAuth: {
-                source: target.requestDependencies?.requestAuth?.source,
-              },
-            },
-          }
-        : {}),
       options: {
         reasoningLevel: normalReasoningLevel,
       },
