@@ -5,11 +5,8 @@ import {
 import {
   ProviderRegistryService,
   ProviderSettingsFacade,
-  createFailClosedAccountProviderConfigSnapshot,
-  type AccountProviderConfigSnapshot,
-  type ProviderConfigSnapshot,
+  EmptyAccountProviderConfigSource,
   type ProviderSettingsMutationTarget,
-  type ProviderSource,
 } from "@zcode/provider";
 import {
   createProviderConfigRuntime,
@@ -37,22 +34,6 @@ export interface ProviderRuntimeDependencies {
   readonly modelCatalog?: ProviderModelCatalogLister;
   readonly modelSelectionConfiguredDefaultSource?: ModelSelectionConfiguredDefaultSource;
   readonly disposeModelSelectionConfiguredDefaultSource?: () => void;
-}
-
-/**
- * Host 只读取本地模型配置；旧内建账号条目必须保持不可执行，不能恢复账号查询。
- * Account Provider 由当前 Built-in revision 对齐的 access.entitled=false Overlay 显式 fail-closed。
- */
-export class EmptyAccountProviderConfigSource implements ProviderSource<AccountProviderConfigSnapshot> {
-  constructor(readonly configSource: ProviderSource<ProviderConfigSnapshot>) {}
-
-  async read(): Promise<AccountProviderConfigSnapshot> {
-    return createFailClosedAccountProviderConfigSnapshot(await this.configSource.read());
-  }
-
-  onDidChange(): () => void {
-    return () => {};
-  }
 }
 
 /** 组装一个进程内共享的 Provider Config、Registry 与 Facade。 */

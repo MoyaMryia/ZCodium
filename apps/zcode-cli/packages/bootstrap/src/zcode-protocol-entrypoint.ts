@@ -231,7 +231,6 @@ export async function runZCodeProtocolAgent(
       mcpPort,
       mcpProcesses: mcpProcessesTracker,
       sessionStore,
-      syncAccountProviderConfig: activeProviderRegistryRuntime.syncAccountProviderConfig,
       refreshProviderRegistry: async (reason) => {
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);
       },

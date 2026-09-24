@@ -1,55 +1,30 @@
-import {
-  ProviderRegistryService,
-  MutableAccountProviderConfigSource,
-  createFailClosedAccountProviderConfigSnapshot,
-  type AccountProviderConfigSnapshot,
-  type ProviderSource,
-} from "@zcode/provider";
+import { ProviderRegistryService, EmptyAccountProviderConfigSource } from "@zcode/provider";
 import {
   NodeProviderConfigRuntime,
   type NodeProviderConfigRuntimeOptions,
 } from "./provider-config-runtime.js";
 
-export interface NodeProviderRegistryRuntimeOptions extends NodeProviderConfigRuntimeOptions {
-  readonly accountSource?: ProviderSource<AccountProviderConfigSnapshot>;
-  readonly createAccountSource?: (
-    configService: NodeProviderConfigRuntime["configService"],
-  ) => ProviderSource<AccountProviderConfigSnapshot>;
-}
+export type NodeProviderRegistryRuntimeOptions = NodeProviderConfigRuntimeOptions;
 
 /** 一个 Node.js 进程内共享的 Config + Registry 生命周期。 */
 export class NodeProviderRegistryRuntime {
   readonly configService: NodeProviderConfigRuntime["configService"];
   readonly registryService: ProviderRegistryService;
   readonly #configRuntime: NodeProviderConfigRuntime;
-  readonly #accountSource: ProviderSource<AccountProviderConfigSnapshot>;
   #disposed = false;
 
   constructor(options: NodeProviderRegistryRuntimeOptions) {
     this.#configRuntime = new NodeProviderConfigRuntime(options);
     this.configService = this.#configRuntime.configService;
-    this.#accountSource =
-      options.createAccountSource?.(this.configService) ??
-      options.accountSource ??
-      new MutableAccountProviderConfigSource();
     this.registryService = new ProviderRegistryService({
       configSource: this.configService,
-      accountSource: this.#accountSource,
+      accountSource: new EmptyAccountProviderConfigSource(this.configService),
     });
   }
 
   async start(): Promise<void> {
     this.#assertNotDisposed();
     await this.#configRuntime.start();
-    if (this.#accountSource instanceof MutableAccountProviderConfigSource) {
-      const account = await this.#accountSource.read();
-      if (account.basedOnZCodeBuiltinRevision === "uninitialized") {
-        this.#accountSource.replace(
-          createFailClosedAccountProviderConfigSnapshot(await this.configService.read()),
-          "initial-fail-closed",
-        );
-      }
-    }
     return this.registryService.start();
   }
 

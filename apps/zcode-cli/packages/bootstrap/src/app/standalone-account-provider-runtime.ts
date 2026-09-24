@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import type { SharedZCodeCredentialStore } from "@zcode/adapters/auth";
-import type { ProviderRuntimeHeadersPort } from "@zcode/core";
 import {
   createAccountProviderConfigSnapshot,
   ProviderConfig,
@@ -164,43 +163,4 @@ export async function hasStandaloneCodingPlanAccess(
     .some(([, provider]) =>
       provider.access?.type === "zhipu-account" ? provider.access.entitled === true : false,
     );
-}
-
-export function createStandaloneProviderRuntimeHeadersPort(
-  credentialStore: Pick<SharedZCodeCredentialStore, "load" | "loadMany">,
-  env: Readonly<Record<string, string | undefined>>,
-): ProviderRuntimeHeadersPort {
-  return {
-    shouldRefreshBeforeModelRequest() {
-      return true;
-    },
-    async refreshBeforeModelRequest(input) {
-      input.abortSignal?.throwIfAborted();
-      const providerId = input.providerId.trim();
-      const access = input.accountAccess;
-      if (!access || access.mode !== "individual-coding-plan") {
-        throw new Error(`Standalone Account Provider 请求身份无效: ${providerId}`);
-      }
-      const currentIdentity = (
-        await credentialStore.load(standaloneAccountIdentityCredentialKey(providerId))
-      )?.trim();
-      if (!currentIdentity)
-        throw new Error(`Standalone Account Provider 凭据已经失效: ${providerId}`);
-      const apiKey = (
-        await credentialStore.load(
-          standaloneAccountProviderCredentialKey({
-            providerId,
-            accountIdentity: currentIdentity,
-          }),
-        )
-      )?.trim();
-      if (!apiKey) {
-        throw new Error(`Standalone Account Provider 缺少请求凭据: ${providerId}`);
-      }
-      return {
-        headersApplied: true,
-        requestAuth: { apiKey },
-      };
-    },
-  };
 }

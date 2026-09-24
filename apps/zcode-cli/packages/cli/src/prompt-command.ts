@@ -207,11 +207,6 @@ export const runPrompt = async (
       permissionBroker: createHeadlessPermissionBroker(),
       providerRegistry: providerRegistryRuntime.runtime.registryService,
       configuredDefaultModelSelection: providerRegistryRuntime.configuredDefaultModelSelection,
-      ...(providerRegistryRuntime.providerRuntimeHeadersPort
-        ? {
-            providerRuntimeHeadersPort: providerRegistryRuntime.providerRuntimeHeadersPort,
-          }
-        : {}),
       resume: sessionId !== undefined,
       runtimeConfig: {
         ...(mode ? { mode } : {}),

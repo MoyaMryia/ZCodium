@@ -144,7 +144,6 @@ export type { ProviderConfigRuntimeOptions } from "./model-provider/providerConf
 export {
   createProviderRuntime,
   createProviderRuntimeFromConfigRuntime,
-  EmptyAccountProviderConfigSource,
   ProviderRuntime,
 } from "./model-provider/providerRuntime.js";
 export type {
