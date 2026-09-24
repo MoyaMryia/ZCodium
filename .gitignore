@@ -87,8 +87,3 @@ packages/desktop/.e2e-network-capture/
 /ZCodium-*.AppImage
 /ZCodium-*.rpm
 /ZCodium-*.pkg.tar.zst
-
-# DeskPilot 原生 daemon 的 Rust 构建产物与跨平台 manifest，均可再生。
-packages/desk-pilot/native/target/
-packages/desk-pilot/native/dist/
-packages/desk-pilot/native/runtime-manifest.json

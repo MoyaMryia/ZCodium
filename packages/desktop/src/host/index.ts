@@ -31,6 +31,7 @@ import { createBrowserControlMainBridge } from "./browserControlMainBridge.js";
 import { materializeBrowserRecordingArtifact } from "./browserRecordingArtifactMaterializer.js";
 import {
   ServiceCollection,
+  IBotsService,
   IFileService,
   IClientConfigService,
   IMediaPreviewService,
@@ -60,8 +61,8 @@ import {
   buildTaskChangeSummary,
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
+  AstrBotBridgeService,
   BotsRepo,
-  BotsService,
   getAppConfigDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
@@ -126,6 +127,7 @@ import {
   createRemoteMediaPreviewProxy,
   type RemoteMediaPreviewProxy,
 } from "./remoteMediaPreviewProxy.js";
+import { watchCronRunBotDelivery } from "./cronBotDelivery.js";
 import { createHostRemoteWorkspaceProxyState } from "./hostRemoteWorkspaceProxyState.js";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
 import { getRemoteProviderProvisioningExecutor } from "./remoteProviderProvisioningService.js";
@@ -919,6 +921,26 @@ async function dispatchCronRun(request: CronRunDispatchRequest): Promise<{
         mode: request.mode,
       });
     }
+    const botsService = targetServices.getOptional(IBotsService);
+    if (botsService) {
+      try {
+        await watchCronRunBotDelivery({
+          automationId: request.automationId,
+          workspaceKey,
+          workspacePath: request.workspacePath,
+          ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
+          taskId: task.taskId,
+          repo: cronAutomationRepo,
+          botsService,
+        });
+      } catch (error) {
+        // Bot 回推是 best-effort 辅助通道；配置/凭据/订阅失败不能阻断 automation 派发与结算。
+        logger.warn(
+          `automation Bot delivery subscription failed automation=${request.automationId} provider=unknown`,
+          error,
+        );
+      }
+    }
     trackedKey = cronRunSubscriptionKey(task.taskId, promptTraceId);
     trackCronRunOutcome({
       zcodeTaskService,
@@ -1263,7 +1285,7 @@ function createReportingRemoteZCodeTaskService<T extends object>(
     const leaseResult = await taskRealtimePort
       .acquireTaskRunLease(mirrorTarget)
       .catch((error: unknown) => {
-        logger.warn("Remote runtime realtime lease failed:", error);
+        logger.warn("Bot remote runtime realtime lease failed:", error);
         return null;
       });
     if (!leaseResult?.acquired) {
@@ -1852,13 +1874,13 @@ const BOTS_BRIDGE_TOKEN_KEY = "bot:bridge:token";
 const BOTS_BRIDGE_RUNTIME_FILE = "bots-bridge.runtime.v2.json";
 
 let activeBotsBridge: {
-  service: BotsService;
+  service: AstrBotBridgeService;
   adapter: ReturnType<typeof createBotsRuntimeAdapter>;
   handle: BotsBridgeServerHandle;
 } | null = null;
 
 /**
- * 启动 AstrBot 桥接：BotsService 持业务状态，adapter 接 IZCodeTaskService。
+ * 启动 AstrBot 桥接：AstrBotBridgeService 持业务状态，adapter 接 IZCodeTaskService。
  * token 存 credential store；url/port/token 另写 0600 运行时文件，方便插件配置。
  */
 async function startBotsBridge(services: ServiceCollection): Promise<void> {
@@ -1868,7 +1890,7 @@ async function startBotsBridge(services: ServiceCollection): Promise<void> {
   }
   const repo = new BotsRepo({ dir: getAppConfigDir(), logger: createServiceLogger("bots") });
   const adapter = createBotsRuntimeAdapter({ zcodeTaskService, repo });
-  const service = new BotsService({ repo, runtime: adapter });
+  const service = new AstrBotBridgeService({ repo, runtime: adapter });
   service.start();
   const credentials = services.getOptional(ICredentialService);
   let token = credentials ? await credentials.load(BOTS_BRIDGE_TOKEN_KEY) : null;
@@ -2754,6 +2776,16 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           error,
         );
       });
+    return;
+  }
+
+  if (
+    msg.type === HostMessageTypes.BotRemoteWorkspaceReconnectResult ||
+    msg.type === HostMessageTypes.BotRemoteWorkspaceConnectionStatusResult ||
+    msg.type === HostMessageTypes.BotRemoteWorkspaceRuntimePort
+  ) {
+    // Bugfix: Bot bridge 也监听 parentPort，main 回传的 runtime MessagePort 是给 Bot 作为
+    // 远端 RPC client 使用的。host 入口必须跳过这些控制消息，避免误把同一个端口注册成 ChannelServer。
     return;
   }
 

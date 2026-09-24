@@ -26,14 +26,14 @@ Backfilling methods include supplying the missing built-in plugins and skills, l
 
 ### Capability delta versus the official package
 
-Verified against 3.14.1.
+Verified against 3.14.1. Upstream `328c1a0 feat: update v3.14.3` has since open-sourced the `bots` stack (four platform adapters plus the platform-selection GUI) and phone remote control, among others; this repository has merged 3.14.3, so some gaps below are now covered by upstream and the full delta needs re-verification against 3.14.3.
 
 **Backfilled** (see [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)):
 
 - Nine built-in plugins: documents, pdf, presentations, spreadsheets, skill-creator, plugin-creator, image-search, restore-legacy-sessions, zcode-guide. Open-source commit `44b25ed46c` removed their sources while the official package still ships them.
 - The Computer Use model-visible surface: `scripts/computer-use-client.mjs`, skill, and docs. The native runtime (koffi/sharp, roughly 20 MiB) is not published with the package, matching upstream's `runtimeTopLevelPaths: []`.
 
-**Not yet backfilled** (located via i18n key gaps, 528 keys total):
+**Not yet backfilled** (located via i18n key gaps at 3.14.1, 528 keys total; to be re-verified after the 3.14.3 merge):
 
 | Area               | Gap      | Notes                                                                                            |
 | ------------------ | -------- | ------------------------------------------------------------------------------------------------ |
@@ -44,6 +44,8 @@ Verified against 3.14.1.
 | `settings`         | 24 keys  | Includes Claude model slot mapping and Anthropic/OpenAI/Gemini multi-protocol endpoint templates |
 | Other              | 51 keys  | `server`, `appHeader`, `rewards`, `onboarding`, and others                                       |
 
+Of these, `bots` and `webRemoteControl` were open-sourced by upstream in 3.14.3 and are now merged in this repository.
+
 **Deliberately not backfilled**:
 
 - Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
@@ -53,7 +55,7 @@ Verified against 3.14.1.
 
 These directions are settled but not yet implemented; details to be discussed separately:
 
-- **`bots` goes through an AstrBot plugin rather than per-platform rewrites.** The 258 closed-source `bots` keys map to four separate bot notification stacks: Telegram, Feishu, Lark, and WeCom. Rewriting each one means four platform adapters, four credential stores, and four message formats. Instead the plan is to integrate [AstrBot](https://github.com/AstrBotDevs/AstrBot) — itself an open-source multi-platform LLM chatbot framework that already covers these platforms — and write an AstrBot plugin in this repository as the bridge that pushes Agent events to the user's own bots. Platform adapters are then AstrBot's responsibility; only the bridge contract is maintained here. [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin)
+- **`bots`: official implementation plus the AstrBot bridge, side by side.** Upstream 3.14.3 open-sourced the official `bots` stack (four platform adapters and the platform-selection GUI), which is now merged in this repository. The in-house [AstrBot](https://github.com/AstrBotDevs/AstrBot) bridge is kept and wired into the official GUI as its own provider option; AstrBot owns the platform adapters while this repository maintains only the bridge contract. [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin), see [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md).
 - **Generic Computer Use**: see [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md). Layered behind an Actuator interface; the existing infrastructure (broker/bridge) is already in place and was generic to begin with.
 - **image-search defaults to a local backend**: changed to `http://127.0.0.1:8787`, see [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md). No local image-search backend ships in this repository yet; you deploy your own.
 
@@ -68,6 +70,11 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 | Desktop                      | Electron desktop application                                                              | `pnpm dev:desktop`             |
 | Web / ZCode CLI distribution | Terminal and browser workspace; packages the TUI, Web client, backend, and Agent together | `pnpm dev:web`                 |
 | Agent CLI                    | The `zcode` terminal interface, which also provides the Agent runtime for Desktop and Web | `pnpm --filter @zcode/cli dev` |
+
+## Updates
+
+- 2026-9-23: Upstream released ZCode v3.14.3.
+- 2026-9-24: Merged upstream 3.14.3 (`328c1a0`); adopted the official bots and the newly open-sourced remote-control surfaces, keeping the `.zcodium` data namespace and the in-house AstrBot bridge.
 
 ## Setup
 

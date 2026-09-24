@@ -84,7 +84,11 @@ export function ComputerUseSection({
     (isMacDesktop ?? supportsLocalMacCuaPermissionOnboarding(platform)) &&
     isLocalWorkspace;
   const supportsLocalWindowsWorkspace = isWindowsDesktop && isLocalWorkspace;
-  const supportsComputerUseSettings = supportsLocalMacWorkspace || supportsLocalWindowsWorkspace;
+  // Linux 桌面本机：无 TCC 权限卡，只复用插件总开关 + composer 入口。
+  const supportsLocalLinuxWorkspace =
+    isDesktop && isLocalWorkspace && !supportsLocalMacWorkspace && !supportsLocalWindowsWorkspace;
+  const supportsComputerUseSettings =
+    supportsLocalMacWorkspace || supportsLocalWindowsWorkspace || supportsLocalLinuxWorkspace;
   const availability = resolveComputerUseAvailability({
     isDesktop: isDesktop || isWindowsDesktop || supportsLocalMacWorkspace,
     isMacDesktop: isMacDesktop || supportsLocalMacWorkspace,

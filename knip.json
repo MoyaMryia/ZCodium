@@ -19,9 +19,6 @@
         "src/renderer/src/resource-manager.tsx"
       ]
     },
-    "packages/desk-pilot": {
-      "entry": ["src/module.ts", "src/contract.example.ts", "test/**/*.ts", "native/build.mjs"]
-    },
     "packages/server": {
       "entry": ["src/index.ts", "src/entry-stdio.ts", "build-remote.ts"]
     },
