@@ -28,7 +28,6 @@ import { mcpToolPartMetadata } from "./tool-part-metadata.js";
 import { persistPendingToolPart } from "./tool-part-persistence.js";
 import {
   isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
   recordModelHistoryRound,
   type RegularTurnLoopState,
 } from "./turn-loop-state.js";
@@ -288,7 +287,6 @@ async function executeDuringStream(
     subagentModelOverride: state.subagentModelOverride,
     model: state.model,
     automationTurn: isAutomationMutationRestrictedTurn(state),
-    offPeakTurn: isOffPeakCreateRestrictedTurn(state),
     signal: options.abortSignal,
     traceContext: options.traceContext,
     onBatchStart: async () => {

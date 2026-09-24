@@ -87,20 +87,10 @@ export async function startPromptTurn(
   if (record.persistence === "deferred") record.persistence = "immediate";
 
   const previousAutomationId = record.activeAutomationId;
-  const previousOffPeakTaskId = record.activeOffPeakTaskId;
   const previousBotDeliveryTarget = record.activeBotDeliveryTarget;
   const activeAutomationId = resolveTurnAutomationId(params);
-  const activeOffPeakTaskId = resolveTurnOffPeakTaskId(params);
-  const turnToolDisallowlist = buildTurnToolDisallowlist(
-    params,
-    activeAutomationId,
-    activeOffPeakTaskId,
-  );
+  const turnToolDisallowlist = buildTurnToolDisallowlist(params, activeAutomationId);
   if (activeAutomationId) record.activeAutomationId = activeAutomationId;
-  if (activeOffPeakTaskId) {
-    // 闲时派发轮同型标记，供 offpeak-port 在工具执行前拒绝递归 OffPeakCreate。
-    record.activeOffPeakTaskId = activeOffPeakTaskId;
-  }
   record.activeBotDeliveryTarget = params.botDeliveryTarget;
 
   let admission: SendInputResult;
@@ -124,9 +114,6 @@ export async function startPromptTurn(
         ...(params.inputPresentation ? { inputPresentation: params.inputPresentation } : {}),
         ...turnBackgroundAttributionOf({
           automationId: activeAutomationId,
-          // 归因用解析后的 id：resume 段仅靠 inputId 前缀兜底时也要进 core loop state。
-          offPeakTaskId: activeOffPeakTaskId,
-          offPeakRunType: params.offPeakRunType,
         }),
         intent: params.intent,
         ...(params.modelExecution ? { modelExecution: params.modelExecution } : {}),
@@ -137,23 +124,13 @@ export async function startPromptTurn(
       },
     );
   } catch (error) {
-    clearPromptRecordState(
-      record,
-      previousAutomationId,
-      previousOffPeakTaskId,
-      previousBotDeliveryTarget,
-    );
+    clearPromptRecordState(record, previousAutomationId, previousBotDeliveryTarget);
     await host.afterLegacyStateMutation?.(record, "prompt_failed");
     throw error;
   }
 
   if (admission.kind === "rejected") {
-    clearPromptRecordState(
-      record,
-      previousAutomationId,
-      previousOffPeakTaskId,
-      previousBotDeliveryTarget,
-    );
+    clearPromptRecordState(record, previousAutomationId, previousBotDeliveryTarget);
     throw new V4PromptRejectedError(
       "activePrompt",
       `Core prompt admission rejected: ${admission.reason}`,
@@ -161,12 +138,7 @@ export async function startPromptTurn(
   }
 
   if (admission.kind === "queued") {
-    clearPromptRecordState(
-      record,
-      previousAutomationId,
-      previousOffPeakTaskId,
-      previousBotDeliveryTarget,
-    );
+    clearPromptRecordState(record, previousAutomationId, previousBotDeliveryTarget);
     return { admission, turnStarted: Promise.resolve() };
   }
 
@@ -182,12 +154,7 @@ export async function startPromptTurn(
         sessionId: record.app.sessionId,
       });
     } finally {
-      clearPromptRecordState(
-        record,
-        previousAutomationId,
-        previousOffPeakTaskId,
-        previousBotDeliveryTarget,
-      );
+      clearPromptRecordState(record, previousAutomationId, previousBotDeliveryTarget);
       await host.afterLegacyStateMutation?.(record, mutationReason);
     }
   });
@@ -204,29 +171,20 @@ export async function startPromptTurn(
 function clearPromptRecordState(
   record: V4SessionRecordView,
   previousAutomationId: string | undefined,
-  previousOffPeakTaskId: string | undefined,
   previousBotDeliveryTarget: V4SessionRecordView["activeBotDeliveryTarget"],
 ): void {
   record.activeAutomationId = previousAutomationId;
-  // 闲时轮身份与 automation 同规则随 turn 还原，防止跨轮残留误拒 OffPeakCreate。
-  record.activeOffPeakTaskId = previousOffPeakTaskId;
   record.activeBotDeliveryTarget = previousBotDeliveryTarget;
 }
 
 function buildTurnToolDisallowlist(
-  params: Pick<StartPromptTurnParams, "automationId" | "offPeakTaskId" | "toolDisallowlist">,
+  params: Pick<StartPromptTurnParams, "automationId" | "toolDisallowlist">,
   activeAutomationId = params.automationId,
-  activeOffPeakTaskId = params.offPeakTaskId,
 ): readonly string[] | undefined {
   const tools = new Set(params.toolDisallowlist ?? []);
   if (activeAutomationId) {
     // automation 派发漏传身份时，后续 model step 会重新暴露 Cron 写工具。
     for (const toolName of AUTOMATION_MUTATION_TOOL_NAMES) tools.add(toolName);
-  }
-  if (activeOffPeakTaskId) {
-    // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
-    // automation 轮不加此项——cron 轮放行 OffPeakCreate（定时派生闲时任务）。
-    for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) tools.add(toolName);
   }
   return tools.size > 0 ? [...tools] : undefined;
 }
@@ -243,39 +201,12 @@ export function resolveTurnAutomationId(
   return automationId.length > AUTOMATION_INPUT_ID_PREFIX.length ? automationId : undefined;
 }
 
-function resolveTurnOffPeakTaskId(
-  params: Pick<StartPromptTurnParams, "offPeakTaskId" | "inputId">,
-): string | undefined {
-  const explicit = params.offPeakTaskId?.trim();
-  if (explicit) return explicit;
-  // 兜底：续跑派发的 inputId 形如 `offpeak-<uuid>:resume:<uuid>`；首段派发无固定前缀，
-  // 主信号必须是显式 offPeakTaskId（host 派发一律显式传）。
-  const inputId = params.inputId.trim();
-  if (!inputId.startsWith(OFF_PEAK_INPUT_ID_PREFIX)) return undefined;
-  const separatorIndex = inputId.indexOf(":");
-  const offPeakTaskId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
-  return offPeakTaskId.length > OFF_PEAK_INPUT_ID_PREFIX.length ? offPeakTaskId : undefined;
-}
-
 export function turnBackgroundAttributionOf(params: {
   automationId?: string;
-  offPeakTaskId?: string;
-  offPeakRunType?: "init" | "resume";
 }): TurnBackgroundAttribution {
   if (params.automationId) return { automationId: params.automationId };
-  if (params.offPeakTaskId) {
-    return {
-      offPeakTaskId: params.offPeakTaskId,
-      ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-    };
-  }
   return {};
 }
 
 const AUTOMATION_INPUT_ID_PREFIX = "automation-";
 const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "CronDelete"] as const;
-// 独立常量，绝不并入 AUTOMATION_MUTATION_TOOL_NAMES（cron 轮放行 OffPeakCreate）。
-// 与 core turn-loop-state 同值——闲时轮同时隐藏 SendMessage / Workflow（两者会在本轮
-// modelExecution 之外重启子 Agent）。
-const OFF_PEAK_INPUT_ID_PREFIX = "offpeak-";
-const OFF_PEAK_MUTATION_TOOL_NAMES = ["OffPeakCreate", "SendMessage", "Workflow"] as const;

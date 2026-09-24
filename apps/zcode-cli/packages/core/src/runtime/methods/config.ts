@@ -203,27 +203,17 @@ export async function notifyExternalChildSessionEvent(
 /**
  * 外部子 runtime 的接缝（三）：铸造子 runtime 的**对外交互**端口。
  *
- * 子 runtime 的账本身份（子 sessionId）不是协议客户端能应答的身份。dwf actor 与 legacy
- * workflow child 过去直接从 `appOptions` 取 `providerRuntimeHeadersPort` / `permissionBroker`，
- * 于是带着 `sess_dwf-…`去问桌面；桌面回包路径上的 `requireSession` 抛错、response 永不发出，
- * 子代理在首个模型请求前永久挂起（8 个子代理、80 分钟无任何事件）。core 内建 subagent 当时靠
- * 两个私有 wrapper 绕开，三处装配两错一对——说明规则散落在调用点就一定会漂。
- *
- * 修法：派生收敛到 `deriveChildClientPorts`，且只能由**父 runtime** 调用——`parentSessionId`
- * 由父自己填，调用方给不了错的值。任何在 class 外构造子 runtime 的装配（dwf actor、legacy
- * workflow child）必须经这里取端口。
+ * 子 runtime 的账本身份不能作为权限/AskUserQuestion 的客户端路由身份，
+ * 否则桌面无法匹配根会话，子任务会一直等待应答。
+ * 父 runtime 统一派生 permissionBroker 并填入 parentSessionId；
+ * child 装配不能从 appOptions 直接透传未改写的端口。
  */
 export function createChildClientPorts(
   this: AgentRuntimeInternal,
   context: ChildClientPortsContext,
 ): ClientFacingPorts {
   return deriveChildClientPorts(
-    {
-      ...(this.permissionBroker === undefined ? {} : { permissionBroker: this.permissionBroker }),
-      ...(this.providerRuntimeHeadersPort === undefined
-        ? {}
-        : { providerRuntimeHeadersPort: this.providerRuntimeHeadersPort }),
-    },
+    this.permissionBroker === undefined ? {} : { permissionBroker: this.permissionBroker },
     { ...context, parentSessionId: this.sessionId },
   );
 }

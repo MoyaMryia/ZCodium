@@ -31,7 +31,7 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
     includeAgent: Boolean(runtime.subagentPort),
     embeddedSearchEnabled,
     // 本函数是**第二个**
-    // 注册入口，且刻意只传一个精简选项集。对「只有 true 才注册」的门（OffPeak / Cron / Workflow…）
+    // 注册入口，且刻意只传一个精简选项集。对「只有 true 才注册」的门（Cron / Workflow…）
     // 省略是安全的；但动态工作流灰度门的极性相反——「缺席即开启」，省略等于把首次装配剃掉的
     // 十个工具在 shell 快照初始化时原样加回来（registry.register 会覆盖同名项，
     // silentDuplicateWarnings 还把告警吞掉，所以全程无声）。推导因此必须与 runtime-tools.ts

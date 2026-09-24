@@ -21,7 +21,9 @@
     "./workspace-hook-discovery": "./src/workspace-hook-discovery.ts",
     "./workspace-hook-mutation": "./src/workspace-hook-mutation.ts",
     "./workspace-hook-review-monotonicity": "./src/workspace-hook-review-monotonicity.ts",
-    "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts"
+    "./workspace-hook-trust-store-file": "./src/workspace-hook-trust-store-file.ts",
+    "./builtin-plugin-assets": "./src/builtinPluginAssets.ts",
+    "./bundled-remote-assets": "./src/bundledRemoteAssets.ts"
   },
   "scripts": {
     "lint": "oxlint",

@@ -2,7 +2,6 @@
 import { useState } from "react";
 import type {
   DockerContainerInfo,
-  RemoteAssetInstallMode,
   RemoteTarget,
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
@@ -139,7 +138,6 @@ export function RemoteConnectionSettingsStep({
   port,
   username,
   sshAuthMethod,
-  assetInstallMode,
   password,
   privateKeyPath,
   privateKeyPassphrase,
@@ -164,7 +162,6 @@ export function RemoteConnectionSettingsStep({
   onPortChange,
   onUsernameChange,
   onSshAuthMethodChange,
-  onAssetInstallModeChange,
   onPasswordChange,
   onPrivateKeyPathChange,
   onPrivateKeyPassphraseChange,
@@ -182,7 +179,6 @@ export function RemoteConnectionSettingsStep({
   port: string;
   username: string;
   sshAuthMethod: SSHAuthMethod;
-  assetInstallMode: RemoteAssetInstallMode;
   password: string;
   privateKeyPath: string;
   privateKeyPassphrase: string;
@@ -207,7 +203,6 @@ export function RemoteConnectionSettingsStep({
   onPortChange: (value: string) => void;
   onUsernameChange: (value: string) => void;
   onSshAuthMethodChange: (value: SSHAuthMethod) => void;
-  onAssetInstallModeChange: (value: RemoteAssetInstallMode) => void;
   onPasswordChange: (value: string) => void;
   onPrivateKeyPathChange: (value: string) => void;
   onPrivateKeyPassphraseChange: (value: string) => void;
@@ -243,7 +238,6 @@ export function RemoteConnectionSettingsStep({
           port={port}
           username={username}
           sshAuthMethod={sshAuthMethod}
-          assetInstallMode={assetInstallMode}
           password={password}
           privateKeyPath={privateKeyPath}
           privateKeyPassphrase={privateKeyPassphrase}
@@ -266,7 +260,6 @@ export function RemoteConnectionSettingsStep({
           setPort={onPortChange}
           setUsername={onUsernameChange}
           setSshAuthMethod={onSshAuthMethodChange}
-          setAssetInstallMode={onAssetInstallModeChange}
           setPassword={onPasswordChange}
           setPrivateKeyPath={onPrivateKeyPathChange}
           setPrivateKeyPassphrase={onPrivateKeyPassphraseChange}

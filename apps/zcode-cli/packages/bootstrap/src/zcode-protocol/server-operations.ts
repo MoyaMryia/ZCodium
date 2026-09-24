@@ -107,7 +107,6 @@ import { createWorkspaceZCodeApp, ensureSessionModelAvailable } from "./workspac
 import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
-import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
 import { protocolMcpServersToRuntimeMcpConfig } from "./protocol-mcp-config.js";
@@ -1992,14 +1991,7 @@ export async function sendPrompt(context: ZCodeProtocolAgentServerContext, rawPa
         : undefined,
       queryId: (params.queryId ?? inputId) as QueryId | undefined,
       content: params.content,
-      ...(params.automationId
-        ? { automationId: params.automationId }
-        : params.offPeakTaskId
-          ? {
-              offPeakTaskId: params.offPeakTaskId,
-              ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-            }
-          : {}),
+      ...(params.automationId ? { automationId: params.automationId } : {}),
       toolDenylist: params.toolDenylist,
       botDeliveryTarget: params.botDeliveryTarget,
     }),
@@ -2386,24 +2378,14 @@ async function runPromptTurnInBackground(
   });
   let mutationReason = "prompt_completed";
   const previousAutomationId = record.activeAutomationId;
-  const previousOffPeakTaskId = record.activeOffPeakTaskId;
   const previousBotDeliveryTarget = record.activeBotDeliveryTarget;
   const activeAutomationId = resolvePromptTurnAutomationId(params);
-  const activeOffPeakTaskId = resolvePromptTurnOffPeakTaskId(params);
-  const turnToolDisallowlist = buildPromptTurnToolDisallowlist(
-    params,
-    activeAutomationId,
-    activeOffPeakTaskId,
-  );
+  const turnToolDisallowlist = buildPromptTurnToolDisallowlist(params, activeAutomationId);
   if (activeAutomationId) {
     // 附件输入仍走旧 session/send；automation 派发可能漏传 automationId，
     // 但 inputId 会保留 automation-* runId。这里兜底标记，避免 CronCreate 在绑定 active
     // 会话里递归创建定时任务。
     record.activeAutomationId = activeAutomationId;
-  }
-  if (activeOffPeakTaskId) {
-    // 闲时派发轮同型兜底标记，供 offpeak-port 拒绝递归 OffPeakCreate。
-    record.activeOffPeakTaskId = activeOffPeakTaskId;
   }
   record.activeBotDeliveryTarget = params.botDeliveryTarget;
   try {
@@ -2419,14 +2401,7 @@ async function runPromptTurnInBackground(
         browserAmbientContext: params.browserAmbientContext,
         inputId: params.inputId,
         queryId: params.queryId,
-        ...(params.automationId
-          ? { automationId: params.automationId }
-          : params.offPeakTaskId
-            ? {
-                offPeakTaskId: params.offPeakTaskId,
-                ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-              }
-            : {}),
+        ...(params.automationId ? { automationId: params.automationId } : {}),
         // legacy session/send 同样可能复用 active runtime；只做 port 拒绝时模型仍看得到
         // CronCreate，并可能在失败后改调 CronDelete。automation turn 与 cron task 会话后续输入
         // 都直接从本轮 provider 工具面移除。
@@ -2469,7 +2444,6 @@ async function runPromptTurnInBackground(
       });
     }
     record.activeAutomationId = previousAutomationId;
-    record.activeOffPeakTaskId = previousOffPeakTaskId;
     // Bug 原因：legacy record 会跨 turn 复用；必须恢复 Bot 地址，避免后续普通 UI turn
     // 创建的定时任务错误继承上一轮 Bot 会话。
     record.activeBotDeliveryTarget = previousBotDeliveryTarget;
@@ -2480,21 +2454,13 @@ async function runPromptTurnInBackground(
 function buildPromptTurnToolDisallowlist(
   params: {
     automationId?: string;
-    offPeakTaskId?: string;
     inputId?: string;
     toolDenylist?: readonly string[];
   },
   activeAutomationId = params.automationId,
-  activeOffPeakTaskId = params.offPeakTaskId,
 ): readonly string[] | undefined {
   const tools = new Set(params.toolDenylist ?? []);
   if (activeAutomationId) tools.add("CronCreate");
-  // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
-  // 注意 automation 轮不加 OffPeakCreate——cron 轮放行（定时派生闲时任务）。
-  // SendMessage / Workflow 同样隐藏，与 V4 prompt-turn 及 core turn-loop-state 同值。
-  if (activeOffPeakTaskId) {
-    for (const toolName of ["OffPeakCreate", "SendMessage", "Workflow"]) tools.add(toolName);
-  }
   return tools.size > 0 ? [...tools] : undefined;
 }
 
@@ -2509,21 +2475,6 @@ function resolvePromptTurnAutomationId(params: {
   const separatorIndex = inputId.indexOf(":");
   const automationId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
   return automationId.length > "automation-".length ? automationId : undefined;
-}
-
-function resolvePromptTurnOffPeakTaskId(params: {
-  offPeakTaskId?: string;
-  inputId?: string;
-}): string | undefined {
-  const explicit = params.offPeakTaskId?.trim();
-  if (explicit) return explicit;
-  // 兜底：续跑派发的 inputId 形如 `offpeak-<uuid>:resume:<uuid>`（首段 traceId 无固定前缀，
-  // 主信号必须是显式 offPeakTaskId）。
-  const inputId = params.inputId?.trim();
-  if (!inputId?.startsWith("offpeak-")) return undefined;
-  const separatorIndex = inputId.indexOf(":");
-  const offPeakTaskId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
-  return offPeakTaskId.length > "offpeak-".length ? offPeakTaskId : undefined;
 }
 
 async function continueGoalAfterChange(
@@ -3337,8 +3288,7 @@ async function createRecord(
       modelSelection: "model" in params ? toRuntimeModelSelection(initialModel) : undefined,
       parentSessionId,
       taskType,
-      // 动态工作流灰度门：与 offPeakPort
-      // 同一套读法——本次 create/resume 参数优先，缺席时读 Host 同步到进程的 workspace 级
+      // 动态工作流策略：本次 create/resume 参数优先，缺席时读 Host 同步到进程的 workspace 级
       // 结论；两者都没有就是 false（fail-closed）。这里**必须写出显式布尔**，不能省成
       // undefined：core 把「缺席」定义为「不参与灰度、保留全部工具」（TUI / headless /
       // workflow_child 的语义），受信 Host 创建的会话不能落进那条豁免。
@@ -3376,12 +3326,6 @@ async function createRecord(
     // 这里把阻塞交互转换成 server-to-client JSON-RPC request，由 app 通过 response 释放 runtime。
     permissionBroker: createProtocolInteractionBroker(context),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
-    // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
-    // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
-    ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||
-    context.appRuntimePreferences.offPeakToolEnabled === true
-      ? { offPeakPort: createProtocolOffPeakPort(context, () => ownSessionRecord) }
-      : {}),
     resolveInitialBashShellSelection: startupPreferences.resolveInitialBashShellSelection,
     // browser-use：agent.browsers.* 经此把命令转成 interaction/browserExecute 反向请求。
     browserControlPort: createProtocolBrowserControlBroker(context),

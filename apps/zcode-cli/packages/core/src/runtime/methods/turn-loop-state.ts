@@ -22,19 +22,6 @@ export const RAPID_REFILL_TOOL_TURN_THRESHOLD = 3;
 export const MAX_CONSECUTIVE_RAPID_REFILLS = 3;
 export const AUTOMATION_MUTATION_TOOL_NAMES = ["CronCreate", "CronUpdate", "CronDelete"] as const;
 const AUTOMATION_QUERY_ID_PREFIX = "automation-";
-/**
- * 闲时派发轮隐藏的工具；OffPeakList 只读保留。
- * - OffPeakCreate：防止闲时任务递归自我派生、无限调度。
- * - SendMessage / Workflow：会在闲时 turn 的 modelExecution 之外重新启动子 Agent（SendMessage 续跑
- *   已完成子 Agent、Workflow 派生脚本子会话），按父会话常驻选择建模型。
- *
- * 独立常量，绝不并入 AUTOMATION_MUTATION_TOOL_NAMES——cron automation turn 明确放行
- * OffPeakCreate（定时派生闲时任务），混入会让 automation turn 误 deny。
- */
-export const OFF_PEAK_MUTATION_TOOL_NAMES = ["OffPeakCreate", "SendMessage", "Workflow"] as const;
-// 闲时派发 init 段 traceId 无固定前缀，只有 resume 段是 `${offPeakTaskId}:resume:*`
-// （offpeak- 开头）；前缀只是 resume 兜底信号，主信号必须是显式 offPeakTaskId。
-const OFF_PEAK_QUERY_ID_PREFIX = "offpeak-";
 
 export interface CompactLoopTracking {
   consecutiveRapidRefills: number;
@@ -77,8 +64,6 @@ export interface RegularTurnLoopState {
   activeTurn?: ActiveTurnSteeringState;
   /** Host admission 显式传入的本轮 automation 身份；不能从持久 task metadata 推断。 */
   automationId?: string;
-  /** Host admission 显式传入的本轮闲时任务身份；与 automationId 互斥，不从持久 meta 推断。 */
-  offPeakTaskId?: string;
   /** CronCreate 命中全局上限后，本用户 turn 永久切为纯文本回复，禁止模型自行恢复。 */
   automationCreateLimitReached?: boolean;
   anomalyWarningsInjected: number;
@@ -135,20 +120,6 @@ export function isAutomationMutationRestrictedTurn(state: RegularTurnLoopState):
   // active/busy automation 输入会把 turn-scoped denylist 合并进当前 loop；即使原始
   // automationId 不再是 loop 首输入，也必须把同一事实继续传到 handler 执行边界。
   return AUTOMATION_MUTATION_TOOL_NAMES.every((toolName) => disallowedTools.has(toolName));
-}
-
-/**
- * 本轮是否为闲时自动派发 turn（需 deny OffPeakCreate）。三重信号与
- * isAutomationMutationRestrictedTurn 同构：显式 offPeakTaskId 为主信号；
- * resume 段 traceId 前缀与 turn denylist 是纵深兜底。
- */
-export function isOffPeakCreateRestrictedTurn(state: RegularTurnLoopState): boolean {
-  if (state.offPeakTaskId?.trim()) return true;
-  if (state.turnTraceContext.queryId?.trim().startsWith(OFF_PEAK_QUERY_ID_PREFIX)) return true;
-
-  // 兜底只认 OffPeakCreate 这一哨兵：旧 host 派发的 denylist 可能尚未带上 新增的工具。
-  const disallowedTools = new Set(state.toolDisallowlist ?? []);
-  return disallowedTools.has(OFF_PEAK_MUTATION_TOOL_NAMES[0]);
 }
 
 export function evaluateRapidRefill(

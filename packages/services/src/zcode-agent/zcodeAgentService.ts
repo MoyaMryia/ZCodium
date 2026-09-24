@@ -1,3 +1,4 @@
+import { assertNoRetiredIdleExecution } from "@zcode/shared";
 import {
   DiagnosticRecordSchema,
   ZCODE_USER_DATA_DIR_NAME,
@@ -17,13 +18,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Emitter } from "@zcode/rpc";
 import type { IDisposable } from "@zcode/rpc";
-import type {
-  AccountProviderConfigSnapshot,
-  ModelSelectionView,
-  ProviderSource,
-} from "@zcode/provider";
-import { completeNewModelSelection } from "@zcode/provider";
-import type { OffPeakClientConfig } from "#src/coding-plan-subscription/codingPlanSubscription.js";
+import type { ModelSelectionView } from "@zcode/provider";
 import {
   ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
   formatLogPrefix,
@@ -67,15 +62,8 @@ import {
   zcodeAutomationDeleteParamsSchema,
   zcodeAutomationListParamsSchema,
   zcodeAutomationUpdateParamsSchema,
-  zcodeOffPeakCreateParamsSchema,
-  zcodeOffPeakListParamsSchema,
-  OFF_PEAK_PROVIDER_IDS,
   zcodeComputerUseOperationEventSchema,
-  zcodeProviderRuntimeHeadersCancelledSchema,
-  zcodeProviderRuntimeHeadersRequestParamsSchema,
   zcodeProviderTestModelConnectivityResultSchema,
-  zcodeOfficialMcpAuthHeadersRequestParamsSchema,
-  summarizeOfficialMcpIdentityHeaders,
   zcodeProtocolEmptyResultSchema,
   zcodeProtocolMethods,
   zcodeProtocolNotifications,
@@ -103,11 +91,9 @@ import {
   zcodeWorkspaceGenerateTextResultSchema,
   zcodeWorkspaceHookTrustGrantResultSchema,
   zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
-  zcodeProviderUpdateAccountConfigResultSchema,
   type ZCodeSessionStateSnapshot,
   type ZCodeAutomation,
   type ZCodeAutomationRun,
-  zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema,
   zcodeWorkspaceUpdateDynamicWorkflowPolicyResultSchema,
   type DynamicWorkflowClientConfig,
   type AgentLaneResourceSample,
@@ -119,20 +105,11 @@ import {
   type ZCodeTaskMode,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
-import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
-import type {
-  AccountRequestAuthMaterial,
-  IAccountRequestAuthService,
-} from "#src/model-provider/accountRequestAuthService.js";
-import {
-  mergeAutomationMutationToolDenylist,
-  mergeOffPeakMutationToolDenylist,
-} from "#src/zcode-agent/automationToolPolicy.js";
+import { mergeAutomationMutationToolDenylist } from "#src/zcode-agent/automationToolPolicy.js";
 import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
   ZCodeProtocolRequestId,
   ModelSelection,
-  ZCodeProviderRuntimeHeadersRequestParams,
   ZCodeSessionEvent,
   ZCodeSessionRuntimePreferencesScope,
   ZCodeSavedWorkflowScope,
@@ -303,7 +280,6 @@ import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
 import { ZCodeAgentMcpStatusModeUnsupportedError } from "#src/zcode-agent/zcodeAgentErrors.js";
 import { ZCodeAgentProcessManager } from "./zcodeAgentProcessManager.js";
 import type { ZCodeAgentProcessManagerOptions } from "./zcodeAgentProcessManager.js";
-import type { IOffPeakTaskService } from "#src/session/offPeakTask.js";
 import {
   ZCodeProtocolRequestTimeoutError,
   type ZCodeProtocolClient,
@@ -339,11 +315,6 @@ interface PendingPermissionRequest {
   protocolRequestId: ZCodeProtocolRequestId;
 }
 
-interface PendingProviderRuntimeHeadersRequest extends PendingPermissionRequest {
-  request: ZCodeProviderRuntimeHeadersRequestParams;
-  responding?: boolean;
-}
-
 interface PendingSessionRuntimePreferencesRequest extends PendingPermissionRequest {
   request: ZCodeAgentSessionRuntimePreferencesRequest;
   timeout: ReturnType<typeof setTimeout>;
@@ -356,20 +327,16 @@ type SessionCreateCompatField =
   | "mcpServers"
   | "toolAllowlist"
   | "toolDenylist"
-  | "offPeakToolEnabled"
   | "dynamicWorkflowEnabled";
 type SessionResumeCompatField =
   | "thoughtLevel"
   | "mcpServers"
   | "toolAllowlist"
   | "toolDenylist"
-  | "offPeakToolEnabled"
   | "dynamicWorkflowEnabled";
 type SessionSendCompatField =
   | "browserAmbientContext"
   | "automationId"
-  | "offPeakTaskId"
-  | "offPeakRunType"
   | "botDeliveryTarget"
   | "toolDenylist";
 
@@ -381,8 +348,6 @@ const SESSION_CREATE_OPTIONAL_COMPAT_FIELDS = new Set<SessionCreateCompatField>(
   // 的 .strict() schema 不认，需可降级重试而不是整个 createSession 硬失败。
   "toolAllowlist",
   "toolDenylist",
-  // Off-Peak 工具面 flag 同为可降级字段；旧 app-server 不认时省略重试（工具随之不注册，fail-closed）。
-  "offPeakToolEnabled",
   // 动态工作流灰度 flag 同理：旧 CLI 不认时
   // 省略重试，工作流工具簇随之不注册，绝不让整个 create 硬失败。
   "dynamicWorkflowEnabled",
@@ -393,14 +358,11 @@ const SESSION_RESUME_OPTIONAL_COMPAT_FIELDS = new Set<SessionResumeCompatField>(
   // 冷恢复也带工具面约束；旧 app-server 不认时降级重试而不是硬失败（与 create 一致）。
   "toolAllowlist",
   "toolDenylist",
-  "offPeakToolEnabled",
   "dynamicWorkflowEnabled",
 ]);
 const SESSION_SEND_OPTIONAL_COMPAT_FIELDS = new Set<SessionSendCompatField>([
   "browserAmbientContext",
   "automationId",
-  "offPeakTaskId",
-  "offPeakRunType",
   "botDeliveryTarget",
   "toolDenylist",
 ]);
@@ -620,7 +582,6 @@ function assertV4AttachmentNdjsonEnvelope(method: string, params: unknown): void
 
 function buildSessionCreateParams(
   params: ZCodeAgentCreateSessionParams & {
-    offPeakToolEnabled?: boolean;
     dynamicWorkflowEnabled?: boolean;
   },
   omittedFields: ReadonlySet<SessionCreateCompatField> = new Set(),
@@ -657,11 +618,7 @@ function buildSessionCreateParams(
     // importedHistory 是导入历史的完整性边界，不能像 thoughtLevel/persistence
     // 那样在旧协议兼容重试里省略，否则会创建一个可切模型但没有历史内容的空 session。
     ...(params.importedHistory !== undefined ? { importedHistory: params.importedHistory } : {}),
-    // 只在灰度命中时下发 true（缺省不发字段）；旧 CLI strict schema 不认时经 compat 省略。
-    ...(params.offPeakToolEnabled === true && !omittedFields.has("offPeakToolEnabled")
-      ? { offPeakToolEnabled: true }
-      : {}),
-    // 动态工作流灰度：同 Off-Peak 的下发形状，
+    // 动态工作流工具策略随会话下发。
     // 关闭时不写字段——CLI 的缺省就是不注册那九个工具。
     ...(params.dynamicWorkflowEnabled === true && !omittedFields.has("dynamicWorkflowEnabled")
       ? { dynamicWorkflowEnabled: true }
@@ -671,7 +628,6 @@ function buildSessionCreateParams(
 
 function buildSessionResumeParams(
   params: ZCodeAgentResumeSessionParams & {
-    offPeakToolEnabled?: boolean;
     dynamicWorkflowEnabled?: boolean;
   },
   omittedFields: ReadonlySet<SessionResumeCompatField> = new Set(),
@@ -693,10 +649,6 @@ function buildSessionResumeParams(
       : {}),
     ...(params.toolDenylist !== undefined && !omittedFields.has("toolDenylist")
       ? { toolDenylist: params.toolDenylist }
-      : {}),
-    // resume 不带该 flag 会让冷恢复丢 Off-Peak 工具面（与 toolAllowlist 同因）。
-    ...(params.offPeakToolEnabled === true && !omittedFields.has("offPeakToolEnabled")
-      ? { offPeakToolEnabled: true }
       : {}),
     // 同因：resume 不带该 flag 会让冷恢复丢掉工作流工具簇。
     ...(params.dynamicWorkflowEnabled === true && !omittedFields.has("dynamicWorkflowEnabled")
@@ -725,12 +677,6 @@ function buildSessionSendParams(
     expectedProviderRevision: params.expectedProviderRevision,
     ...(params.automationId !== undefined && !omittedFields.has("automationId")
       ? { automationId: params.automationId }
-      : {}),
-    ...(params.offPeakTaskId !== undefined && !omittedFields.has("offPeakTaskId")
-      ? { offPeakTaskId: params.offPeakTaskId }
-      : {}),
-    ...(params.offPeakRunType !== undefined && !omittedFields.has("offPeakRunType")
-      ? { offPeakRunType: params.offPeakRunType }
       : {}),
     ...(params.botDeliveryTarget !== undefined && !omittedFields.has("botDeliveryTarget")
       ? { botDeliveryTarget: params.botDeliveryTarget }
@@ -784,12 +730,6 @@ function permissionRequestKey(params: ZCodeAgentSessionTarget & { requestId: str
 }
 
 function userInputRequestKey(params: ZCodeAgentSessionTarget & { requestId: string }): string {
-  return `${sessionEventKey(params)}\u0000${params.requestId}`;
-}
-
-function providerRuntimeHeadersRequestKey(
-  params: ZCodeAgentSessionTarget & { requestId: string },
-): string {
   return `${sessionEventKey(params)}\u0000${params.requestId}`;
 }
 
@@ -873,8 +813,6 @@ interface CreateZCodeAgentServiceOptions extends Omit<
 > {
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
-  accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
-  accountRequestAuthService?: IAccountRequestAuthService;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
   authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
   modelSelectionReadinessSource?: ModelSelectionReadinessSource;
@@ -888,62 +826,17 @@ interface CreateZCodeAgentServiceOptions extends Omit<
     run: ZCodeAutomationRun;
   }) => Promise<void>;
   /**
-   * Off-Peak 会话内创建。config 同时承担曝光门（enabled && Selection View 非空 →
-   * session create/resume 下发 offPeakToolEnabled）与缺省解析（model=白名单末位 /
-   * thoughtLevel=最高档）；service 供 offPeak/create、offPeak/list 协议 handler 调用。
-   * 两者任一缺省即整体关闭（纯 CLI / desktop-attached-remote 装配不传）。
-   */
-  resolveOffPeakClientConfig?: () => Promise<OffPeakClientConfig | undefined>;
-  /**
    * 动态工作流灰度快照。Host 是唯一裁决者：
    * 结果既作为 workspace 级事实下发给 CLI，也决定 session create/resume/v4 是否带
    * dynamicWorkflowEnabled。缺省不传（纯 CLI 装配）= 永远关闭，与 CLI 缺省一致。
    */
   resolveDynamicWorkflowClientConfig?: () => Promise<DynamicWorkflowClientConfig | undefined>;
-  resolveOffPeakTaskService?: () =>
-    | Pick<IOffPeakTaskService, "createTask" | "list" | "getCodingPlanSupport">
-    | undefined;
   /**
    * browser-use 执行桥：把 agent 的 interaction/browserExecute 反向请求转发到 main
    * （WebContentsView+CDP）。desktop host 装配时注入；缺省（纯 CLI/远控无 main）则
    * browser 命令返回 backend_unavailable，不影响其它功能。
    */
   browserControlExecutor?: BrowserAmbientContextExecutor;
-  /**
-   * 官方 Server MCP 身份头解析器。Agent 进程不持有用户身份权威，
-   * 经 interaction/requestOfficialMcpAuthHeaders 向 host 索取本次请求的身份头。
-   *
-   * 缺省时该请求一律返回 official_auth_unavailable，绝不降级为匿名请求——
-   * 例如 standalone CLI 没有 host auth port 的场景。
-   */
-  officialMcpAuthHeadersResolver?: {
-    resolveHeaders(request: {
-      mcpKey: string;
-      pluginId: string;
-      targetOrigin: string;
-      workspace: { workspaceIdentity?: string; workspaceKey: string; workspacePath: string };
-    }): Promise<
-      | { ok: true; headers: Record<string, string> }
-      | { ok: false; reason: "official_auth_unavailable" | "official_auth_plan_required" }
-    >;
-  };
-  /**
-   * 官方 MCP 可信 Origin 校验器。**host 是身份权威边界**，因此
-   * targetOrigin 的校验必须在这里执行，不能只依赖 agent adapter 的 fetch wrapper——那等于让
-   * 被审查方自己当审查者。desktop-attached remote 场景下 agent 跑在远端而 host 持有本地用户身份。
-   *
-   * 此校验约束凭据请求的目标 origin，不提供逐插件权限控制。
-   * HTTP 鉴权由宿主 fetch wrapper 注入，stdio 鉴权会将凭据交给插件进程；后者
-   * 必须按受信任的可执行代码管理。服务端仍须校验每次调用的身份、权限和配额。
-   *
-   * 缺省时一律拒绝（fail closed），不退化为"只做 schema 校验就发凭据"。
-   */
-  officialMcpTrustedOrigins?: {
-    isTrusted(input: { pluginId: string; mcpKey: string; origin: string }): Promise<{
-      detail?: string;
-      trusted: boolean;
-    }>;
-  };
   /** desktop-local Host 注入；只消费已校验、已去重的 live session event。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
   onCuaPipSessionLifecycle?: (
@@ -972,96 +865,6 @@ function toProtocolAutomation(automation: ZCodeAutomation) {
     // （如每50小时、每40天），否则只能从兼容 cronExpr 推断出「每小时的第00分」等错误展示。
     scheduleRule: automation.scheduleRule,
   };
-}
-
-function toProtocolOffPeakTaskSnapshot(task: {
-  offPeakTaskId: string;
-  title: string;
-  status: "queued" | "paused" | "running" | "completed" | "failed" | "cancelled";
-  queuePosition?: number;
-  sessionId?: string;
-  createdAt: number;
-}) {
-  // 协议最小面：不暴露 serverTicketId / providerName / workspace 细节。
-  return {
-    offPeakTaskId: task.offPeakTaskId,
-    title: task.title,
-    status: task.status,
-    ...(typeof task.queuePosition === "number" && task.queuePosition > 0
-      ? { queuePosition: task.queuePosition }
-      : {}),
-    ...(task.sessionId ? { sessionId: task.sessionId } : {}),
-    createdAt: task.createdAt,
-  };
-}
-
-const OFF_PEAK_INTERNAL_ERROR_CODE = "offpeak_internal_error";
-const OFF_PEAK_INTERNAL_ERROR_MESSAGE = "Internal off-peak service error";
-
-/**
- * offPeak/create、offPeak/list 的兜底 catch 不得把跨层异常文本（SQLite/文件路径/
- * 上游响应片段）原样回传协议——它会进入 CLI 日志与模型可见错误。原始错误只进服务端日志，
- * 对外固定稳定错误码 + 通用文案；业务失败分类仍走 respond({ok:false}) 不经此处。
- */
-async function respondOffPeakInternalError(
-  client: Pick<ZCodeProtocolClient, "respondError">,
-  request: { id: ZCodeProtocolRequestId; method: string },
-  workspace: ZCodeAgentWorkspaceTarget,
-  error: unknown,
-): Promise<void> {
-  logger.warn(undefined, "Off-peak 协议请求处理失败", {
-    method: request.method,
-    workspaceKey: resolveWorkspaceKey(workspace),
-    errorName: error instanceof Error ? error.name : typeof error,
-    message: error instanceof Error ? error.message : String(error),
-  });
-  await client.respondError(request.id, {
-    code: -32603,
-    message: OFF_PEAK_INTERNAL_ERROR_MESSAGE,
-    data: { errorCode: OFF_PEAK_INTERNAL_ERROR_CODE },
-  });
-}
-
-/** 只有灰度有效开启且白名单非空才算"可创建"；其余一律视为关闭（空数组）。 */
-function resolveOffPeakAllowedModels(
-  grayConfig: OffPeakClientConfig | undefined,
-  providerId?: string,
-): readonly string[] {
-  if (grayConfig?.enabled !== true) return [];
-  return grayConfig.modelSelectionView.providers
-    .filter((provider) => providerId === undefined || provider.providerId === providerId)
-    .flatMap((provider) => provider.models.map((model) => model.modelId));
-}
-
-/**
- * model 解析：省略 → 白名单末位（服务端顺序末位≈最新最强）；显式 → trim + 大小写不敏感匹配，
- * 命中返回白名单原写法，未命中返回 null（调用方回 model_not_allowed）。
- */
-function resolveOffPeakCreateModel(
-  allowedModels: readonly string[],
-  requested: string | undefined,
-): string | null {
-  const wanted = requested?.trim();
-  if (!wanted) return allowedModels[allowedModels.length - 1] ?? null;
-  const lower = wanted.toLowerCase();
-  return allowedModels.find((model) => model.trim().toLowerCase() === lower) ?? null;
-}
-
-/**
- * 新工具任务复用公共最高档补全；旧 metadata/型号特判会偏离 values 的语义顺序。
- * 显式档位留给 createTask 的现有校验，不在入口擅自换档。
- */
-function resolveOffPeakToolSelection(
-  view: ModelSelectionView,
-  providerId: string,
-  modelId: string,
-  thoughtLevel?: string,
-): ModelSelection | undefined {
-  const selection = completeNewModelSelection(view, { providerId, modelId });
-  if (!selection) return undefined;
-  return thoughtLevel === undefined
-    ? selection
-    : { ...selection, options: { reasoningLevel: thoughtLevel } };
 }
 export function createZCodeAgentService(
   options?: CreateZCodeAgentServiceOptions,
@@ -1110,27 +913,6 @@ export function createZCodeAgentService(
   const diagnosticEmitter = new Emitter<DiagnosticRecord>();
   const sessionActivityEmitters = new Map<string, Emitter<SessionActivity>>();
   const sessionEmitters = new Map<string, Emitter<ZCodeAgentServiceEvent>>();
-  /**
-   * 已经记过"首次发放官方身份头"审计日志的 (pluginId, mcpKey, workspaceKey)。
-   *
-   * 存在理由：成功路径不能只记 debug——生产构建的最低级别是 Info，事后无法回答
-   * "凭据被哪个插件取走过"。但每次 initialize / tools\_list / tools\_call 都会触发一次发放，
-   * 全量记 info 就是消息量级的日志膨胀。折中：每个三元组只在本进程内首次发放时记一条 info，
-   * 之后仍走 debug。审计线索到"哪个插件、哪个 workspace、什么时候第一次拿"这个粒度。
-   */
-  const officialMcpIssuanceAudit = createOfficialMcpIssuanceAudit();
-  function cancelProviderRuntimeHeaders(
-    key: string,
-    pending: PendingProviderRuntimeHeadersRequest,
-  ): void {
-    pendingProviderRuntimeHeaders.delete(key);
-    const { requestId, sessionId, workspace } = pending.request;
-    logger.info(undefined, "Provider runtime headers 请求已取消", {
-      requestId,
-      sessionId,
-      workspaceKey: resolveWorkspaceKey(workspace),
-    });
-  }
   const sessionRuntimePreferencesRequestEmitter =
     new Emitter<ZCodeAgentSessionRuntimePreferencesRequest>();
   const processResourceSampleEmitter = new Emitter<AgentLaneResourceSample>();
@@ -1180,7 +962,6 @@ export function createZCodeAgentService(
     pendingPermissions: pendingPermissions.size,
     pendingUserInputs: pendingUserInputs.size,
   }));
-  const pendingProviderRuntimeHeaders = new Map<string, PendingProviderRuntimeHeadersRequest>();
   const pendingSessionRuntimePreferences = new Map<
     string,
     PendingSessionRuntimePreferencesRequest
@@ -1204,12 +985,7 @@ export function createZCodeAgentService(
     }
     waitingWorkspaceStartups.clear();
   }
-  const accountConfigSyncByClient = new WeakMap<ZCodeProtocolClient, Promise<void>>();
-  // 此缓存只去重已交付的账号快照，不表示 Worker 的 Registry 已应用该版本。
-  const accountConfigReceivedRevisionByClient = new WeakMap<ZCodeProtocolClient, string>();
   const sessionTraceIdBySessionKey = new Map<string, TraceId>();
-  const accountRequestAuthService = options?.accountRequestAuthService;
-  const accountProviderConfigSource = options?.accountProviderConfigSource;
   const modelSelectionReadinessSource = options?.modelSelectionReadinessSource;
   const sessionRuntimePreferencesAuthority = options?.sessionRuntimePreferencesAuthority ?? "local";
   const resolveSessionRuntimePreferences = options?.resolveSessionRuntimePreferences;
@@ -1223,11 +999,6 @@ export function createZCodeAgentService(
     for (const [key, pending] of pendingUserInputs) {
       if (pending.client === client) {
         pendingUserInputs.delete(key);
-      }
-    }
-    for (const [key, pending] of pendingProviderRuntimeHeaders) {
-      if (pending.client === client) {
-        cancelProviderRuntimeHeaders(key, pending);
       }
     }
     for (const [key, pending] of pendingSessionRuntimePreferences) {
@@ -1265,64 +1036,6 @@ export function createZCodeAgentService(
     // active client 做第二层 identity guard，避免旧 runtime 的迟到回收误伤换代结果。
     invalidateWorkspaceClient(event.workspaceKey, active.client);
   });
-
-  async function resolveAccountRequestAuth(
-    request: ZCodeProviderRuntimeHeadersRequestParams,
-  ): Promise<AccountRequestAuthMaterial | undefined> {
-    if (!request.accountAccess || !accountRequestAuthService) {
-      return undefined;
-    }
-    return accountRequestAuthService.resolveCurrent({
-      providerId: request.providerId,
-      modelId: request.modelSelection.modelId,
-      accountAccess: request.accountAccess,
-      reason: request.reason,
-    });
-  }
-
-  async function respondAccountRequestAuthWithoutInteraction(params: {
-    key: string;
-    pending: PendingProviderRuntimeHeadersRequest;
-  }): Promise<void> {
-    params.pending.responding = true;
-    try {
-      const requestAuth = await resolveAccountRequestAuth(params.pending.request);
-      // 账号解析是异步 IO；取消/进程退出后不能把迟到材料发给已撤销的请求。
-      if (pendingProviderRuntimeHeaders.get(params.key) !== params.pending) return;
-      if (!requestAuth) {
-        throw new Error("Account request auth resolver returned no material");
-      }
-      await params.pending.client.respond(params.pending.protocolRequestId, {
-        headersApplied: true,
-        requestAuth,
-      });
-      logger.info(undefined, "ZCode provider runtime headers 已应用", {
-        modelId: params.pending.request.modelSelection.modelId,
-        providerId: params.pending.request.providerId,
-        requestId: params.pending.request.requestId,
-        sessionId: params.pending.request.sessionId,
-        workspaceKey: resolveWorkspaceKey(params.pending.request.workspace),
-      });
-    } catch (error) {
-      if (pendingProviderRuntimeHeaders.get(params.key) !== params.pending) return;
-      logger.warn(undefined, "ZCode provider runtime headers 应用失败", {
-        modelId: params.pending.request.modelSelection.modelId,
-        providerId: params.pending.request.providerId,
-        requestId: params.pending.request.requestId,
-        sessionId: params.pending.request.sessionId,
-        error: error instanceof Error ? error.message : String(error),
-        workspaceKey: resolveWorkspaceKey(params.pending.request.workspace),
-      });
-      await params.pending.client.respond(params.pending.protocolRequestId, {
-        headersApplied: false,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      if (pendingProviderRuntimeHeaders.get(params.key) === params.pending) {
-        pendingProviderRuntimeHeaders.delete(params.key);
-      }
-    }
-  }
 
   function takePendingSessionRuntimePreferences(
     requestId: string,
@@ -1380,89 +1093,6 @@ export function createZCodeAgentService(
       });
     });
   });
-  let accountProviderConfigUnsubscribe = accountProviderConfigSource?.onDidChange((reason) => {
-    void handleAccountProviderConfigChanged(reason).catch((error) => {
-      logger.warn(undefined, "account provider config 热同步失败", {
-        message: error instanceof Error ? error.message : String(error),
-        reason,
-      });
-    });
-  });
-
-  async function syncAccountProviderConfigToClient(params: {
-    client: ZCodeProtocolClient;
-    reason: string;
-  }): Promise<void> {
-    if (!accountProviderConfigSource) return;
-    const previous = accountConfigSyncByClient.get(params.client) ?? Promise.resolve();
-    const current = previous
-      .catch(() => {
-        // 前一次失败不能阻断后续较新的 Account Config；当前调用会重新尝试。
-      })
-      .then(async () => {
-        // 排队前异步读取可能晚返回，把旧结果排在新结果之后。读取与交付
-        // 共用现有 Client 串行队列；不新增发送屏障，也不按内容 revision 猜测时间先后。
-        const snapshot = await accountProviderConfigSource.read();
-        if (accountConfigReceivedRevisionByClient.get(params.client) === snapshot.revision) return;
-        const result = await params.client.request(
-          zcodeProtocolMethods.providerUpdateAccountConfig,
-          {
-            revision: snapshot.revision,
-            basedOnZCodeBuiltinRevision: snapshot.basedOnZCodeBuiltinRevision,
-            // Account 是运行时事实信封，不是磁盘 Provider 规则集合；保持原有协议字典。
-            providers: Object.fromEntries(
-              [...snapshot.providers.entries()].map(([providerId, config]) => [
-                providerId,
-                config.toJSON(),
-              ]),
-            ),
-            states: snapshot.states ?? {},
-          },
-          zcodeProviderUpdateAccountConfigResultSchema,
-        );
-        if (result.receivedRevision !== snapshot.revision) {
-          throw new Error("Account Config 接收回执版本与交付版本不一致");
-        }
-        accountConfigReceivedRevisionByClient.set(params.client, result.receivedRevision);
-        logger.info(undefined, "account provider config 已交付到 ZCode agent", {
-          providerCount: result.providerCount,
-          reason: params.reason,
-          receivedRevision: result.receivedRevision,
-          status: result.status,
-        });
-      });
-    accountConfigSyncByClient.set(params.client, current);
-    try {
-      await current;
-    } finally {
-      if (accountConfigSyncByClient.get(params.client) === current) {
-        accountConfigSyncByClient.delete(params.client);
-      }
-    }
-  }
-
-  async function ensureAccountProviderConfigSynced(params: {
-    client: ZCodeProtocolClient;
-    reason: string;
-    workspace: ZCodeAgentWorkspaceTarget;
-  }): Promise<void> {
-    await syncAccountProviderConfigToClient({
-      client: params.client,
-      reason: params.reason,
-    });
-  }
-
-  async function handleAccountProviderConfigChanged(reason: string): Promise<void> {
-    await Promise.all(
-      Array.from(activeClientsByWorkspaceKey.values()).map(async (active) => {
-        await syncAccountProviderConfigToClient({
-          client: active.client,
-          reason,
-        });
-      }),
-    );
-  }
-
   function enqueueInteractionPreferenceSync(params: {
     client: ZCodeProtocolClient;
     preferences: ZCodeAgentAppRuntimePreferences;
@@ -1517,12 +1147,7 @@ export function createZCodeAgentService(
             return;
           }
           const { workspace } = waiting;
-          const client = await getClient(workspace);
-          await ensureAccountProviderConfigSynced({
-            client,
-            reason: `startup_ready:${event.reason}`,
-            workspace,
-          });
+          await getClient(workspace);
           logger.info(undefined, "provider/model 就绪后已启动等待中的 ZCode agent", {
             providerCount: event.snapshot.providerCount,
             reason: event.reason,
@@ -1878,23 +1503,6 @@ export function createZCodeAgentService(
     wiredClients.add(client);
     const disposables = [
       client.onNotification((message) => {
-        if (message.method === zcodeProtocolNotifications.providerRuntimeHeadersCancelled) {
-          const parsed = zcodeProviderRuntimeHeadersCancelledSchema.safeParse(message.params);
-          if (
-            !parsed.success ||
-            resolveWorkspaceKey(parsed.data.workspace) !== resolveWorkspaceKey(workspace)
-          )
-            return;
-          const key = providerRuntimeHeadersRequestKey({
-            ...workspace,
-            sessionId: parsed.data.sessionId,
-            requestId: parsed.data.requestId,
-          });
-          const pending = pendingProviderRuntimeHeaders.get(key);
-          // 旧 client 或同路径不同 identity 的取消不能删除新 runtime/其他工作区的请求。
-          if (pending?.client === client) cancelProviderRuntimeHeaders(key, pending);
-          return;
-        }
         if (message.method === zcodeProtocolNotifications.diagnostic) {
           const parsed = DiagnosticRecordSchema.safeParse(message.params);
           if (parsed.success) diagnosticEmitter.fire(parsed.data);
@@ -2260,161 +1868,6 @@ export function createZCodeAgentService(
           return;
         }
 
-        if (request.method === zcodeProtocolMethods.interactionRequestProviderRuntimeHeaders) {
-          const parsed = zcodeProviderRuntimeHeadersRequestParamsSchema.safeParse(request.params);
-          if (!parsed.success) {
-            void client.respondError(request.id, {
-              code: -32602,
-              message: "Invalid provider runtime headers request params",
-              data: parsed.error.flatten(),
-            });
-            return;
-          }
-          const pendingKey = providerRuntimeHeadersRequestKey({
-            ...workspace,
-            sessionId: parsed.data.sessionId,
-            requestId: parsed.data.requestId,
-          });
-          const pending = {
-            client,
-            protocolRequestId: request.id,
-            request: parsed.data,
-          };
-          pendingProviderRuntimeHeaders.set(pendingKey, pending);
-          logger.info(request.trace?.traceId, "收到 ZCode provider runtime headers 请求", {
-            modelId: parsed.data.modelSelection.modelId,
-            providerId: parsed.data.providerId,
-            requestId: parsed.data.requestId,
-            sessionId: parsed.data.sessionId,
-            turnId: parsed.data.turnId ?? null,
-            workspaceKey: resolveWorkspaceKey(workspace),
-            workspacePath: workspace.workspacePath,
-          });
-          const accountAccess = parsed.data.accountAccess;
-          if (accountRequestAuthService && accountAccess) {
-            // Account API Key / Team Runtime Key / Start Plan JWT 都不需要 Renderer 交互。
-            // Host 按 Model 固定的 Account Access 自动应答，避免后台任务和无 pane 会话依赖 UI 订阅者。
-            void respondAccountRequestAuthWithoutInteraction({
-              key: pendingKey,
-              pending,
-            });
-            return;
-          }
-          // 没有账号凭据解析器的请求无人应答只会滞留到 CLI 侧 180s 超时，直接快速失败。
-          pendingProviderRuntimeHeaders.delete(pendingKey);
-          void pending.client.respond(pending.protocolRequestId, {
-            headersApplied: false,
-            errorMessage: "Provider request auth is unavailable",
-          });
-          return;
-        }
-
-        // 官方 Server MCP 身份头：纯 RPC 中继，host 自动解析并响应。
-        // 不 emitSessionEvent、不进 pending map——该请求没有 UI 语义，renderer 不参与。
-        if (request.method === zcodeProtocolMethods.interactionRequestOfficialMcpAuthHeaders) {
-          const parsed = zcodeOfficialMcpAuthHeadersRequestParamsSchema.safeParse(request.params);
-          if (!parsed.success) {
-            void client.respondError(request.id, {
-              code: -32602,
-              message: "Invalid interaction/requestOfficialMcpAuthHeaders params",
-              data: parsed.error.flatten(),
-            });
-            return;
-          }
-          // host 侧二次校验必须发生在**读取凭据之前**：未命中即返回，resolveHeaders 不被调用，
-          // 因此不会有任何凭据被读入内存。
-          void (async () => {
-            const trustedOrigins = options?.officialMcpTrustedOrigins;
-            const trust = trustedOrigins
-              ? await trustedOrigins
-                  .isTrusted({
-                    mcpKey: parsed.data.mcpKey,
-                    origin: parsed.data.targetOrigin,
-                    pluginId: parsed.data.pluginId,
-                  })
-                  // 判定自身异常也按不可信处理，绝不因为校验失败就放行。
-                  .catch(() => ({ detail: "validator_error", trusted: false }))
-              : { detail: "validator_missing", trusted: false };
-            if (!trust.trusted) {
-              // 只记录非敏感的请求上下文；凭据未被读取，自然也无从泄露。
-              logger.warn(request.trace?.traceId, "官方 MCP 身份头请求未通过 host 侧可信校验", {
-                detail: trust.detail ?? "unknown",
-                mcpKey: parsed.data.mcpKey,
-                pluginId: parsed.data.pluginId,
-                requestId: parsed.data.requestId,
-                targetOrigin: parsed.data.targetOrigin,
-                workspaceKey: parsed.data.workspace.workspaceKey,
-              });
-              void client.respond(request.id, {
-                ok: false,
-                reason: "official_mcp_origin_untrusted",
-              });
-              return;
-            }
-            const resolver = options?.officialMcpAuthHeadersResolver;
-            if (!resolver) {
-              void client.respond(request.id, {
-                ok: false,
-                reason: "official_auth_unavailable",
-              });
-              return;
-            }
-            try {
-              const resolveStartedAt = Date.now();
-              const result = await resolver.resolveHeaders({
-                mcpKey: parsed.data.mcpKey,
-                pluginId: parsed.data.pluginId,
-                targetOrigin: parsed.data.targetOrigin,
-                workspace: parsed.data.workspace,
-              });
-              // host 侧不能只在失败时留日志，成功路径完全静默会无法回答"到底发了哪几个头"。
-              // 只记 header 名与套餐维度：凭证值绝不入日志（日志留存周期不受控）。
-              if (result.ok) {
-                const firstIssuance = officialMcpIssuanceAudit.markFirst(
-                  parsed.data.pluginId,
-                  parsed.data.mcpKey,
-                  parsed.data.workspace.workspaceKey,
-                );
-                const logIssuance = firstIssuance ? logger.info : logger.debug;
-                logIssuance(request.trace?.traceId, "官方 MCP 身份头已解析", {
-                  firstIssuance,
-                  ...summarizeOfficialMcpIdentityHeaders(result.headers),
-                  mcpKey: parsed.data.mcpKey,
-                  pluginId: parsed.data.pluginId,
-                  requestId: parsed.data.requestId,
-                  resolveDurationMs: Date.now() - resolveStartedAt,
-                  targetOrigin: parsed.data.targetOrigin,
-                });
-              } else {
-                logger.info(request.trace?.traceId, "官方 MCP 身份头不可用", {
-                  mcpKey: parsed.data.mcpKey,
-                  pluginId: parsed.data.pluginId,
-                  reason: result.reason,
-                  requestId: parsed.data.requestId,
-                  resolveDurationMs: Date.now() - resolveStartedAt,
-                  targetOrigin: parsed.data.targetOrigin,
-                });
-              }
-              void client.respond(request.id, result);
-            } catch (error: unknown) {
-              // 解析异常按不可用返回而非 respondError：adapter 只按可枚举 reason 分流，
-              // 且此处绝不能让 MCP 退化成匿名请求。凭证原文不进日志。
-              logger.warn(request.trace?.traceId, "官方 MCP 身份头解析失败", {
-                error: error instanceof Error ? error.message : String(error),
-                mcpKey: parsed.data.mcpKey,
-                pluginId: parsed.data.pluginId,
-                requestId: parsed.data.requestId,
-                targetOrigin: parsed.data.targetOrigin,
-              });
-              void client.respond(request.id, {
-                ok: false,
-                reason: "official_auth_unavailable",
-              });
-            }
-          })();
-          return;
-        }
-
         // browser-use discovery：backend 在线状态与 plugin/skill 是否暴露是两层状态。
         // executor 缺省时返回空列表，禁止 facade 伪造 IAB available。
         if (request.method === zcodeProtocolMethods.interactionBrowserList) {
@@ -2562,153 +2015,6 @@ export function createZCodeAgentService(
                 code: -32603,
                 message: error instanceof Error ? error.message : String(error),
               });
-            }
-          })();
-          return;
-        }
-
-        if (request.method === zcodeProtocolMethods.offPeakCreate) {
-          const parsed = zcodeOffPeakCreateParamsSchema.safeParse(request.params);
-          if (!parsed.success) {
-            void client.respondError(request.id, {
-              code: -32602,
-              message: "Invalid off-peak create params",
-              data: parsed.error.flatten(),
-            });
-            return;
-          }
-          void (async () => {
-            try {
-              const offPeakTaskService = options?.resolveOffPeakTaskService?.();
-              if (!offPeakTaskService) {
-                await client.respondError(request.id, {
-                  code: -32601,
-                  message: "Off-peak task service is unavailable on this host",
-                });
-                return;
-              }
-              const grayConfig = await options
-                ?.resolveOffPeakClientConfig?.()
-                .catch(() => undefined);
-              // 工具注册后灰度被关闭/配置解析失败时，不能继续走"白名单为空"的推导
-              // （显式 model 会误报 model_not_allowed，省略 model 会以空模型落库）；直接返回稳定分类。
-              // 模型视图可同时包含两个域；必须用已有支持快照确认归属，不能从首个 Provider 猜。
-              const support =
-                resolveOffPeakAllowedModels(grayConfig).length > 0
-                  ? await offPeakTaskService.getCodingPlanSupport()
-                  : undefined;
-              const providerId = support?.supported
-                ? OFF_PEAK_PROVIDER_IDS[support.providerFamily]
-                : undefined;
-              const allowedModels = providerId
-                ? resolveOffPeakAllowedModels(grayConfig, providerId)
-                : [];
-              if (allowedModels.length === 0) {
-                await client.respond(request.id, {
-                  ok: false,
-                  failureStage: "client_validation",
-                  errorCategory: "client_validation",
-                  errorCode: "offpeak_disabled",
-                });
-                return;
-              }
-              // model 白名单预校：显式入参不在白名单返回稳定分类，
-              // 复用 client_validation 分类 + 专用 errorCode，不扩分类枚举。
-              // 匹配与 thoughtLevel/UI 同语义（trim + 大小写不敏感），命中后回写白名单原写法。
-              const model = resolveOffPeakCreateModel(allowedModels, parsed.data.model);
-              if (model === null) {
-                await client.respond(request.id, {
-                  ok: false,
-                  failureStage: "client_validation",
-                  errorCategory: "client_validation",
-                  errorCode: "model_not_allowed",
-                });
-                return;
-              }
-              const modelSelection =
-                grayConfig && providerId
-                  ? resolveOffPeakToolSelection(
-                      grayConfig.modelSelectionView,
-                      providerId,
-                      model,
-                      parsed.data.thoughtLevel,
-                    )
-                  : undefined;
-              if (!modelSelection) {
-                await client.respond(request.id, {
-                  ok: false,
-                  failureStage: "client_validation",
-                  errorCategory: "client_validation",
-                  errorCode: "model_not_allowed",
-                });
-                return;
-              }
-              const result = await offPeakTaskService.createTask({
-                title: parsed.data.title,
-                prompt: parsed.data.prompt,
-                permissionMode: parsed.data.permissionMode ?? "yolo",
-                modelSelection,
-                // 会话内创建绑定当前会话，派发时 resume 该会话执行。
-                ...(parsed.data.boundSessionId
-                  ? { boundSessionId: parsed.data.boundSessionId }
-                  : {}),
-                // workspace 由 host 从当前 session 注入（对称 automation/create），不进协议参数。
-                workspacePath: workspace.workspacePath,
-                ...(workspace.workspaceIdentity
-                  ? { workspaceIdentity: workspace.workspaceIdentity }
-                  : {}),
-              });
-              if (!result.ok) {
-                // 失败分类原样过协议（不 respondError），供 CLI handler 翻译为稳定错误。
-                await client.respond(request.id, {
-                  ok: false,
-                  failureStage: result.failureStage,
-                  errorCategory: result.errorCategory,
-                  errorCode: result.errorCode,
-                });
-                return;
-              }
-              await client.respond(request.id, {
-                ok: true,
-                task: toProtocolOffPeakTaskSnapshot(result.task),
-              });
-            } catch (error) {
-              await respondOffPeakInternalError(client, request, workspace, error);
-            }
-          })();
-          return;
-        }
-
-        if (request.method === zcodeProtocolMethods.offPeakList) {
-          const parsed = zcodeOffPeakListParamsSchema.safeParse(request.params ?? {});
-          if (!parsed.success) {
-            void client.respondError(request.id, {
-              code: -32602,
-              message: "Invalid off-peak list params",
-              data: parsed.error.flatten(),
-            });
-            return;
-          }
-          void (async () => {
-            try {
-              const offPeakTaskService = options?.resolveOffPeakTaskService?.();
-              if (!offPeakTaskService) {
-                await client.respondError(request.id, {
-                  code: -32601,
-                  message: "Off-peak task service is unavailable on this host",
-                });
-                return;
-              }
-              const workspaceKey = resolveWorkspaceKey(workspace);
-              const tasks = (await offPeakTaskService.list())
-                .filter((task) => task.workspaceKey === workspaceKey)
-                .sort((a, b) => b.createdAt - a.createdAt)
-                .slice(0, 20);
-              await client.respond(request.id, {
-                tasks: tasks.map(toProtocolOffPeakTaskSnapshot),
-              });
-            } catch (error) {
-              await respondOffPeakInternalError(client, request, workspace, error);
             }
           })();
           return;
@@ -2983,31 +2289,7 @@ export function createZCodeAgentService(
         appliedSnapshot = snapshot;
       }
     })();
-    // Off-Peak 本地支持能力是 workspace 级事实，在允许任何 session 工作前同步到 CLI，
-    // 让 v4 冷恢复（没有 per-request flag 通道）也能拿到工具面。旧 CLI method-not-found 降级忽略。
-    // CLI 缺省即 false，且每个 agent 进程只服务一个 workspace，门禁关闭时不发请求（对未实现该
-    // 方法的旧 CLI/测试假客户端零打扰）。
-    const offPeakToolPolicyReady = (async () => {
-      if (!isOffPeakToolSupported(params)) return;
-      try {
-        await client.request(
-          zcodeProtocolMethods.workspaceUpdateOffPeakToolPolicy,
-          { workspace: buildWorkspaceRef(params), enabled: true },
-          zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema,
-        );
-      } catch (error) {
-        // 策略同步是尽力而为的能力分发，失败方向是 fail-closed（CLI 缺省不注册工具），
-        // 超时/暂时性 IPC 错误不得阻断客户端就绪；-32601 是旧 CLI 的正常降级。
-        if (!isProtocolMethodNotFoundError(error)) {
-          logger.warn(undefined, "Off-Peak 工具策略同步失败，CLI 维持缺省关闭", {
-            workspaceKey,
-            errorMessage: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-    })();
-    // 动态工作流灰度门禁：与 Off-Peak 同一
-    // 模式的 workspace 级事实，在允许任何 session 工作前同步给 CLI，v4 冷恢复也才拿得到工具面。
+    // 动态工作流策略是 workspace 级事实，在允许 session 工作前同步给 CLI，覆盖 v4 冷恢复。
     // 关闭时不发请求（CLI 缺省即 false，对旧 CLI/测试假客户端零打扰）。
     const dynamicWorkflowPolicyReady = (async () => {
       if (!(await resolveDynamicWorkflowGate())) return;
@@ -3018,7 +2300,7 @@ export function createZCodeAgentService(
           zcodeWorkspaceUpdateDynamicWorkflowPolicyResultSchema,
         );
       } catch (error) {
-        // 与 Off-Peak 同判据：-32601 是旧 CLI 的正常降级（其 z.object 也会丢掉 session flag，
+        // -32601 是旧 CLI 的正常降级（其 z.object 也会丢掉 session flag，
         // 整体退回 disabled）；其它错误只记 warn，不阻断客户端就绪。
         if (!isProtocolMethodNotFoundError(error)) {
           logger.warn(undefined, "动态工作流策略同步失败，CLI 维持缺省关闭", {
@@ -3030,7 +2312,6 @@ export function createZCodeAgentService(
     })();
     entry.interactionPreferencesReady = Promise.all([
       interactionPreferencesReady,
-      offPeakToolPolicyReady,
       dynamicWorkflowPolicyReady,
     ]).then(() => undefined);
     try {
@@ -3206,8 +2487,6 @@ export function createZCodeAgentService(
   }
 
   function disposeLocalState(): void {
-    accountProviderConfigUnsubscribe?.();
-    accountProviderConfigUnsubscribe = undefined;
     modelSelectionSubscription?.dispose();
     modelSelectionSubscription = undefined;
     memoryDiagnostics.dispose();
@@ -3248,7 +2527,6 @@ export function createZCodeAgentService(
     sessionEventSequenceStates.clear();
     pendingPermissions.clear();
     pendingUserInputs.clear();
-    pendingProviderRuntimeHeaders.clear();
     for (const pending of pendingSessionRuntimePreferences.values()) {
       clearTimeout(pending.timeout);
     }
@@ -3262,17 +2540,6 @@ export function createZCodeAgentService(
     runtimeLifecycleDisposable.dispose();
   }
 
-  // 3.12.2：远端灰度读取不能放进客户端就绪与创建命令：失败时串行重试会阻塞普通聊天。
-  // 注册只判断本地支持能力；灰度、套餐与模型准入仍由 offPeak/create handler 在取号前校验。
-  function isOffPeakToolSupported(params: {
-    workspaceIdentity?: string;
-    remoteSessionId?: string;
-  }): boolean {
-    if (!options?.resolveOffPeakClientConfig || !options.resolveOffPeakTaskService) return false;
-    if (params.remoteSessionId) return false;
-    return !params.workspaceIdentity || !isRemoteWorkspaceIdentity(params.workspaceIdentity);
-  }
-
   /**
    * 动态工作流灰度门：Host 判定一次并在本
    * 进程内固定。三点理由：
@@ -3281,7 +2548,7 @@ export function createZCodeAgentService(
    *   2. 判定落在 client 就绪路径上，不能每次建会话都等远端——3.12.2 已因此回归过一次；
    *   3. 读取失败 fail-closed 且不再重试，避免离线时每条 create 都赔上一次请求超时；
    *      服务端翻转灰度按设计在下一个 Host 进程生效（provider 侧另有 1h 快照与 forceRefresh）。
-   * 与 Off-Peak 不同：远程 workspace 同样可用，所以这里不看 workspaceIdentity / remoteSessionId。
+   * 远程 workspace 同样可用，所以这里不看 workspaceIdentity / remoteSessionId。
    */
   function resolveDynamicWorkflowGate(): Promise<boolean> {
     const resolve = options?.resolveDynamicWorkflowClientConfig;
@@ -3307,14 +2574,12 @@ export function createZCodeAgentService(
       // V4 createSession 绕过 legacy session/create 的参数构造，工具面 flag 必须在
       // 信封处同源注入；门禁 false 时不写字段（缺省即 fail-closed，与 legacy 一致）。
       const dynamicWorkflowEnabled = await resolveDynamicWorkflowGate();
-      const offPeakToolEnabled = isOffPeakToolSupported(params);
-      if (!offPeakToolEnabled && !dynamicWorkflowEnabled) return envelope;
+      if (!dynamicWorkflowEnabled) return envelope;
       const payload = commandPayloadSchemas.createSession.parse(envelope.payload);
       return {
         ...envelope,
         payload: {
           ...payload,
-          ...(offPeakToolEnabled ? { offPeakToolEnabled: true } : {}),
           // 动态工作流灰度：V4 createSession 是桌面新会话的实际创建路径，不透传则九个工具
           // 永不注册。
           ...(dynamicWorkflowEnabled ? { dynamicWorkflowEnabled: true } : {}),
@@ -3335,16 +2600,6 @@ export function createZCodeAgentService(
         payload: {
           ...payload,
           toolDisallowlist: mergeAutomationMutationToolDenylist(payload.toolDisallowlist ?? []),
-        },
-      };
-    }
-    if (payload.offPeakTaskId) {
-      // 闲时派发轮同型纵深——只 deny OffPeakCreate（OffPeakList 只读保留）。
-      return {
-        ...envelope,
-        payload: {
-          ...payload,
-          toolDisallowlist: mergeOffPeakMutationToolDenylist(payload.toolDisallowlist ?? []),
         },
       };
     }
@@ -3443,11 +2698,6 @@ export function createZCodeAgentService(
     async createSession(params: ZCodeAgentCreateSessionParams) {
       const startedAt = Date.now();
       const client = await getClient(params);
-      await ensureAccountProviderConfigSynced({
-        client,
-        reason: "session_create",
-        workspace: params,
-      });
       const sessionTraceId = params.sessionTraceId;
       logger.info(sessionTraceId, "开始请求 ZCode Protocol session/create", {
         hasInitialModel: params.model !== undefined,
@@ -3459,13 +2709,12 @@ export function createZCodeAgentService(
         workspaceKey: resolveWorkspaceKey(params),
         workspacePath: params.workspacePath,
       });
-      const offPeakToolEnabled = isOffPeakToolSupported(params);
       // 灰度在 client 就绪时已判定，这里是进程内已解析 promise 的再次 await（不打远端）。
       const dynamicWorkflowEnabled = await resolveDynamicWorkflowGate();
       try {
         const snapshot = await client.request(
           zcodeProtocolMethods.sessionCreate,
-          buildSessionCreateParams({ ...params, offPeakToolEnabled, dynamicWorkflowEnabled }),
+          buildSessionCreateParams({ ...params, dynamicWorkflowEnabled }),
           zcodeSessionStateSnapshotSchema,
           sessionTraceId ? { trace: { traceId: sessionTraceId } } : undefined,
         );
@@ -3505,10 +2754,7 @@ export function createZCodeAgentService(
         // 可选字段降级重试，避免 thoughtLevel/persistence 版本差阻塞首发创建。
         const snapshot = await client.request(
           zcodeProtocolMethods.sessionCreate,
-          buildSessionCreateParams(
-            { ...params, offPeakToolEnabled, dynamicWorkflowEnabled },
-            new Set(compatFields),
-          ),
+          buildSessionCreateParams({ ...params, dynamicWorkflowEnabled }, new Set(compatFields)),
           zcodeSessionStateSnapshotSchema,
           sessionTraceId ? { trace: { traceId: sessionTraceId } } : undefined,
         );
@@ -3557,13 +2803,7 @@ export function createZCodeAgentService(
     async resumeSession(params: ZCodeAgentResumeSessionParams) {
       const startedAt = Date.now();
       const client = await getClient(params);
-      await ensureAccountProviderConfigSynced({
-        client,
-        reason: "session_resume",
-        workspace: params,
-      });
       const cachedTraceId = getSessionTraceId(params);
-      const offPeakToolEnabled = isOffPeakToolSupported(params);
       // 冷恢复同样按 Host 的灰度判定下发，否则恢复出来的会话会丢掉工作流工具簇。
       const dynamicWorkflowEnabled = await resolveDynamicWorkflowGate();
       logger.info(cachedTraceId, "开始请求 ZCode Protocol session/resume", {
@@ -3577,7 +2817,7 @@ export function createZCodeAgentService(
       try {
         const snapshot = await client.request(
           zcodeProtocolMethods.sessionResume,
-          buildSessionResumeParams({ ...params, offPeakToolEnabled, dynamicWorkflowEnabled }),
+          buildSessionResumeParams({ ...params, dynamicWorkflowEnabled }),
           zcodeSessionStateSnapshotSchema,
         );
         const sessionTraceId = rememberSessionTrace(params, snapshot) ?? cachedTraceId;
@@ -3613,10 +2853,7 @@ export function createZCodeAgentService(
         });
         const snapshot = await client.request(
           zcodeProtocolMethods.sessionResume,
-          buildSessionResumeParams(
-            { ...params, offPeakToolEnabled, dynamicWorkflowEnabled },
-            new Set(compatFields),
-          ),
+          buildSessionResumeParams({ ...params, dynamicWorkflowEnabled }, new Set(compatFields)),
           zcodeSessionStateSnapshotSchema,
         );
         const sessionTraceId = rememberSessionTrace(params, snapshot) ?? cachedTraceId;
@@ -3695,16 +2932,6 @@ export function createZCodeAgentService(
 
     async readSession(params: ZCodeAgentReadSessionParams) {
       const client = await getReadOnlyClient(params, params.runtimePolicy);
-      // task-index 为补正文索引调用 readSession 时，默认策略会在 runtime
-      // 已被回收后重新拉起 Agent；这条观察路径不应改变 session 生命周期。只有显式
-      // 的普通读取才同步 provider registry，existing-only 读取必须保持纯观察语义。
-      if (params.runtimePolicy !== "existing-only") {
-        await ensureAccountProviderConfigSynced({
-          client,
-          reason: "session_read",
-          workspace: params,
-        });
-      }
       const snapshot = await client.request(
         zcodeProtocolMethods.sessionRead,
         {
@@ -3767,11 +2994,6 @@ export function createZCodeAgentService(
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const client = await getReadOnlyClient(params);
           try {
-            await ensureAccountProviderConfigSynced({
-              client,
-              reason: "workspace_read_presentation",
-              workspace: params,
-            });
             presentation = await client.request(
               zcodeProtocolMethods.workspaceReadPresentation,
               { workspace: buildWorkspaceRef(params) },
@@ -4374,13 +3596,6 @@ export function createZCodeAgentService(
 
     async generateWorkspaceText(params: ZCodeAgentGenerateWorkspaceTextParams) {
       const client = await getClient(params);
-      // Worker 自己读取 ZCode Built-in / Personal Config；Host 只在执行前确保账号状态形成的
-      // Account Config Overlay 已同步，避免新进程先按旧套餐状态创建 Model。
-      await ensureAccountProviderConfigSynced({
-        client,
-        reason: "workspace_generate_text",
-        workspace: params,
-      });
       const operationId = params.signal ? randomUUID() : undefined;
       const cancel = () => {
         if (!operationId) return;
@@ -4431,11 +3646,6 @@ export function createZCodeAgentService(
 
     async testModelConnectivity(params: ZCodeAgentTestModelConnectivityParams) {
       const client = await getClient(params);
-      await ensureAccountProviderConfigSynced({
-        client,
-        reason: "provider_test_model_connectivity",
-        workspace: params,
-      });
       return client.request(
         zcodeProtocolMethods.providerTestModelConnectivity,
         {
@@ -4448,6 +3658,7 @@ export function createZCodeAgentService(
     },
 
     async sendPrompt(params: ZCodeAgentSendPromptParams) {
+      assertNoRetiredIdleExecution(params);
       const startedAt = Date.now();
       const client = await getClient(params);
       const sessionTraceId = params.sessionTraceId?.trim() || getSessionTraceId(params);
@@ -4969,19 +4180,6 @@ export function createZCodeAgentService(
         cliProcessState === "spawned"
           ? Math.max(0, Math.round(performance.now() - cliBootstrapStartedAt))
           : undefined;
-      // conversation 冷订阅会在 CLI 内部直接恢复历史 Session 并立即发布首帧。
-      // 若 Account Config 尚未到达，首帧会先按缺少 Account Overlay 的 Registry 解析；这里只建立
-      // Account Config 顺序屏障，不提升模型执行权限。ZCode Built-in / Personal 仍由 Worker 维护。
-      const providerRegistryStartedAt = performance.now();
-      await ensureAccountProviderConfigSynced({
-        client,
-        reason: "conversation_subscribe",
-        workspace: params,
-      });
-      const providerRegistrySyncMs = Math.max(
-        0,
-        Math.round(performance.now() - providerRegistryStartedAt),
-      );
       const connection = resolveV4Connection(params);
       const topic = conversationTopic(params.sessionId);
       const taskMetaStartedAt = performance.now();
@@ -5034,7 +4232,6 @@ export function createZCodeAgentService(
         hostPrepareMs,
         ...(cliBootstrapMs !== undefined ? { cliBootstrapMs } : {}),
         cliProcessState,
-        providerRegistrySyncMs,
         taskMetaReadMs,
         cliRequestMs,
       };
@@ -5081,15 +4278,6 @@ export function createZCodeAgentService(
         readTrustedZCodeAgentV4Connection(params)?.clientMode ??
         params.clientMode ??
         "desktop-continuous";
-      if (params.envelope.type === "createSession") {
-        // V4 草稿预热直接走 command 转发；新会话创建前只需等待 Account Config，
-        // ZCode Built-in / Personal 已由 Worker 进程 Registry 自己装配。
-        await ensureAccountProviderConfigSynced({
-          client,
-          reason: "v4_command_create_session",
-          workspace: params,
-        });
-      }
       let envelope = await buildConversationCommandEnvelope(params);
       // TTFT 首版只允许可信桌面本地 continuous，手机/远端透传不能开启本地观测。
       if (

@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DockerContainerInfo,
-  RemoteAssetInstallMode,
   RemoteTarget,
   SSHConfigAliasOption,
   WSLDistro,
 } from "@zcode/shared";
-import { DEFAULT_REMOTE_ASSET_INSTALL_MODE } from "@zcode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import {
   loadRemoteConnectionDockerOptions,
@@ -47,9 +45,6 @@ export function useRemoteConnectionForm({
   const [port, setPortState] = useState("22");
   const [username, setUsernameState] = useState("");
   const [sshAuthMethod, setSshAuthMethod] = useState<SSHAuthMethod>("password");
-  const [assetInstallMode, setAssetInstallMode] = useState<RemoteAssetInstallMode>(
-    DEFAULT_REMOTE_ASSET_INSTALL_MODE,
-  );
   const [password, setPassword] = useState("");
   const [privateKeyPath, setPrivateKeyPathState] = useState("");
   const [privateKeyPassphrase, setPrivateKeyPassphrase] = useState("");
@@ -330,7 +325,6 @@ export function useRemoteConnectionForm({
     port,
     username,
     sshAuthMethod,
-    assetInstallMode,
     password,
     privateKeyPath,
     privateKeyPassphrase,
@@ -351,7 +345,6 @@ export function useRemoteConnectionForm({
     setPort,
     setUsername,
     setSshAuthMethod,
-    setAssetInstallMode,
     setPassword,
     setPrivateKeyPath,
     setPrivateKeyPassphrase,

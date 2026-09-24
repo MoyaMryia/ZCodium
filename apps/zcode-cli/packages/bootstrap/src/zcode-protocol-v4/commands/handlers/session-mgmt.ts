@@ -50,7 +50,6 @@ async function createSession(
   const { sessionId } = await host.createSessionRecord({
     workspaceId: payload.workspaceId,
     mcpServers: payload.mcpServers,
-    offPeakToolEnabled: payload.offPeakToolEnabled,
     dynamicWorkflowEnabled: payload.dynamicWorkflowEnabled,
   });
   // createSession.config 消费——草稿态 UI 的先行选择（模型/思考深度/

@@ -13,6 +13,7 @@
  * 不做：`select_text`、通用 `perform_action`、富文本 paste、多光标（§4）。
  */
 
+import { resolveSurfaceTarget, screenshotRaster, staleTarget } from "./surface-target.js";
 import { COMPAT_INPUT_TOOLS } from "./compatible/executor.js";
 
 /** ZCode 模型面的 14 个工具名（冻结）。 */
@@ -52,13 +53,22 @@ function structured(raw) {
 
 /** 元素指纹：用于观测 diff，只看语义与几何，不看 token。 */
 function elementFingerprint(element) {
-  return JSON.stringify([element.role, element.label, element.value, element.enabled, element.selected, element.actions, element.frame]);
+  return JSON.stringify([
+    element.role,
+    element.label,
+    element.value,
+    element.enabled,
+    element.selected,
+    element.actions,
+    element.frame,
+  ]);
 }
 
 function fingerprintIndex(elements) {
   const map = new Map();
   for (const element of elements) {
-    if (typeof element.element_index === "number") map.set(element.element_index, elementFingerprint(element));
+    if (typeof element.element_index === "number")
+      map.set(element.element_index, elementFingerprint(element));
   }
   return map;
 }
@@ -80,23 +90,42 @@ const FOREGROUND_FALLBACK_TOOLS = new Set([
 
 function isBackgroundUnavailable(value) {
   const code = value?.errorCode ?? value?.code;
-  if (code === "background_unavailable") return true;
-  return /background[_ ]?unavailable/i.test(String(value?.message ?? value?.text ?? ""));
+  return code === "background_unavailable";
 }
 
 /** cua-driver / daemon 冷启动未就绪（§3.4）。 */
-const NOT_READY = /cua_not_ready|not[ _-]?ready/i;
 function isNotReady(value) {
   const code = value?.errorCode ?? value?.code;
-  if (typeof code === "string" && NOT_READY.test(code)) return true;
-  return NOT_READY.test(String(value?.message ?? value?.text ?? ""));
+  return typeof code === "string" && ["cua_not_ready", "not_ready"].includes(code.toLowerCase());
+}
+
+function dispatchEvidence(value) {
+  const structured = parseJson(value?.structuredJson, null);
+  const raw = parseJson(value?.rawJson, null);
+  return [value, value?.action, structured, structured?.action, raw, raw?.action].filter(Boolean);
+}
+
+function hasSentEvidence(value) {
+  return (
+    isPossiblySent(value) ||
+    dispatchEvidence(value).some(
+      (entry) =>
+        entry.action_sent === true ||
+        entry.actionSent === true ||
+        ["accepted", "possibly_sent"].includes(entry.dispatch_status ?? entry.dispatchStatus),
+    )
+  );
 }
 
 /** 投递可能已发生但无法确认（§3.3）→ 禁止盲重试。 */
 function isPossiblySent(value) {
   if (!value) return false;
-  const status = value.dispatch_status ?? value.dispatchStatus;
-  if (typeof status === "string" && /possibly_sent/i.test(status)) return true;
+  if (
+    dispatchEvidence(value).some(
+      (entry) => (entry.dispatch_status ?? entry.dispatchStatus) === "possibly_sent",
+    )
+  )
+    return true;
   const haystack = [value.message, value.text, value.rawJson, value.structuredJson]
     .filter((part) => typeof part === "string")
     .join(" ");
@@ -145,11 +174,6 @@ export function parseKeyChord(text) {
   return { modifiers: parts.slice(0, -1), key: parts[parts.length - 1] };
 }
 
-function pointsFromTarget(target) {
-  if (Array.isArray(target) && target.length === 2) return { x: target[0], y: target[1] };
-  return undefined;
-}
-
 /**
  * @param {object} options
  * @param {Function} options.callDriver `(toolName, args, signal) => Promise<ToolResult>`
@@ -172,24 +196,24 @@ export function createSurfaceLayer({
 
   const keyFor = (pid, windowId) => `${pid ?? "?"}:${windowId ?? "?"}`;
 
-  function remember(pid, windowId, stateId, elements) {
-    const entry = { stateId, elements, byIndex: new Map() };
+  function remember(pid, windowId, stateId, elements, raster, frameId = stateId) {
+    const entry = { stateId, frameId, elements, raster, byIndex: new Map() };
     for (const element of elements) {
-      if (typeof element.element_index === "number") entry.byIndex.set(element.element_index, element);
+      if (typeof element.element_index === "number")
+        entry.byIndex.set(element.element_index, element);
     }
     observations.set(keyFor(pid, windowId), entry);
     observations.set(keyFor(pid, undefined), entry);
   }
 
-  function lookupElement(pid, windowId, index) {
-    const entry = observations.get(keyFor(pid, windowId)) ?? observations.get(keyFor(pid, undefined));
-    return entry?.byIndex.get(index);
-  }
-
-  function stale() {
-    const error = new Error("element index has no observation behind it; call get_app_state first");
-    error.code = "STALE_STATE";
-    return error;
+  function forget(pid, windowId) {
+    const key = keyFor(pid, windowId);
+    const entry = observations.get(key);
+    if (entry && observations.get(keyFor(pid, undefined)) === entry) {
+      observations.delete(keyFor(pid, undefined));
+    }
+    observations.delete(key);
+    baselines.delete(key);
   }
 
   async function resolvePid(appRef, signal) {
@@ -207,12 +231,16 @@ export function createSurfaceLayer({
       app.name === want ||
       app.appName === want ||
       String(app.name ?? "").toLowerCase() === String(want).toLowerCase() ||
-      String(app.name ?? "").toLowerCase().includes(String(want).toLowerCase());
+      String(app.name ?? "")
+        .toLowerCase()
+        .includes(String(want).toLowerCase());
     const found = list.find(
       (app) =>
         (wantedName !== undefined && byName(app, wantedName)) ||
         (wantedBundle !== undefined &&
-          (app.bundleId === wantedBundle || app.bundle_id === wantedBundle || app.identifier === wantedBundle)),
+          (app.bundleId === wantedBundle ||
+            app.bundle_id === wantedBundle ||
+            app.identifier === wantedBundle)),
     );
     if (!found) {
       const error = new Error(`app not found: ${wanted}`);
@@ -230,7 +258,9 @@ export function createSurfaceLayer({
       const raw = await callDriver("list_windows", { pid }, input.signal);
       const data = structured(raw);
       const windows = Array.isArray(data) ? data : (data?.windows ?? []);
-      const target = windows.find((window) => window.is_on_screen !== false && window.z_index !== null) ?? windows[0];
+      const target =
+        windows.find((window) => window.is_on_screen !== false && window.z_index !== null) ??
+        windows[0];
       windowId = target?.window_id ?? target?.id;
     }
     return { pid, windowId };
@@ -238,10 +268,18 @@ export function createSurfaceLayer({
 
   async function callDriverWithColdStart(tool, args, signal) {
     for (let attempt = 0; ; attempt += 1) {
+      signal?.throwIfAborted();
       try {
         return await callDriver(tool, args, signal);
       } catch (error) {
-        if (!isNotReady(error) || attempt >= COLD_START_DELAYS.length) throw error;
+        // 官方 Windows 将不确定投递与“未执行”分开；已投递时重试可能重复点击或输入。
+        if (
+          signal?.aborted ||
+          hasSentEvidence(error) ||
+          !isNotReady(error) ||
+          attempt >= COLD_START_DELAYS.length
+        )
+          throw error;
         await sleep(COLD_START_DELAYS[attempt]);
       }
     }
@@ -251,10 +289,10 @@ export function createSurfaceLayer({
   function decorateAction(result, raw) {
     const meta = { ...result?._meta };
     const errored = result?.isError === true || raw?.isError === true;
+    const possibly = isPossiblySent(raw);
+    if (possibly) meta.possiblySent = true;
     if (errored) {
-      const possibly = isPossiblySent(raw);
-      meta.actionSent = possibly;
-      if (possibly) meta.possiblySent = true;
+      meta.actionSent = hasSentEvidence(raw);
     } else {
       meta.actionSent = true;
     }
@@ -262,24 +300,36 @@ export function createSurfaceLayer({
   }
 
   async function forwardToDriver(driverTool, args, input) {
-    const canFallback = FOREGROUND_FALLBACK_TOOLS.has(driverTool) && args.delivery_mode !== "foreground";
+    const canFallback =
+      FOREGROUND_FALLBACK_TOOLS.has(driverTool) && args.delivery_mode !== "foreground";
     const isAction = ACTION_TOOLS.has(driverTool);
     const invoke = (nextArgs) => callDriverWithColdStart(driverTool, nextArgs, input.signal);
     const finish = (result, raw) => (isAction ? decorateAction(result, raw) : result);
+    let raw;
     try {
-      const raw = await invoke(args);
-      if (canFallback && raw?.isError && isBackgroundUnavailable(raw)) {
-        const retry = await invoke({ ...args, delivery_mode: "foreground" });
-        return finish(markForeground(projectDriverResult(retry), true), retry);
-      }
-      return finish(projectDriverResult(raw), raw);
+      raw = await invoke(args);
     } catch (error) {
-      if (canFallback && isBackgroundUnavailable(error)) {
-        const retry = await invoke({ ...args, delivery_mode: "foreground" });
-        return finish(markForeground(projectDriverResult(retry), true), retry);
-      }
-      throw error;
+      if (
+        !canFallback ||
+        input.signal?.aborted ||
+        hasSentEvidence(error) ||
+        !isBackgroundUnavailable(error)
+      )
+        throw error;
+      raw = { ...error, isError: true, errorCode: "background_unavailable" };
     }
+    // 回退放在首次调用的 catch 外，前台失败不会再被捕获成一次新的后台失败。
+    if (
+      canFallback &&
+      !input.signal?.aborted &&
+      raw?.isError &&
+      !hasSentEvidence(raw) &&
+      isBackgroundUnavailable(raw)
+    ) {
+      const retry = await invoke({ ...args, delivery_mode: "foreground" });
+      return finish(markForeground(projectDriverResult(retry), true), retry);
+    }
+    return finish(projectDriverResult(raw), raw);
   }
 
   async function dispatch(driverTool, driverArgs, input) {
@@ -287,7 +337,12 @@ export function createSurfaceLayer({
       // 兼容层会自己重新观测，旧 element_token 必然过期 → 传 index。
       const args = { ...driverArgs };
       delete args.element_token;
-      const result = await compat.execute({ toolName: driverTool, arguments: args, context: input.context, signal: input.signal });
+      const result = await compat.execute({
+        toolName: driverTool,
+        arguments: args,
+        context: input.context,
+        signal: input.signal,
+      });
       // 兼容层是 mutter 全局注入，只能前台（决策 1）。
       return { compat: true, result: markForeground(result, false) };
     }
@@ -299,29 +354,52 @@ export function createSurfaceLayer({
 
   async function targetArgs(input, args) {
     const { pid, windowId } = await resolveScope(input, args);
-    const point = pointsFromTarget(args.target);
-    if (point) return { pid, window_id: windowId, x: point.x, y: point.y };
-    if (typeof args.target !== "number") {
-      const error = new Error("target must be an element index or [x, y]");
-      error.code = "INTERNAL";
-      throw error;
-    }
-    const element = lookupElement(pid, windowId, args.target);
-    if (!element) throw stale();
-    return { pid, window_id: windowId, element_index: args.target, element_token: element.element_token };
+    const target = resolveSurfaceTarget(args.target, observations.get(keyFor(pid, windowId)));
+    return { pid, window_id: windowId, ...target };
   }
 
   async function getAppState(input, args) {
     const { pid, windowId } = await resolveScope(input, args);
-    const raw = await callDriver(
-      "get_window_state",
-      withoutUndefined({ pid, window_id: windowId, include_screenshot: args.include_screenshot === true, include_accessibility_tree: true }),
-      input.signal,
-    );
+    let raw;
+    try {
+      raw = await callDriver(
+        "get_window_state",
+        withoutUndefined({
+          pid,
+          window_id: windowId,
+          include_screenshot: args.include_screenshot === true,
+          include_accessibility_tree: true,
+        }),
+        input.signal,
+      );
+    } catch (error) {
+      forget(pid, windowId);
+      throw error;
+    }
+    // 观测失败不能伪造空树成功，也不能让下一次输入继续使用旧 token。
+    if (raw?.isError) {
+      forget(pid, windowId);
+      return projectDriverResult(raw);
+    }
     const structured = parseJson(raw?.structuredJson, {}) ?? {};
+    if (
+      windowId !== undefined &&
+      structured.window_id !== undefined &&
+      structured.window_id !== windowId
+    ) {
+      forget(pid, windowId);
+      throw staleTarget();
+    }
     const elements = Array.isArray(structured.elements) ? structured.elements : [];
     const stateId = structured.snapshot_id ?? structured.state_id ?? `s-${Date.now()}`;
-    remember(pid, windowId, stateId, elements);
+    remember(
+      pid,
+      windowId,
+      stateId,
+      elements,
+      screenshotRaster(raw, structured),
+      structured.frame_id ?? stateId,
+    );
 
     // 观测 diffing（§3.2）：绑定探测（tree_shown_to_model=false）不置 baseline；
     // 模型看过之后只发相对 baseline 的变化；disable_diffing 强制全量。
@@ -332,15 +410,19 @@ export function createSurfaceLayer({
     let emitted = elements;
     let isDiff = false;
     if (!forceFull && baseline?.shown) {
-      emitted = elements.filter((element) => baseline.byIndex.get(element.element_index) !== elementFingerprint(element));
+      emitted = elements.filter(
+        (element) => baseline.byIndex.get(element.element_index) !== elementFingerprint(element),
+      );
       isDiff = true;
     }
     if (treeShown) baselines.set(key, { byIndex: fingerprintIndex(elements), shown: true });
 
     const content = [];
-    if (typeof raw?.text === "string" && raw.text.length > 0) content.push({ type: "text", text: raw.text });
+    if (typeof raw?.text === "string" && raw.text.length > 0)
+      content.push({ type: "text", text: raw.text });
     for (const image of Array.isArray(raw?.images) ? raw.images : []) {
-      if (image?.dataBase64) content.push({ type: "image", data: image.dataBase64, mimeType: image.mimeType });
+      if (image?.dataBase64)
+        content.push({ type: "image", data: image.dataBase64, mimeType: image.mimeType });
     }
     return {
       content,
@@ -349,7 +431,11 @@ export function createSurfaceLayer({
         state_id: stateId,
         frame_id: structured.frame_id ?? stateId,
         elements: emitted,
-        app: { pid, name: structured.app_name ?? structured.appName, bundle_id: structured.bundle_id },
+        app: {
+          pid,
+          name: structured.app_name ?? structured.appName,
+          bundle_id: structured.bundle_id,
+        },
         window: {
           window_id: structured.window_id ?? windowId,
           title: structured.window_title ?? structured.title,
@@ -374,32 +460,51 @@ export function createSurfaceLayer({
   }
 
   async function dragTool(input, args) {
+    if (
+      args.delivery_mode !== undefined &&
+      args.delivery_mode !== "background" &&
+      args.delivery_mode !== "foreground"
+    ) {
+      throw new Error("drag delivery_mode must be background or foreground");
+    }
     const { pid, windowId } = await resolveScope(input, args);
-    const from = pointsFromTarget(args.from_target);
-    const to = pointsFromTarget(args.to);
-    const fromArgs = from
-      ? { from_x: from.x, from_y: from.y }
-      : { from_element_token: args.from_target !== undefined ? lookupElement(pid, windowId, args.from_target)?.element_token : undefined };
-    const toArgs = to
-      ? { to_x: to.x, to_y: to.y }
-      : { to_element_token: args.to !== undefined ? lookupElement(pid, windowId, args.to)?.element_token : undefined };
-    const driverArgs = withoutUndefined({ pid, window_id: windowId, ...fromArgs, ...toArgs, button: args.mouse_button ?? "left", modifier: args.modifiers });
+    const observation = observations.get(keyFor(pid, windowId));
+    const from = resolveSurfaceTarget(args.from_target, observation, { coordinatesOnly: true });
+    const to = resolveSurfaceTarget(args.to, observation, { coordinatesOnly: true });
+    const driverArgs = withoutUndefined({
+      pid,
+      window_id: windowId,
+      from_x: from.x,
+      from_y: from.y,
+      to_x: to.x,
+      to_y: to.y,
+      button: args.mouse_button ?? "left",
+      modifier: args.modifiers,
+      // 部分应用忽略后台合成拖拽；只映射显式前台选择，不在已投递后盲目重放。
+      delivery_mode: args.delivery_mode,
+    });
     const { result } = await dispatch("drag", driverArgs, input);
     return result;
   }
 
   async function scrollTool(input, args) {
     const base = await targetArgs(input, args);
-    const driverArgs = withoutUndefined({ ...base, direction: args.scroll_direction, amount: args.scroll_amount ?? 1 });
+    const driverArgs = withoutUndefined({
+      ...base,
+      direction: args.scroll_direction,
+      amount: args.scroll_amount ?? 1,
+    });
     const { result } = await dispatch("scroll", driverArgs, input);
     return result;
   }
 
   async function typeTool(input, args) {
     const { pid, windowId } = await resolveScope(input, args);
-    const elementIndex = typeof args.target === "number" ? args.target : undefined;
-    const elementToken = elementIndex !== undefined ? lookupElement(pid, windowId, elementIndex)?.element_token : undefined;
-    const driverArgs = withoutUndefined({ pid, window_id: windowId, element_index: elementIndex, element_token: elementToken, text: args.text });
+    const target =
+      args.target === undefined
+        ? {}
+        : resolveSurfaceTarget(args.target, observations.get(keyFor(pid, windowId)));
+    const driverArgs = withoutUndefined({ pid, window_id: windowId, ...target, text: args.text });
     const { result } = await dispatch("type_text", driverArgs, input);
     return result;
   }
@@ -408,11 +513,33 @@ export function createSurfaceLayer({
     const { pid, windowId } = await resolveScope(input, args);
     const { modifiers, key } = parseKeyChord(args.text);
     const driverTool = modifiers.length > 0 ? "hotkey" : "press_key";
-    const driverArgs = modifiers.length > 0 ? withoutUndefined({ pid, window_id: windowId, keys: [...modifiers, key] }) : withoutUndefined({ pid, window_id: windowId, key });
+    const driverArgs =
+      modifiers.length > 0
+        ? withoutUndefined({ pid, window_id: windowId, keys: [...modifiers, key] })
+        : withoutUndefined({ pid, window_id: windowId, key });
     const repeat = Number.isFinite(args.repeat) && args.repeat > 1 ? Math.trunc(args.repeat) : 1;
     let result;
+    let anySent = false;
     for (let index = 0; index < repeat; index += 1) {
-      ({ result } = await dispatch(driverTool, driverArgs, input));
+      try {
+        ({ result } = await dispatch(driverTool, driverArgs, input));
+      } catch (error) {
+        if (!anySent) throw error;
+        const projected = projectDriverError(input.toolName, error);
+        return {
+          ...projected,
+          _meta: {
+            ...projected._meta,
+            actionSent: true,
+            ...(isPossiblySent(error) ? { possiblySent: true } : {}),
+          },
+        };
+      }
+      anySent ||= result?._meta?.actionSent === true;
+      // repeat 中途失败立即收口；后一次成功不能覆盖前一次失败或先前的投递事实。
+      if (result?.isError || result?._meta?.possiblySent) {
+        return { ...result, _meta: { ...result._meta, actionSent: anySent } };
+      }
     }
     return result;
   }
@@ -427,15 +554,21 @@ export function createSurfaceLayer({
 
   async function setValueTool(input, args) {
     const { pid, windowId } = await resolveScope(input, args);
-    const element = typeof args.target === "number" ? lookupElement(pid, windowId, args.target) : undefined;
-    if (!element) throw stale();
-    const { result } = await dispatch("set_value", withoutUndefined({ pid, window_id: windowId, element_index: args.target, element_token: element.element_token, value: args.value }), input);
+    const target = resolveSurfaceTarget(args.target, observations.get(keyFor(pid, windowId)));
+    if (!target.element_token) throw staleTarget("Set value needs an observed element target");
+    const { result } = await dispatch(
+      "set_value",
+      withoutUndefined({ pid, window_id: windowId, ...target, value: args.value }),
+      input,
+    );
     return result;
   }
 
   function unavailable(tool) {
     return {
-      content: [{ type: "text", text: `${tool} is not supported: cua-driver has no equivalent primitive` }],
+      content: [
+        { type: "text", text: `${tool} is not supported: cua-driver has no equivalent primitive` },
+      ],
       isError: true,
       structuredContent: { code: "ACTION_UNAVAILABLE" },
       _meta: { actionSent: false, errorCode: "ACTION_UNAVAILABLE" },
@@ -449,12 +582,14 @@ export function createSurfaceLayer({
       switch (toolName) {
         case "list_apps": {
           const raw = await callDriver("list_apps", {}, input.signal);
+          if (raw?.isError) return projectDriverResult(raw);
           const apps = structured(raw)?.apps ?? [];
           return { content: [{ type: "text", text: JSON.stringify(apps) }], isError: false };
         }
         case "list_windows": {
           const pid = await resolvePid(args.app_ref, input.signal);
           const raw = await callDriver("list_windows", withoutUndefined({ pid }), input.signal);
+          if (raw?.isError) return projectDriverResult(raw);
           const data = structured(raw);
           const windows = Array.isArray(data) ? data : (data?.windows ?? []);
           return { content: [{ type: "text", text: JSON.stringify(windows) }], isError: false };
@@ -512,7 +647,11 @@ export function createSurfaceLayer({
       const possibly = isPossiblySent(error);
       return {
         ...projected,
-        _meta: { ...projected._meta, actionSent: possibly, ...(possibly ? { possiblySent: true } : {}) },
+        _meta: {
+          ...projected._meta,
+          actionSent: hasSentEvidence(error),
+          ...(possibly ? { possiblySent: true } : {}),
+        },
       };
     }
   }

@@ -26,9 +26,7 @@ import {
   AUTOMATION_MUTATION_TOOL_NAMES,
   evaluateRapidRefill,
   isAutomationMutationRestrictedTurn,
-  isOffPeakCreateRestrictedTurn,
   MAX_CONSECUTIVE_RAPID_REFILLS,
-  OFF_PEAK_MUTATION_TOOL_NAMES,
   RAPID_REFILL_TOOL_TURN_THRESHOLD,
   recordCompactHistoryRound,
   recordCompactSuccess,
@@ -224,13 +222,6 @@ function buildTurnDisallowedTools(state: RegularTurnLoopState): Set<string> | nu
     // 定时任务执行轮只应运行任务 prompt，不能反过来管理自己的定义。
     // 保留 CronList 供只读查询；所有 mutation 在 provider 请求边界统一隐藏。
     for (const toolName of AUTOMATION_MUTATION_TOOL_NAMES) {
-      tools.add(toolName);
-    }
-  }
-  if (isOffPeakCreateRestrictedTurn(state)) {
-    // 闲时执行轮禁止再创建闲时任务（防递归自我派生）；OffPeakList 只读保留。
-    // 注意 automation 执行轮不进此分支——cron turn 放行 OffPeakCreate。
-    for (const toolName of OFF_PEAK_MUTATION_TOOL_NAMES) {
       tools.add(toolName);
     }
   }

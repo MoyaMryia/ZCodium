@@ -1,4 +1,3 @@
-import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
@@ -131,7 +130,6 @@ export interface SSHRemoteTargetSnapshot {
   /** 用户建立连接时选择的 SSH config Host alias，仅用于 UI 展示。 */
   sshConfigAlias?: string;
   privateKeyPath?: string;
-  assetInstallMode?: RemoteAssetInstallMode;
   resourcePackages?: RemoteResourcePackageSelection;
   /**
    * SSH 密码不会写入 setting.json。
@@ -235,8 +233,6 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
-  /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
-  startPlanRecommendationDismissed?: boolean;
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
   locale: Locale; // 界面语言
   /**
@@ -312,7 +308,7 @@ export interface AppSettings {
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   /** 设置页中每个 Provider Family 当前唯一的结构化连接选择。 */
   providerFamilyConnectionSelections?: ProviderFamilyConnectionSelectionSettings;
-  /** 用户通过 WelcomeScreen 成功连接后确认的 ZAI / BigModel provider family 运行域。 */
+  /** ZAI / BigModel 账号 provider family 运行域。 */
   providerFamilyDomain?: ProviderFamilyDomain;
   /** 最近一次设置或清空 providerFamilyDomain 的时间。 */
   providerFamilyDomainUpdatedAt?: number;

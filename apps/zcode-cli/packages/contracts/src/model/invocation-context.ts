@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { ModelApiCallObservation } from "../model/observation.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import type {
@@ -29,44 +28,6 @@ export interface ModelInvocationContext {
   streamIdleTimeoutRetryNumber?: number;
   streamRecovery?: ModelStreamRecoveryStatus;
   preserveProviderStreamBoundaries?: boolean;
-  refreshRuntimeHeadersBeforeAttempt?: (input: {
-    accountAccess?: ZCodeProviderAccountAccess;
-    attempt: number;
-    reason?: "model-request";
-    abortSignal?: AbortSignal;
-    providerId: string;
-    modelId: string;
-    traceContext?: TraceContext;
-  }) => Promise<{
-    headersApplied: boolean;
-    requestAuth?: ModelRequestAuth;
-  }>;
-}
-
-/** Adapter 为单个物理请求 attempt 使用的动态鉴权材料。 */
-export interface ModelRequestAuth {
-  apiKey?: string;
-  headers?: Record<string, string>;
-}
-
-export interface ModelRequestAuthSourceInput {
-  attempt: number;
-  abortSignal?: AbortSignal;
-  providerId: string;
-  modelId: string;
-  traceContext?: TraceContext;
-}
-
-/** Model 创建时绑定、在每个物理请求 attempt 前解析的执行作用域鉴权来源。 */
-export interface ModelRequestAuthSource {
-  resolve(input: ModelRequestAuthSourceInput): Promise<ModelRequestAuth | undefined>;
-}
-
-export interface ModelRequestDependencies {
-  /** 属性存在表示当前 Model 必须取得请求级鉴权；Source 缺失同样 fail-closed。 */
-  requestAuth?: {
-    source?: ModelRequestAuthSource;
-  };
 }
 
 const modelInvocationStorage = new AsyncLocalStorage<ModelInvocationContext>();

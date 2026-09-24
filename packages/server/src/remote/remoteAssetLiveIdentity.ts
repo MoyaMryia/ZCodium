@@ -1,50 +1,10 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { ZCODE_VERSION } from "@zcode/shared";
 import type { IRemoteBackend } from "@zcode/server/remote/backend.js";
-import type { RemoteEnvironment } from "@zcode/server/remote/backend.js";
-import {
-  REMOTE_BASE,
-  type DeployLoggers,
-  waitForClose,
-} from "@zcode/server/remote/deployShared.js";
+import { REMOTE_BASE, waitForClose } from "@zcode/server/remote/deployShared.js";
 import {
   buildWriteLiteralFileCommand,
   quotePosixPathArg,
 } from "@zcode/server/remote/posixShell.js";
-import {
-  fetchRemoteAssetManifestRefFromCdn,
-  type RemoteAssetManifest,
-  type RemoteAssetManifestRef,
-} from "@zcode/server/remote/remoteAssetCache.js";
-import {
-  buildReleaseBaseCandidates,
-  resolveRemoteCdnBaseUrls,
-} from "@zcode/server/remote/remoteAssetCdn.js";
-import type { RemoteAssetNetworkPort } from "@zcode/server/remote/remoteAssetNetwork.js";
-
 const REMOTE_ASSET_COMPONENT_META_DIR = `${REMOTE_BASE}/.asset-components`;
-
-export interface RemoteAssetIdentityResolverOptions {
-  mockCdnDir?: string;
-  remoteCdnBaseUrl?: string;
-  remoteCdnBaseUrls?: string[];
-  remoteCacheDir?: string;
-  manifestRequestTimeoutMs?: number;
-  remoteAssetNetwork?: RemoteAssetNetworkPort;
-}
-
-export function createFreshRemoteAssetManifestRefResolver(
-  options: RemoteAssetIdentityResolverOptions,
-  env: RemoteEnvironment,
-  loggers: DeployLoggers,
-): () => Promise<RemoteAssetManifestRef | null> {
-  let manifestPromise: Promise<RemoteAssetManifestRef | null> | null = null;
-  return () => {
-    manifestPromise ??= resolveFreshComponentManifest(options, env, loggers);
-    return manifestPromise;
-  };
-}
 
 export interface RemoteAssetComponentIdentity {
   sha256: string;
@@ -194,67 +154,4 @@ function buildRemoteAssetComponentMetaPath(componentId: string): string {
 
 function formatIdentity(identity: RemoteAssetComponentIdentity): string {
   return identity.sha256;
-}
-
-async function resolveFreshComponentManifest(
-  options: RemoteAssetIdentityResolverOptions,
-  env: RemoteEnvironment,
-  loggers: DeployLoggers,
-): Promise<RemoteAssetManifestRef | null> {
-  const platformArch = `${env.platform}-${env.arch}`;
-  if (options.mockCdnDir) {
-    try {
-      const content = await readFile(
-        join(options.mockCdnDir, "releases", ZCODE_VERSION, `manifest-${platformArch}.json`),
-        "utf8",
-      );
-      return {
-        manifest: JSON.parse(content) as RemoteAssetManifest,
-        releaseBaseCandidatesForComponents: buildReleaseBaseCandidates(
-          resolveRemoteCdnBaseUrls(options),
-          ZCODE_VERSION,
-        ),
-      };
-    } catch (error) {
-      loggers.logWarn(
-        `[remote-assets] mock component manifest unavailable, fallback to release checks: ${String(error)}`,
-      );
-      return null;
-    }
-  }
-
-  try {
-    const manifestRef = await fetchRemoteAssetManifestRefFromCdn(
-      {
-        remoteCdnBaseUrl: options.remoteCdnBaseUrl,
-        remoteCdnBaseUrls: options.remoteCdnBaseUrls,
-        remoteCacheDir: options.remoteCacheDir,
-        version: ZCODE_VERSION,
-        platformArch,
-        manifestRequestTimeoutMs: options.manifestRequestTimeoutMs,
-        remoteAssetNetwork: options.remoteAssetNetwork,
-        // server-bundle/GLM 允许在 app/version 不变时重发制品，每次部署必须重新取
-        // manifest，不能复用进程内旧 SHA；promise 保证本次部署只刷新一次。
-        refreshManifest: true,
-      },
-      loggers,
-    );
-    const hasConfiguredManifestSource =
-      Boolean(options.remoteCacheDir?.trim()) &&
-      (Boolean(options.remoteCdnBaseUrl?.trim()) ||
-        Boolean(options.remoteCdnBaseUrls?.some((baseUrl) => baseUrl.trim().length > 0)));
-    if (!manifestRef && hasConfiguredManifestSource) {
-      // server-bundle 的身份判断与安装必须来自同一 manifest；404 后
-      // 不能继续走 installer 再请求一次，否则发布切换时可能部署另一份制品。
-      throw new Error(
-        `[remote-assets] manifest not found for ${platformArch}: manifest-${platformArch}.json`,
-      );
-    }
-    return manifestRef;
-  } catch (error) {
-    loggers.logWarn(`[remote-assets] component manifest request failed: ${String(error)}`);
-    // 这是内容寻址组件在本次 deploy transaction 的 pinned identity 输入。网络超时/解析失败
-    // 不能降级为“manifest 缺失”后再请求一次，否则会丢失原始诊断并翻倍 deadline。
-    throw error;
-  }
 }

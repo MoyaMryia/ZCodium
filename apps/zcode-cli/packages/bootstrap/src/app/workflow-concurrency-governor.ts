@@ -73,7 +73,6 @@ interface WorkflowConcurrencyGovernorOptions {
 const THROTTLE_REASONS: ReadonlySet<string> = new Set<ConcurrencyThrottleReason>([
   "rate_limited",
   "provider_overloaded",
-  "offpeak_queued",
 ]);
 /** 不是 provider 失败的 retry 原因：既不减 cap 也不清 streak——只当尝试终结。 */
 const NON_FAILURE_RETRY_REASONS: ReadonlySet<string> = new Set([

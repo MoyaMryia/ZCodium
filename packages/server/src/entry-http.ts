@@ -1,4 +1,5 @@
 import { safeLogArgs } from "@zcode/shared";
+import { resolve } from "node:path";
 import { createLocalServices, getAppConfigDir } from "@zcode/services/node";
 import {
   materializeBundledZCodeBuiltinProviderConfig,
@@ -21,6 +22,11 @@ async function main(): Promise<void> {
   });
 
   createHttpServer(services, port, {
+    // Web 的远端连接也必须使用本地制品；默认指向工作区构建输出，独立部署由管理员指定。
+    bundledRemoteAssetsDir: resolve(
+      process.env["ZCODE_BUNDLED_REMOTE_ASSETS_DIR"]?.trim() ||
+        resolve(import.meta.dirname, "../../desktop/bundled-remote-assets"),
+    ),
     ...(host ? { host } : {}),
     ...(staticRoot ? { staticRoot, spaFallback: true } : {}),
     ...(authToken ? { authToken, authRequired: true } : {}),

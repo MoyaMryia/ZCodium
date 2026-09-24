@@ -43,13 +43,103 @@ jobs:
       - name: Architecture
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm architecture:check
+      - name: Build Agent test dependencies
+        id: agent-build
+        # 根安装采用 hoisted 布局；从子 workspace 启动会丢失根目录的工具路径。
+        run: pnpm -r --filter './apps/zcode-cli/packages/*' build
       - name: Release tests
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
+      - name: Computer Use runtime and SDK checks
+        run: |
+          node --test --test-isolation=none packages/zcode-cua/test/*.test.mjs
+          pnpm --filter @zcode/zcode-cua-plugin check:sdk
+      - name: Standalone CLI and TUI model setup checks
+        run: |
+          node scripts/ci/cli-local-entrypoints-smoke.mjs
+          node scripts/ci/local-automation-protocol-smoke.mjs
+          node scripts/ci/bundled-plugin-marketplace-protocol-smoke.mjs
+          node scripts/ci/tui-model-setup-smoke.mjs
+      - name: Install browser for remote form checks
+        run: pnpm exec playwright-core install --with-deps chromium
+      - name: Install isolated Computer Use test desktop
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb openbox bubblewrap dbus-x11 at-spi2-core apparmor
+          # Ubuntu 24.04 的 userns 限制会阻止 bwrap 配置隔离网络的 loopback。
+          # 仅授权 CI 的 bwrap 创建命名空间，保留全局 AppArmor 与测试断网隔离。
+          sudo apparmor_parser -r <<'PROFILE'
+          abi <abi/4.0>,
+          profile zcodium-ci-bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+      - name: Computer Use actions without network access
+        run: node scripts/ci/cua-actions-smoke.mjs
+      - name: Remote form browser checks
+        run: node scripts/ci/remote-form-smoke.mjs
+      - name: Bundled help browser checks
+        run: node scripts/ci/bundled-help-smoke.mjs
+      - name: Local feedback browser checks
+        run: node scripts/ci/local-feedback-smoke.mjs
+      - name: Imported conversation browser checks
+        run: node scripts/ci/local-share-context-smoke.mjs
+      - name: Self-managed model settings
+        run: |
+          pnpm --filter @zcode/desktop build:no-runtime-assets
+          node scripts/ci/local-scheduler-smoke.mjs
+          node scripts/ci/self-managed-models-smoke.mjs
+          node scripts/ci/model-choice-smoke.mjs
+          node scripts/ci/local-usage-smoke.mjs
+          node scripts/ci/local-automations-smoke.mjs
+          node scripts/ci/local-context-smoke.mjs
+          node scripts/ci/session-local-errors-smoke.mjs
+          node scripts/ci/local-onboarding-smoke.mjs
+      - name: Bundled catalog browser checks
+        run: |
+          node scripts/ci/client-catalog-smoke.mjs
+          node scripts/ci/bundled-plugin-marketplace-smoke.mjs
+      - name: Model setup without official purchases
+        run: node scripts/ci/no-official-purchase-smoke.mjs
+      - name: Local preferences without official accounts
+        run: node scripts/ci/local-preferences-smoke.mjs
+      - name: Verify self-managed image search configuration
+        run: node scripts/ci/image-search-config-smoke.mjs
+      - name: Startup without official account restoration
+        run: |
+          pnpm --filter @zcode/web build
+          node scripts/ci/root-startup-smoke.mjs
+          node scripts/ci/web-entry-without-oauth-smoke.mjs
+      - name: Conversation file browser checks
+        run: |
+          node scripts/ci/conversation-export-smoke.mjs
+          node scripts/ci/conversation-import-smoke.mjs
+
+  remote-assets:
+    name: Bundled Linux remote runtime
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - name: Build remote components from source
+        run: pnpm prepare:remote-assets
+      - name: Verify native remote runtime
+        run: node scripts/ci/remote-assets-smoke.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: bundled-remote-linux-x64
+          path: packages/desktop/bundled-remote-assets/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   build:
     name: Build (${{ matrix.platform }} x64)
-    needs: checks
+    needs: [checks, remote-assets]
     strategy:
       fail-fast: false
       matrix:
@@ -76,12 +166,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends rpm libarchive-tools zstd
       - uses: ./.github/actions/setup-workspace
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: bundled-remote-linux-x64
+          path: packages/desktop/bundled-remote-assets
+      - name: Verify bundled remote components
+        run: node scripts/bundle-remote-assets.mjs verify
       - name: Prepare desktop runtime
         run: pnpm prepare:desktop-runtime
+      - name: Verify native CUA and shared plugin host
+        run: node scripts/ci/cua-driver-smoke.mjs
       - name: Build workspace and desktop
         run: pnpm build:bootstrap
       - name: Package and verify desktop
         run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch x64 --skip-prepare --skip-build
+      - name: Verify CUA with the packaged Electron runtime
+        run: node scripts/ci/cua-driver-smoke.mjs --packaged
       - name: Collect installers
         run: node scripts/ci/desktop-release.mjs collect "$ZCODE_TARGET_OS"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -1,3 +1,4 @@
+import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
 import documentsIconUrl from "@/assets/plugin-icons/documents.png";
 import imageSearchIconUrl from "@/assets/plugin-icons/image-search.png";
 import pdfIconUrl from "@/assets/plugin-icons/pdf.png";
@@ -25,6 +26,8 @@ export function resolvePluginIconSource(
   if (pluginId) {
     const bundledIcon = OFFICIAL_PLUGIN_ICON_BY_ID[pluginId];
     if (bundledIcon) return bundledIcon;
+    // 旧会话/缓存中的官方图片不能重新触发 CDN 请求；内置身份只使用随包资源。
+    if (pluginId.endsWith(`@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`)) return undefined;
   }
   return isTrustedImageUrl(icon) ? icon : undefined;
 }

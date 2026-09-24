@@ -155,9 +155,15 @@ pnpm dev:desktop:test
 ZCODE_DATA_BASE_DIR="$HOME/.zcodium-dev-home" pnpm dev:desktop:test
 ```
 
+内置模型与供应商目录随应用和 CLI 发布，运行时不会从官方服务下载更新，也不会使用历史下载缓存。个人模型、API 密钥与自定义端点仍通过现有设置管理。
+
 ### 远程功能（SSH/WSL）
 
-先执行 `pnpm bootstrap:with-remote` 准备远程资源（mock-cdn），再 `pnpm dev:desktop`；连接远程项目时资源选择「本地下载后上传」。开发态资源取自本地 `packages/desktop/mock-cdn` 和本地构建产物，经 SFTP 上传到远程，不访问 CDN。
+Linux x64 与 Windows x64 桌面安装包内置 Linux x64 远端运行资源。连接 SSH、WSL 或 Linux 容器时，应用校验随包组件并上传安装；远端无需访问组件 CDN。已有匹配组件会复用，缺少必需文件时自动修复。目前远端目标仅支持 Linux x64。
+
+开发时先执行 `pnpm bootstrap:with-remote`，再 `pnpm dev:desktop`。修改 Server、Agent 或内置插件后，运行 `pnpm prepare:remote-assets` 重建 `packages/desktop/bundled-remote-assets`。构建阶段需要获取固定依赖；运行时缺少或损坏的资源会明确报错，不联网补下载。
+
+Web 开发使用同一份本地资源。独立部署 HTTP 服务时，通过 `ZCODE_BUNDLED_REMOTE_ASSETS_DIR` 指定该服务所在机器上的资源目录；它必须与服务版本匹配，浏览器不能覆盖这个路径。
 
 ### Web 开发
 

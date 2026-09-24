@@ -29,7 +29,6 @@ export interface SessionOpenIdentity {
 interface SessionOpenTimingFields {
   rendererPrepareMs?: number;
   hostPrepareMs?: number;
-  providerRegistrySyncMs?: number;
   taskMetaReadMs?: number;
   cliRequestMs?: number;
   cliBootstrapMs?: number;
@@ -94,7 +93,6 @@ function buildSessionOpenResultDiagnostic(
     total_ms: roundedNonNegative(identity.totalMs),
     renderer_prepare_ms: roundedNonNegative(identity.rendererPrepareMs),
     host_prepare_ms: roundedNonNegative(identity.hostPrepareMs),
-    provider_registry_sync_ms: roundedNonNegative(identity.providerRegistrySyncMs),
     task_meta_read_ms: roundedNonNegative(identity.taskMetaReadMs),
     cli_request_ms: roundedNonNegative(identity.cliRequestMs),
     cli_bootstrap_ms: roundedNonNegative(identity.cliBootstrapMs),

@@ -1,34 +1,15 @@
-import { net } from "electron";
-import {
-  buildHelpAppConfigUrl,
-  buildZCodeSourceHeadersFromContext,
-  createHelpAppConfigReader,
-  ZCODE_ENV,
-} from "@zcode/shared";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { resolveHelpAppConfig, type HelpAppConfig } from "@zcode/shared";
 
-export function createDesktopHelpConfigReader(options: {
-  resolveEndpointOrigin: () => Promise<string>;
-  appVersion: string;
-  deviceMid: string;
-}) {
-  const read = createHelpAppConfigReader({ fetchImpl: (input, init) => net.fetch(input, init) });
-  return async () => {
-    const endpointOrigin = await options.resolveEndpointOrigin();
-    return read(
-      buildHelpAppConfigUrl(
-        endpointOrigin,
-        options.appVersion,
-        `${process.platform}-${process.arch}`,
-      ),
-      buildZCodeSourceHeadersFromContext({
-        endpointOrigin,
-        appVersion: options.appVersion,
-        deviceMid: options.deviceMid,
-        platform: process.platform,
-        arch: process.arch,
-        releaseChannel: ZCODE_ENV,
-        sourceTitle: "electron",
-      }),
-    );
-  };
+export async function readDesktopHelpConfig(options: {
+  isPackaged: boolean;
+  appPath: string;
+  resourcesPath: string;
+}): Promise<HelpAppConfig> {
+  // 正式包的 appPath 是 resources/app.asar；配置实际位于 resources/config。
+  const configPath = options.isPackaged
+    ? join(options.resourcesPath, "config/default.json")
+    : join(options.appPath, "../../config/default.json");
+  return resolveHelpAppConfig(JSON.parse(await readFile(configPath, "utf8")));
 }

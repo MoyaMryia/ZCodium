@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+import {
+  BUILTIN_PLUGIN_ASSETS,
+  BUILTIN_PLUGIN_TOP_LEVEL_PATHS,
+} from "@zcode/shared/builtin-plugin-assets";
 
 // 桌面打包态的 agent 运行时资产：把 agent 的 JS bundle（zcode.cjs）放进 bundled-agents/<platform>/glm，
 // 由 app 内置的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行，替代以前随包内置的独立 Node 二进制。
 //
 // 为什么这么做：
-// - agent 没有任何原生 NAPI 插件（ripgrep 是 WASM，其余纯 JS），可直接跑在 Electron 的 Node 上；
+// - Agent 主入口为 JS；独立 node_repl 宿主另携带目标平台 CUA N-API 库；
 // - Electron 41 内置 Node 24.x，与 zcode-cli 的目标运行时一致；
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @zcode/tui，所以这里天然不打包 TUI。
@@ -17,6 +21,8 @@ import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
+import { validateBuiltinPluginAssets } from "../../../scripts/builtin-plugin-assets.mjs";
+import { stageCuaDriverRuntime } from "../../../scripts/cua-driver-runtime-assets.mjs";
 import { stageAgentBundle } from "./stage-agent-bundle.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -71,77 +77,7 @@ const arch = normalizeArch(process.env.ZCODE_TARGET_ARCH || "") || process.arch;
 const platformKey = `${platform}-${arch}`;
 
 const glmDir = resolve(desktopRoot, "bundled-agents", platformKey, "glm");
-// zcode.cjs / .node-bundle-meta.json 的落点由 stage-agent-bundle.mjs 自己解析（同源）。
-// node_repl 宿主抽成独立包
-// @zcode/node-repl-host 之后，browser-use 不再产出 dist/mcp/server.js，CUA 资产
-// （docs/computer-use.md、scripts/computer-use-client.mjs）也已归 @zcode/zcode-cua-plugin。
-// 这份清单当时漏改，打包准备阶段照旧去 browser-use 要那三个文件，直接 missing runtime 挂掉。
-// dev 链路走的是 scripts/build-desktop-agent-cli.mjs 的 requiredDevPluginRuntimeBuilds（那份改对了），
-// 两份平行清单各自维护，所以 dev 测不出来 —— 权威归属见 bootstrap/official-plugin-definitions.ts。
-const browserUseRequiredRuntimePaths = [
-  "scripts/browser-client.mjs",
-  "docs/api.json",
-  "docs/documents.json",
-  "docs/overview.md",
-  // documents.json 已暴露 recording lookup，桌面安装包不能复用缺少正文的 runtime。
-  "docs/recording.md",
-  "docs/workflow.md",
-  "skills/control-browser/SKILL.md",
-  "skills/web-gui-tester/SKILL.md",
-];
-// 纯内容内置插件：无 dist、无 workspace 依赖、无 runtime 构建。与
-// scripts/prepare-prebuilds.mjs 的 builtinContentPluginPackages 同源同序。
-const builtinContentPluginPackages = [
-  // 清单只包含满足 seed 资源契约的插件，避免打包阶段要求不存在的资源。
-  "presentations-plugin",
-  // documents 的 Python 脚本是技能正文描述的能力的执行体，seed 必须带齐。
-  "documents-plugin",
-  "pdf-plugin",
-  "spreadsheets-plugin",
-  "skill-creator-plugin",
-  "plugin-creator-plugin",
-  "image-search-plugin",
-  "restore-legacy-sessions-plugin",
-  "zcode-guide-plugin",
-].map((directory) => ({
-  packageName: `@zcode/${directory}`,
-  relativePath: `apps/zcode-cli/packages/${directory}`,
-  stagedPath: `packages/${directory}`,
-}));
-
-const officialPluginPackages = [
-  {
-    // browser-use 只携带自己的 client script 与 skill/docs；node_repl MCP runtime 归
-    // @zcode/node-repl-host（见上方常量注释）。
-    packageName: "@zcode/browser-use-plugin",
-    relativePath: "apps/zcode-cli/packages/browser-use-plugin",
-    requiresRuntime: true,
-    requiredRuntimePaths: browserUseRequiredRuntimePaths,
-    runtimeBuildScript: "scripts/build.mjs",
-    stagedPath: "packages/browser-use-plugin",
-  },
-
-  {
-    // node_repl 宿主：Browser Use 与 Computer Use 共用的 MCP runtime，本轮抽成独立包。
-    // 它没有 listing（不进插件市场展示面），但生产包首启 seed 必须拿到它的 dist runtime，
-    // 否则 bua/cua 任一开启时都会连不上 node_repl。
-    packageName: "@zcode/node-repl-host",
-    relativePath: "apps/zcode-cli/packages/node-repl-host",
-    requiresRuntime: true,
-    requiredRuntimePaths: ["dist/mcp/server.js"],
-    runtimeBuildScript: "scripts/build.mjs",
-    stagedPath: "packages/node-repl-host",
-  },
-  // 纯内容内置插件 + computer-use：无 dist、无 workspace 依赖。清单与
-  // scripts/prepare-prebuilds.mjs、packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts
-  // 保持一致，契约见 .agents/specs/builtin-plugin-parity.md。
-  ...builtinContentPluginPackages,
-  {
-    packageName: "@zcode/zcode-cua-plugin",
-    relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
-    stagedPath: "packages/zcode-cua-plugin",
-  },
-];
+const officialPluginPackages = BUILTIN_PLUGIN_ASSETS;
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
 // 在 zcode.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
 // 「先加载 dynamic-workflows 技能」而技能文件不存在，因此必须随 Agent 一起打包。
@@ -155,22 +91,7 @@ const bundledSkillPack = {
   stagedPath: "packages/bundled-skills",
   topLevelPaths: ["skills"],
 };
-const includedOfficialPluginTopLevelPaths = new Set([
-  ".mcp.json",
-  ".zcodium-plugin",
-  "README.md",
-  // Electron 生产资源复制有独立白名单，遗漏 agents 会让首启 filesystem seed 永久缺少子代理。
-  "agents",
-  "commands",
-  "dist",
-  "docs",
-  "hooks",
-  "output-styles",
-  "package.json",
-  "scripts",
-  "skills",
-  "templates",
-]);
+const includedOfficialPluginTopLevelPaths = new Set(BUILTIN_PLUGIN_TOP_LEVEL_PATHS);
 const excludedOfficialPluginAssetNames = new Set([
   ".DS_Store",
   ".venv",
@@ -263,7 +184,7 @@ function stageBundle() {
   stageAgentBundle({ repoRoot, platformKey });
 }
 
-function stageOfficialPlugins() {
+async function stageOfficialPlugins() {
   for (const plugin of officialPluginPackages) {
     const sourceRoot = resolve(repoRoot, plugin.relativePath);
     const manifestPath = resolve(sourceRoot, ".zcodium-plugin", "plugin.json");
@@ -281,6 +202,9 @@ function stageOfficialPlugins() {
         filter: shouldCopyOfficialPluginAsset,
       });
     }
+    if (plugin.directory === "node-repl-host") {
+      await stageCuaDriverRuntime(targetRoot, { platform, arch });
+    }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {
       const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
       if (!existsSync(stagedAssetPath)) {
@@ -291,6 +215,7 @@ function stageOfficialPlugins() {
     }
     console.log(`[prepare:agent-bundle] staged official plugin ${plugin.stagedPath}`);
   }
+  await validateBuiltinPluginAssets(resolve(glmDir, "packages"), { platform, arch });
 }
 
 async function stageBundledSkillPack() {
@@ -320,5 +245,5 @@ async function stageBundledSkillPack() {
 buildCliBundle();
 buildOfficialPluginRuntimes();
 stageBundle();
-stageOfficialPlugins();
+await stageOfficialPlugins();
 await stageBundledSkillPack();

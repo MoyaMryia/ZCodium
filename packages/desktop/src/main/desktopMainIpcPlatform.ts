@@ -57,7 +57,6 @@ import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
 import { registerCuaPipActiveSessionIpc } from "./desktopCuaPipIpc.js";
 
 export function registerPlatformIpcHandlers(options: {
-  fetchHelpConfig?: () => Promise<unknown>;
   logger: {
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
@@ -91,7 +90,6 @@ export function registerPlatformIpcHandlers(options: {
   /** 快捷键设置页录制态开关：true 时 main 重建菜单摘除可配置 accelerator */
   setShortcutRecordingActive?: (active: boolean, ownerWebContentsId?: number | null) => void;
   /** 桌面端设备标识符（基于 userData 路径的 SHA-256） */
-  deviceMid: string;
   /** CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。 */
   attachBrowserGuest?: AttachBrowserGuest;
   /** renderer 自由尺寸变化 → 当前窗口所属的受控 tab。 */
@@ -331,7 +329,6 @@ export function registerPlatformIpcHandlers(options: {
 
     const communityUrl = await resolveCommunityUrl({
       locale: result.data,
-      fetchRemoteConfig: options.fetchHelpConfig,
       logger: options.logger,
     });
 
@@ -384,7 +381,6 @@ export function registerPlatformIpcHandlers(options: {
     PlatformChannels.GetApplicationIcon,
     (_event, request: string | ApplicationIconRequest) => getApplicationIcon(request),
   );
-  ipcMain.handle(PlatformChannels.GetDeviceId, () => options.deviceMid);
   ipcMain.handle(PlatformChannels.ExportLogs, () => exportLogs());
   ipcMain.handle(PlatformChannels.CaptureWindowScreenshot, async (event) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);

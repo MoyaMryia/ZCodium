@@ -64,7 +64,7 @@ function isRemoteInsideWorkspace(workspacePath: string, targetPath: string): boo
 }
 
 /**
- * SSH/WSL/Docker 使用远端 fileService 完成 realpath/stat/range read；JWT 和 HTTP 上传仍留在 Desktop Host。
+ * SSH/WSL/Docker 使用用户连接的远端 fileService 完成 realpath/stat/range read；Desktop Host 生成本地归档。
  */
 export function createRemoteConversationShareArtifactSource(
   fileService: Pick<IFileService, "readFileRange" | "resolvePath" | "stat">,

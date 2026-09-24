@@ -2,6 +2,7 @@ import { cp, mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
+import { stageCuaDriverRuntimeFiles } from "../../../../../scripts/cua-driver-runtime-assets.mjs";
 
 const packageRoot = resolve(import.meta.dirname, "..");
 
@@ -35,8 +36,7 @@ const require = __zcodeCreateRequire(import.meta.url);`;
 //
 // 取值与 desktop 侧保持同一来源：CI 注入 ZCODE_CUA_HELPER_BUILD_ID env；dev 为空串走兜底
 // （dev Helper 不走下载/pin 校验）。见 packages/desktop/tsup.config.ts 同名 define 的注释。
-const resolveCuaHelperBuildId = (env = process.env) =>
-  env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "";
+const resolveCuaHelperBuildId = (env = process.env) => env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "";
 
 export const buildNodeReplHostBundle = async ({
   outfile = resolve(packageRoot, "dist", "mcp", "server.js"),
@@ -50,6 +50,7 @@ export const buildNodeReplHostBundle = async ({
       __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(cuaHelperBuildId),
     },
     entryPoints: [resolve(packageRoot, "src", "server.ts")],
+    external: ["@trycua/cua-driver"],
     format: "esm",
     legalComments: "none",
     outfile,
@@ -70,10 +71,18 @@ export const buildNodeReplHostBundle = async ({
   // 兼容层 GJS helper 是外部脚本（gjs 运行）与 Shell 扩展，不参与 esbuild 打包；
   // 但 helper-client 以 `new URL("./helper/cua-wayland-input.js", import.meta.url)` 定位它，
   // bundle 部署后 import.meta.url 指向 dist/mcp/server.js，所以必须整目录拷到 dist/mcp/helper/。
-  const cuaHelperDirSource = resolve(packageRoot, "../../../..", "packages", "zcode-cua", "compatible", "helper");
+  const cuaHelperDirSource = resolve(
+    packageRoot,
+    "../../../..",
+    "packages",
+    "zcode-cua",
+    "compatible",
+    "helper",
+  );
   const cuaHelperDirTarget = resolve(dirname(outfile), "helper");
   await mkdir(cuaHelperDirTarget, { recursive: true });
   await cp(cuaHelperDirSource, cuaHelperDirTarget, { recursive: true });
+  await stageCuaDriverRuntimeFiles(dirname(outfile));
   return { outfile, cuaHelperBuildId };
 };
 

@@ -31,7 +31,6 @@ import {
   serializeLaunchMarks,
   type RemoteTarget,
   type WorkspacePurpose,
-  ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
 } from "@zcode/shared";
 import { getMainLaunchPartialMarks } from "./desktopLaunchMarks.js";
 import { BroadcastHub } from "./broadcastHub.js";
@@ -52,7 +51,6 @@ import {
 import { ingestHostNetworkObservations } from "./desktopNetworkTelemetry.js";
 import { ingestCliResourceSample } from "./processResourceCliSource.js";
 import { ingestHostSelfResourceSample } from "./processResourceSelfHeapSource.js";
-import { createFeedbackLogArchiveFromExportLogs } from "./exportLogs.js";
 import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
 
 export interface WindowBootstrapOptions {
@@ -70,8 +68,6 @@ export interface HostInitMessage {
   hostId?: string;
   databaseStartupId?: string;
   deliveryKind?: TaskRealtimeHostDeliveryKind;
-  deviceMid?: string;
-  feedbackApiBase?: string;
   workspacePath?: string;
   workspaceIdentity?: string;
   agentWarmupTargets?: Array<{
@@ -154,8 +150,6 @@ export function spawnHostProcess(
   initMessage: HostInitMessage,
   dependencies: {
     hostProcessLocalEnv: Record<string, string>;
-    /** Main 进程已完成服务端灰度裁决；Host 只消费这个快照，不自行请求或分桶。 */
-    desktopContextPromptEnabled?: () => boolean;
     logger: {
       info: (...args: unknown[]) => void;
       warn: (...args: unknown[]) => void;
@@ -213,19 +207,8 @@ export function spawnHostProcess(
       error?: string;
       failureKind?: "transient" | "permanent";
     }) => void;
-    /** host → main：闲时任务派发结果，转交给 scheduler 结算（与 cron 独立）。 */
-    onOffPeakRunResult?: (result: {
-      offPeakTaskId: string;
-      ok: boolean;
-      conversationId?: string;
-      sessionId?: string;
-      error?: string;
-      failureKind?: "transient" | "permanent";
-    }) => void;
     /** host 中 manual run 落库后请求 main 立即唤醒 scheduler。 */
     onCronSchedulerWakeRequested?: (automationId: string) => void;
-    /** host 中闲时任务翻 schedulable 后请求 main 立即唤醒 scheduler。 */
-    onOffPeakSchedulerWakeRequested?: (offPeakTaskId?: string) => void;
     // browser-use：main 用 WebContentsView+CDP 执行一条命令。实现由宿主注入；缺省则 backend_unavailable。
     handleBrowserExecuteRequest?: (params: {
       win: BrowserWindow;
@@ -267,13 +250,6 @@ export function spawnHostProcess(
       // health-timing out. Env-name mirror of services' LAUNCHER_PID_ENV. Not set on
       // Windows/Linux (CUA is macOS-only; nothing reads it there) to keep the host env pristine.
       ...(process.platform === "darwin" ? { ZCODE_CUA_LAUNCHER_PID: String(process.pid) } : {}),
-      ...(dependencies.desktopContextPromptEnabled
-        ? {
-            [ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV]: dependencies.desktopContextPromptEnabled()
-              ? "1"
-              : "0",
-          }
-        : {}),
     },
   });
 
@@ -404,29 +380,6 @@ export function spawnHostProcess(
       return;
     }
 
-    if (result.data.type === HostResponseTypes.FeedbackLogArchiveRequest) {
-      const request = result.data;
-      void createFeedbackLogArchiveFromExportLogs(request.sourceDir)
-        .then((archive) => {
-          child.postMessage({
-            type: HostMessageTypes.FeedbackLogArchiveResult,
-            requestId: request.requestId,
-            ok: true,
-            path: archive.path,
-            size: archive.size,
-          });
-        })
-        .catch((error) => {
-          child.postMessage({
-            type: HostMessageTypes.FeedbackLogArchiveResult,
-            requestId: request.requestId,
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
-      return;
-    }
-
     if (result.data.type === HostResponseTypes.BrowserExecuteRequest) {
       // browser-use：main 用 WebContentsView+CDP 执行命令（handleBrowserExecuteRequest）。
       // 缺省实现时返回 backend_unavailable，保证通道打通但不阻塞。
@@ -519,25 +472,8 @@ export function spawnHostProcess(
       return;
     }
 
-    if (result.data.type === HostResponseTypes.OffPeakRunResult) {
-      dependencies.onOffPeakRunResult?.({
-        offPeakTaskId: result.data.offPeakTaskId,
-        ok: result.data.ok,
-        conversationId: result.data.conversationId,
-        sessionId: result.data.sessionId,
-        error: result.data.error,
-        failureKind: result.data.failureKind,
-      });
-      return;
-    }
-
     if (result.data.type === HostResponseTypes.CronSchedulerWakeRequest) {
       dependencies.onCronSchedulerWakeRequested?.(result.data.automationId);
-      return;
-    }
-
-    if (result.data.type === HostResponseTypes.OffPeakSchedulerWakeRequest) {
-      dependencies.onOffPeakSchedulerWakeRequested?.(result.data.offPeakTaskId);
       return;
     }
 
@@ -561,7 +497,6 @@ export function spawnHostProcess(
       });
       return;
     }
-
 
     if (result.data.type === HostResponseTypes.BotRemoteWorkspaceReconnectRequest) {
       const request = result.data;

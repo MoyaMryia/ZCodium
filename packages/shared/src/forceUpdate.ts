@@ -1,4 +1,6 @@
-import type { ForceUpdateConfig } from "./coding-plan-subscription.js";
+export interface ForceUpdateConfig {
+  minimalVersion: string;
+}
 
 export interface ForceUpdateRequirement {
   currentVersion: string;

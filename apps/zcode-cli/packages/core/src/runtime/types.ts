@@ -8,8 +8,6 @@ import type {
   CoordinatorResponsePort,
   ForkCommitBundle,
   ForkChildSessionMetadata,
-  ModelRequestAuth,
-  ModelRequestDependencies,
   ModelSelection,
   PluginReferenceCatalog,
   ResolvedUserInstructions,
@@ -18,7 +16,6 @@ import type {
   WorkspaceHookBundleSnapshot,
   WorkspaceId,
 } from "@zcode/contracts";
-import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
 import type {
@@ -69,7 +66,6 @@ import type {
   BrowserControlPort,
   ExecutionShellSelection,
   AutomationPort,
-  OffPeakPort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -312,7 +308,6 @@ export interface AgentRuntimeDeps {
   modelFactory: RuntimeModelFactory;
   /** 可选宿主能力：解析未来执行的显式意图；不用于修改已冻结 Model。 */
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
-  providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   permissionService?: PermissionService;
   permissionBroker?: PermissionBrokerPort;
   toolScheduler?: ToolScheduler;
@@ -360,7 +355,6 @@ export interface AgentRuntimeDeps {
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;
   logger?: Logger;
@@ -373,35 +367,9 @@ export interface AgentRuntimeDeps {
 
 export interface RuntimeModelFactoryInput {
   selection: ModelSelection;
-  /** 只绑定到本次创建的 Model，不进入公共 ModelRequest 或 Session 持久化。 */
-  requestDependencies?: ModelRequestDependencies;
 }
 
 export type RuntimeModelFactory = (input: RuntimeModelFactoryInput) => Model;
-
-/**
- * 面向协议客户端的 provider runtime headers 端口。
- *
- * 入参的 sessionId 必须能路由到客户端持有的会话。child runtime 的账本身份不能
- * 直接用于客户端请求，否则客户端无法找到会话并返回响应，首个模型请求会一直等待。
- * 子 runtime 通过 deriveChildClientPorts 派生端口，将请求路由到父端口绑定的客户端会话。
- */
-export interface ProviderRuntimeHeadersPort {
-  shouldRefreshBeforeModelRequest?(input: { providerId: string; modelId: string }): boolean;
-  refreshBeforeModelRequest(input: {
-    accountAccess?: ZCodeProviderAccountAccess;
-    abortSignal?: AbortSignal;
-    modelId: string;
-    providerId: string;
-    reason: "model-request";
-    sessionId: SessionId;
-    traceContext: TraceContext;
-    turnId?: TurnId;
-  }): Promise<{
-    headersApplied: boolean;
-    requestAuth?: ModelRequestAuth;
-  }>;
-}
 
 export interface TurnResult {
   response: string;
@@ -420,7 +388,6 @@ export interface ModelExecutionContext {
   /** 仅当前 Turn 跳过自动 Project Memory Extraction；不修改 Session Memory 配置。 */
   memoryExtraction?: "skip";
   selectionScope: "execution";
-  requestDependencies?: ModelRequestDependencies;
   subagents?: {
     foregroundModel: "submission";
     background: "deny";
@@ -721,7 +688,6 @@ export interface PermissionDecisionResult {
 
 export interface ExecuteToolsOptions {
   automationTurn?: boolean;
-  offPeakTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;
   /** 仅透传给当前 turn 同步等待的 Agent child。 */

@@ -18,8 +18,6 @@ export const zhCN: ZCodeCopy = {
   app-server 运行 ZCode Protocol stdio app server
   commands   列出自定义 slash commands（\`commands list\`）
   doctor     检查运行时和打包假设
-  login [zai|bigmodel]  通过浏览器授权登录
-  logout     删除共享的 Z.AI 登录凭据
   plugins    管理插件与市场（\`plugins list|install|uninstall|enable|disable|update|validate|marketplace ...\`；别名 plugin）
   skills     列出本地 skills（\`skills list\`）
   tui        打开终端 UI
@@ -48,14 +46,11 @@ export const zhCN: ZCodeCopy = {
   --target-replace 替换 --target 已存在的 goal
   -c, --continue        恢复当前目录最近的 session
   --json           在支持的命令中输出机器可读 JSON
-  --no-browser     不打开浏览器，只打印 OAuth URL
   --no-color       禁用 ANSI 颜色
   --verbose        打印更多诊断信息
 
 Slash Commands:
   /help [command]       显示 slash command 帮助
-  /login                使用 Z.AI OAuth 登录
-  /logout               删除共享的 Z.AI 登录凭据
   /compact [instructions]  压缩当前对话
   /expert [status|resume|stop|<task>]  运行或管理 expert workflow
   /dwf [list|cancel|resume]  列出、取消或恢复 dynamic workflow run
@@ -95,58 +90,13 @@ Slash Commands:
       restorePreviousInputFailed: "无法恢复上一条输入。",
       typePrompt: "输入问题后按 Enter。",
     },
-    loginRequired: {
-      help: "输入 /model 查看模型，或输入 /login 连接 Coding Plan 账号。",
-      message: "没有可用模型，请配置 Provider 或输入 /login 登录。",
-      status: "没有可用模型，请配置 Provider 或输入 /login 登录。",
+    retiredAccountCommand:
+      "账号登录已移除。请在 provider_config.json 中配置服务商，然后使用 /model。",
+    modelSetupRequired: {
+      help: "在 provider_config.json 中配置服务商，然后使用 /model 选择模型。",
+      message: "没有可用模型，请配置服务商后继续。",
+      status: "没有可用模型，请配置服务商后继续。",
       title: "需要配置模型",
-    },
-    loginSetup: {
-      emptyMessage: "没有可用的登录选项。",
-      help: "使用 Up/Down 选择，Enter 确认。",
-      options: {
-        bigmodelApiKey: {
-          inputPrimary: "输入 BigModel Coding Plan API Key",
-          inputSecondary: "在这里粘贴 key，输入时会隐藏显示。",
-          primary: "BigModel Coding Plan API Key",
-          secondary: "手动粘贴 Coding Plan API key。",
-        },
-        bigmodelOauth: {
-          pendingPrimary: "等待 BigModel 授权",
-          pendingSecondary: "请在浏览器里完成登录，授权成功后会自动继续配置。",
-          primary: "BigModel Coding Plan",
-          secondary: "打开浏览器登录，CLI 会自动查询授权结果。",
-        },
-        zaiApiKey: {
-          inputPrimary: "输入 Z.AI Coding Plan API Key",
-          inputSecondary: "在这里粘贴 key，输入时会隐藏显示。",
-          primary: "Z.AI Coding Plan API Key",
-          secondary: "手动粘贴 Coding Plan API key。",
-        },
-        zaiOauth: {
-          pendingPrimary: "等待 Z.AI 授权",
-          pendingSecondary: "请在浏览器里完成登录。授权完成后会继续配置。",
-          primary: "Z.AI Coding Plan",
-          secondary: "打开浏览器登录，并创建 Coding Plan API key。",
-        },
-      },
-      pending: {
-        cancelStatus: "已取消登录。请选择配置方式。",
-        help: "按 Esc 取消，并返回配置方式选择。",
-        status: "正在等待浏览器授权...",
-      },
-      input: {
-        cancelStatus: "已取消 API key 输入。请选择配置方式。",
-        clearStatus: "已清空 API key 输入。",
-        emptyStatus: "API key 不能为空。",
-        help: "按 Enter 保存 key，按 Esc 返回配置方式选择。",
-        placeholder: "粘贴 API key",
-        status: "输入 API key 后按 Enter。",
-        submitStatus: "正在保存 API key...",
-      },
-      prompt: "选择登录或 API key 配置方式。",
-      response: "选择 Coding Plan 提供商的配置方式。",
-      title: "配置 Coding Plan",
     },
     model: {
       requestFailed: (message) => `模型请求失败：${message}`,

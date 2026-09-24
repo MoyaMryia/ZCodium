@@ -1,8 +1,12 @@
+import {
+  BUILTIN_PLUGIN_SEED_PATHS,
+  CUA_RUNTIME_MODULES_PATH,
+  cuaRuntimeRequiredPaths,
+} from "@zcode/shared/builtin-plugin-assets";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
 
-// 内置插件的商店信息 seed（原样写入官方 marketplace.json 的条目 raw，键名与 CDN 目录
-// schema 一致：displayName_i18n / examplePrompts_i18n 等），解析复用 adapter 的
-// parseEntryStoreListing。icon 指向官方 assets CDN；请求失败时 UI 会安全降级为默认图标。
+// 内置插件的商店信息随包 seed，解析复用 adapter 的 parseEntryStoreListing。
+// 图标由客户端按稳定插件 ID 提供本地资源，不在目录里携带远程图片。
 export interface OfficialPluginListingSeed {
   displayName?: string;
   displayName_i18n?: Record<string, string>;
@@ -51,127 +55,25 @@ export interface OfficialPluginDefinition {
   rootCandidates: readonly string[];
   /** Extra top-level paths intentionally staged as plugin runtime assets. */
   runtimeTopLevelPaths?: readonly string[];
+  /** Generated dependency subtrees; never arbitrary workspace node_modules. */
+  runtimeSubtrees?: readonly string[];
   version: string;
 }
 
-const ZCODIUM_AUTHOR = { name: "ZCodium", url: "https://zcode.z.ai" } as const;
+const ZCODIUM_AUTHOR = { name: "ZCodium", url: "https://github.com/axiom-desu/ZCodium" } as const;
 // superpowers 内容版权归上游作者，listing 的 author 必须写真名而不是 Z.ai。
 const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obra" } as const;
-const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
-const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
-
-export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
-  "docs/api.json",
-  "docs/documents.json",
-  "docs/overview.md",
-  // documents.json 已注册 recording lookup；若不强制校验正文，会 seed 出无法读取录屏指南的残缺插件。
-  "docs/recording.md",
-  "docs/workflow.md",
-  "scripts/browser-client.mjs",
-  "skills/control-browser/SKILL.md",
-  "skills/web-gui-tester/SKILL.md",
-]
-
-export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = [
-  // 三个 brief 是 SKILL.md 路由表的目的地；scripts/ 是渲染与表单能力的执行体，
-  // convert_pdf_to_images.py 同时是 visual-judge 工作流的渲染门。缺任一项都会装出
-  // 「看得见技能、调不到脚本」的残缺插件。
-  "agents/visual-judge.md",
-  "skills/pdf/SKILL.md",
-  "skills/pdf/briefs/report.md",
-  "skills/pdf/briefs/resume.md",
-  "skills/pdf/briefs/poster.md",
-  "skills/pdf/scripts/convert_pdf_to_images.py",
-  "skills/pdf/scripts/create_validation_image.py",
-  "skills/pdf/scripts/check_fillable_fields.py",
-  "skills/pdf/scripts/extract_form_field_info.py",
-  "skills/pdf/scripts/fill_fillable_fields.py",
-  "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
-  "skills/pdf/scripts/check_bounding_boxes.py",
-  "skills/pdf/scripts/check_bounding_boxes_test.py",
-  // pdf_qa 家族是质量门，五个模块互相导入；只 seed pdf_qa.py 会让门在首次 import 就死。
-  "skills/pdf/scripts/pdf_qa.py",
-  "skills/pdf/scripts/pdf_qa_document.py",
-  "skills/pdf/scripts/pdf_qa_text.py",
-  "skills/pdf/scripts/pdf_qa_checks.py",
-  "skills/pdf/scripts/pdf_qa_colors.py",
-  "skills/pdf/scripts/html2pdf.py",
-  "skills/pdf/scripts/html2pdf_render.py",
-  "skills/pdf/scripts/cover_render.py",
-  "skills/pdf/scripts/toc_validate.py",
-  "skills/pdf/scripts/toc_validate_document.py",
-] as const;
-
-export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = [
-  // 脚本与模板是技能正文描述的能力的执行体；routes/references 是 SKILL.md 的下一步
-  // 阅读路径。缺任一项都会装出「看得见技能、读不到参考」的残缺插件。
-  "agents/visual-judge.md",
-  "skills/docx/SKILL.md",
-  "skills/docx/scripts/__init__.py",
-  "skills/docx/scripts/document.py",
-  "skills/docx/scripts/utilities.py",
-  "skills/docx/scripts/packing.py",
-  "skills/docx/scripts/identifiers.py",
-  "skills/docx/scripts/docx_editor.py",
-  "skills/docx/scripts/tracked_changes.py",
-  "skills/docx/scripts/comments.py",
-  "skills/docx/scripts/postcheck.py",
-  "skills/docx/scripts/postcheck_document.py",
-  "skills/docx/scripts/postcheck_rules.py",
-  "skills/docx/scripts/fix_footer_fields.py",
-  "skills/docx/scripts/add_toc_placeholders.py",
-  "skills/docx/scripts/templates/comments.xml",
-  "skills/docx/scripts/templates/commentsExtended.xml",
-  "skills/docx/scripts/templates/commentsExtensible.xml",
-  "skills/docx/scripts/templates/commentsIds.xml",
-  "skills/docx/scripts/templates/people.xml",
-  "skills/docx/setup.sh",
-  "skills/docx/routes/create.md",
-  "skills/docx/routes/read.md",
-  "skills/docx/routes/comment.md",
-  "skills/docx/routes/edit.md",
-  "skills/docx/routes/format.md",
-  "skills/docx/references/python-api.md",
-  "skills/docx/references/toc.md",
-  "skills/docx/env_setup/setup.md",
-  "skills/docx/env_setup/env_check.sh",
-  "skills/docx/scenes/academic.md",
-  "skills/docx/scenes/contract.md",
-  "skills/docx/scenes/copywriting.md",
-  "skills/docx/scenes/exam.md",
-  "skills/docx/scenes/official-doc.md",
-  "skills/docx/scenes/report.md",
-  "skills/docx/scenes/resume.md",
-  "skills/docx/references/chart-templates.md",
-  "skills/docx/references/common-rules.md",
-  "skills/docx/references/decorations.md",
-  "skills/docx/references/design-system.md",
-  "skills/docx/references/faq.md",
-  "skills/docx/references/math-formulas.md",
-  "skills/docx/references/xmleditor-api.md",
-] as const;
-
-const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  "docs/computer-use.md",
-  // SDK 入口及其四个依赖模块。entry 单独 import 它们，少任何一个都会得到
-  // 一个看得见 computer-use 却在第一次调用时 ERR_MODULE_NOT_FOUND 的插件。
-  "scripts/computer-use-client.mjs",
-  "scripts/computer-use-errors.mjs",
-  "scripts/computer-use-envelope.mjs",
-  "scripts/computer-use-keys.mjs",
-  "scripts/computer-use-target.mjs",
-  "skills/computer-use/SKILL.md",
-] as const;
-
-// zcode-guide 原本没有 requiredSeedPaths，seed 丢文件时会静默装出一个
-// 没有 /workflow 命令的插件——症状是命令不存在，没有任何诊断。commands/ 与技能正文都钉住。
-const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = [
-  "commands/workflow.md",
-  "skills/dynamic-workflows/SKILL.md",
-  "skills/dynamic-workflows/examples.md",
-  "skills/dynamic-workflows/patterns.md",
-] as const;
+export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS =
+  BUILTIN_PLUGIN_SEED_PATHS["browser-use-plugin"];
+const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = [
+  ...BUILTIN_PLUGIN_SEED_PATHS["node-repl-host"],
+  ...cuaRuntimeRequiredPaths(process.platform, process.arch),
+];
+export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["documents-plugin"];
+export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["pdf-plugin"];
+const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-guide-plugin"];
+const OFFICIAL_CUA_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-cua-plugin"];
 
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
@@ -183,6 +85,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 进模型工具池由两个能力插件的启停决定，Helper 由 SDK 首次调用时才拉起。
     defaultEnabled: true,
     name: OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME,
+    runtimeSubtrees: [CUA_RUNTIME_MODULES_PATH],
     requiredSeedPaths: OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS,
     rootCandidates: [
       "packages/node-repl-host",
@@ -198,7 +101,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "developer-tools",
       displayName: "Android Emulator",
       displayName_i18n: { "zh-CN": "Android 模拟器" },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/android-emulator/icon.png`,
       description_i18n: {
         "zh-CN": "提供 Android 开发工作流与模拟器自动化能力。",
       },
@@ -222,7 +124,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "productivity",
       displayName: "Browser Use",
       displayName_i18n: { "zh-CN": "浏览器操作" },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/browser-use/icon.png`,
       description_i18n: {
         "zh-CN": "操作 ZCode 内置浏览器，检查网页并验证交互。",
       },
@@ -257,31 +158,10 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
         category: "productivity",
         displayName,
         displayName_i18n: { "zh-CN": chineseName },
-        // 复用已发布的文档图标，拆分插件无需依赖新 CDN 资源。
-        icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/document-skills/icon.png`,
         description_i18n: { "zh-CN": `创建、编辑与审阅${chineseName}（${skill.toUpperCase()}）。` },
       },
       name,
-      // documents 的 Python 脚本是技能正文描述的全部能力的执行体；只列两个 markdown
-      // 能让校验通过，却挡不住拷贝被截断，最终装出看得见 docx 技能却 import 不到
-      // document.py 的残缺插件。与 OFFICIAL_CUA_REQUIRED_SEED_PATHS 扩项同理。
-      requiredSeedPaths:
-        name === "documents"
-          ? OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS
-          : // pdf 的 Phase 1 只有技能与三个 brief，没有 scripts/。brief 是 SKILL.md
-            // 路由表的目的地，缺任一即"看得见技能、读不到 brief"；scripts 落地后必须
-            // 同步扩项，否则会装出技能描述了却调不到的残缺插件。
-            name === "pdf"
-            ? OFFICIAL_PDF_REQUIRED_SEED_PATHS
-            : // recalc.py 是 SKILL.md「Recalculating formulas」章节的唯一执行体，
-            // openpyxl 读取与 soffice 重算都走它；漏掉就是看得见技能、调不到脚本。
-            name === "spreadsheets"
-            ? [
-                "agents/visual-judge.md",
-                "skills/xlsx/SKILL.md",
-                "skills/xlsx/scripts/recalc.py",
-              ]
-            : ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
+      requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS[`${name}-plugin`],
       rootCandidates: [
         `packages/${name}-plugin`,
         `../${name}-plugin`,
@@ -292,24 +172,24 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     }),
   ),
   {
-    // 沿用原聚合文档插件的官方搜图能力，仅拆出独立开关；认证仍由官方 MCP adapter 注入。
-    defaultEnabled: true,
+    // 用户先配置自己的 MCP 服务再启用，空配置不能在每个新会话反复报错。
+    defaultEnabled: false,
     listing: {
       author: ZCODIUM_AUTHOR,
       category: "productivity",
       displayName: "Image Search",
       displayName_i18n: { "zh-CN": "搜图" },
-      description_i18n: { "zh-CN": "查找插图与参考配图。" },
+      description_i18n: { "zh-CN": "连接你配置的网络搜图 MCP 服务。" },
     },
     name: "image-search",
-    requiredSeedPaths: [".mcp.json"],
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["image-search-plugin"],
     rootCandidates: [
       "packages/image-search-plugin",
       "../image-search-plugin",
       "../../image-search-plugin",
       "../../../image-search-plugin",
     ],
-    version: "0.1.1",
+    version: "0.2.0",
   },
   {
     listing: {
@@ -317,7 +197,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "developer-tools",
       displayName: "iOS Simulator",
       displayName_i18n: { "zh-CN": "iOS 模拟器" },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/ios-simulator/icon.png`,
       description_i18n: {
         "zh-CN": "提供 iOS 开发工作流与模拟器自动化能力。",
       },
@@ -337,7 +216,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "utilities",
       displayName: "Restore Legacy Sessions",
       displayName_i18n: { "zh-CN": "恢复旧版会话" },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/restore-legacy-sessions/icon.png`,
       description_i18n: {
         "zh-CN": "将旧版会话恢复为 ZCode 任务与会话记录。",
       },
@@ -371,16 +249,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../plugin-creator-plugin",
       "../../../plugin-creator-plugin",
     ],
-    requiredSeedPaths: [
-      "skills/plugin-creator/SKILL.md",
-      "skills/plugin-creator/scripts/create-basic-plugin.mjs",
-      "skills/plugin-creator/scripts/marketplace-files.mjs",
-      "skills/plugin-creator/scripts/upsert-dev-marketplace.mjs",
-      "skills/plugin-creator/scripts/scaffold-files.mjs",
-      "skills/plugin-creator/scripts/validate-plugin.mjs",
-      "skills/plugin-creator/references/plugin-json-spec.md",
-      "skills/plugin-creator/references/installing-and-updating.md",
-    ],
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["plugin-creator-plugin"],
   },
   {
     defaultEnabled: true,
@@ -389,7 +258,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "utilities",
       displayName: "Skill Creator",
       displayName_i18n: { "zh-CN": "技能创建器" },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/skill-creator/icon.png`,
       description_i18n: { "zh-CN": "创建、编辑和验证可复用的 ZCode 技能。" },
     },
     name: "skill-creator",
@@ -410,7 +278,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "utilities",
       displayName: "ZCode Guide",
       displayName_i18n: { "zh-CN": "ZCode 使用指南" },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/zcode-guide/icon.png`,
       description_i18n: {
         "zh-CN": "提供 ZCode 配置指南与插件、技能、MCP、命令和钩子诊断。",
       },
@@ -454,8 +321,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       description_i18n: {
         "zh-CN": "自动化桌面应用：智能体驱动鼠标、键盘与界面元素，代你完成实际任务。",
       },
-      // 插件更名为 computer-use 后，CDN 图标仍发布在 zcode-cua 目录；沿用资源路径避免 404。
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/zcode-cua/icon.png`,
     },
     rootCandidates: [
       "packages/zcode-cua-plugin",
@@ -479,8 +344,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       category: "developer-tools",
       displayName: "Superpowers",
       description_i18n: {
-        "zh-CN":
-          "Superpowers 方法论：头脑风暴、计划、测试驱动开发、系统化调试与代码评审。",
+        "zh-CN": "Superpowers 方法论：头脑风暴、计划、测试驱动开发、系统化调试与代码评审。",
       },
     },
     name: "superpowers",

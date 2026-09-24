@@ -16,7 +16,8 @@ import {
   type Logger,
   type ModelId,
   type ModelProviderId,
-  type ModelRequestAuth,
+  ModelErrorCode,
+  ModelProtocolError,
 } from "@zcode/contracts";
 import type { RegistryProviderConfig } from "@zcode/provider";
 import { withOpenRouterAttributionHeaders } from "@zcode/shared";
@@ -24,7 +25,6 @@ import { createAnthropicCompatFetch } from "./anthropic-stream-compat.js";
 import { createOpenAIResponsesJsonCompatFetch } from "./openai-responses-json-compat.js";
 import { createModelOptionMapFetch, type RawRequestBodyCapture } from "./model-option-map-fetch.js";
 import { createNetworkProxyFetch } from "../network/proxy-fetch.js";
-import { createOfficialCodingPlanGatewayFetch } from "./official-coding-plan-gateway.js";
 import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
 
@@ -73,10 +73,7 @@ export interface AiSdkResolvedModel {
 
 export interface AiSdkBoundModelResolution {
   readonly resolved: AiSdkResolvedModel;
-  resolveRequest(input: {
-    readonly options: ModelOptionValues;
-    readonly requestAuth?: ModelRequestAuth;
-  }): AiSdkResolvedModel;
+  resolveRequest(input: { readonly options: ModelOptionValues }): AiSdkResolvedModel;
 }
 
 type LanguageModelFactory = (modelId: string) => LanguageModel;
@@ -187,9 +184,8 @@ export class AiSdkModelExecution {
     const optionMaps = compileModelOptionMaps(input.optionSpecs);
     return {
       // 这里只构造不执行请求的基础 Model；真正请求必须通过 resolveRequest 绑定完整 options。
-      resolved: this.resolveSnapshot(snapshot, undefined, undefined, undefined),
-      resolveRequest: ({ options, requestAuth }) =>
-        this.resolveSnapshot(snapshot, requestAuth, optionMaps, options),
+      resolved: this.resolveSnapshot(snapshot, undefined, undefined),
+      resolveRequest: ({ options }) => this.resolveSnapshot(snapshot, optionMaps, options),
     };
   }
 
@@ -199,6 +195,14 @@ export class AiSdkModelExecution {
     readonly providerConfig: RegistryProviderConfig;
     readonly supportsJsonSchemaOutput: boolean;
   }): AiSdkModelSnapshot {
+    // 官方账号执行链已退休：在构造 SDK/transport 之前拒绝，不能退化为匿名请求，
+    // 也不能通过旧调用方注入的票据重新启用。显式 API provider 不受此限制。
+    if (input.providerConfig.access.type === "zhipu-account") {
+      throw new ModelProtocolError(
+        ModelErrorCode.ModelRequestAuthMissing,
+        "Official account models are no longer supported. Configure an API provider.",
+      );
+    }
     const configuredProvider = toAiSdkProviderConfig(input.providerId, input.providerConfig);
     // 重构后模型 SDK 曾只接到用户 Header，漏掉版本和站点归因；在公共绑定边界恢复，
     // 不依赖签名成功，不给各业务重复补头，也不修改 Provider 或已绑定 Model 的配置。
@@ -224,11 +228,10 @@ export class AiSdkModelExecution {
 
   private resolveSnapshot(
     snapshot: AiSdkModelSnapshot,
-    requestAuth: ModelRequestAuth | undefined,
     optionMaps: CompiledModelOptionMaps | undefined,
     optionValues: ModelOptionValues | undefined,
   ): AiSdkResolvedModel {
-    const providerConfig = applyModelRequestAuth(snapshot.providerConfig, requestAuth);
+    const providerConfig = snapshot.providerConfig;
     // Model 创建时的 Provider 事实必须被冻结在当前 binding 中。若按 providerId 缓存
     // factory，配置更新后创建的新 Model 会错误复用旧 Endpoint / Header / API Key。
     const rawRequestBodyCapture: RawRequestBodyCapture = {};
@@ -326,9 +329,8 @@ export class AiSdkModelExecution {
     if (current) {
       return current;
     }
-    // 官方 Coding Plan 端点先替换为平台网关端点，再进入用户 HTTP 代理 fetch，
-    // httpProxy / noProxy 按实际发送地址判定。
-    const transport = createProviderTransportFetch({
+    // 用户配置的模型地址必须保持原样；代理与证书策略直接作用于该地址，不能隐式改走官方网关。
+    const transport = createProviderProxyFetch({
       caCertFile: this.network.caCertFile,
       env: this.env,
       fetch: this.baseTransport,
@@ -369,20 +371,6 @@ function toAiSdkProviderConfig(
       return { kind: "openai-compatible", name: providerId, ...common };
   }
   throw new Error(`Unsupported Provider API type: ${String(config.api.type)}`);
-}
-
-function applyModelRequestAuth(
-  providerConfig: AiSdkProviderConfig,
-  requestAuth: ModelRequestAuth | undefined,
-): AiSdkProviderConfig {
-  if (!requestAuth) return providerConfig;
-  return {
-    ...providerConfig,
-    ...(requestAuth.apiKey ? { apiKey: requestAuth.apiKey } : {}),
-    ...(requestAuth.headers
-      ? { headers: mergeModelRequestHeaders(providerConfig.headers, requestAuth.headers) }
-      : {}),
-  };
 }
 
 function withAnthropicAuthorizationHeader(
@@ -506,18 +494,6 @@ function createProviderProxyFetch(options: ProviderProxyFetchOptions): ProviderF
   // Node 的 global fetch 不会自动读取 HTTP_PROXY/http_proxy。
   // 模型 provider 和 MCP HTTP transport 都复用同一层 proxy-aware fetch，避免多套出口规则漂移。
   return createNetworkProxyFetch(options);
-}
-
-/**
- * 模型请求出口：官方 Coding Plan 端点经 ZCode 平台网关发送（做套餐权益校验等平台侧处理），
- * 其余 provider 直连；之后统一进入用户 HTTP 代理 fetch，httpProxy / noProxy 按实际发送地址判定。
- * 官方端点与网关端点的对应关系见 official-coding-plan-gateway.ts。
- */
-function createProviderTransportFetch(options: ProviderProxyFetchOptions): ProviderFetch {
-  return createOfficialCodingPlanGatewayFetch({
-    env: options.env,
-    fetch: createProviderProxyFetch(options),
-  });
 }
 
 async function detectProviderBusinessError(

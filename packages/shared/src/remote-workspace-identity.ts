@@ -12,6 +12,9 @@
 // identity）需要还原出真实 workspacePath 作为会话 workingDirectory。
 import type { RemoteTarget } from "./remoteTarget.js";
 
+/** Agent 子进程沿用 Host 的 workspace identity，不能按同路径合并远端环境。 */
+export const ZCODE_WORKSPACE_IDENTITY_ENV = "ZCODE_WORKSPACE_IDENTITY";
+
 export type RemoteWorkspaceIdentityKind = "ssh" | "wsl" | "docker";
 
 export interface ParsedRemoteWorkspaceIdentity {

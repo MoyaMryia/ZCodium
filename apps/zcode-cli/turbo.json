@@ -77,6 +77,11 @@
       "outputs": ["dist/**"],
       "cache": true,
       "env": ["ZCODE_ENV", "ZCODE_BUILTIN_PROVIDER_CONFIG_FILE", "NODE_ENV"]
+    },
+    "@zcode/node-repl-host#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "cache": false
     }
   }
 }

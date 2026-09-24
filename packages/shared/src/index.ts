@@ -40,7 +40,6 @@ export { DEFAULT_LOCALE } from "./protocol.js";
 export { ZCODE_VERSION, ZCODE_COMMIT, ZCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
 export type { ZCodeEnv, ZCodeProductFlavor } from "./env.js";
-export type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 export type {
   RemoteResourcePackageId,
   RemoteResourcePackageSelection,
@@ -95,16 +94,15 @@ export * from "./remote-workspace-identity.js";
 export * from "./zcode-api-retry-status.js";
 export * from "./zcode-network-debug-status.js";
 export * from "./zcode-session-visible-content.js";
-export * from "./official-mcp-auth.js";
 export * from "./official-mcp-tool-error.js";
 export * from "./conversation-message-projection-policy.js";
 export * from "./conversation-share.js";
+export * from "./conversation-archive.js";
 export * from "./conversation-preview-artifacts.js";
 export * from "./zcode-session-task-status.js";
 export * from "./zcode-tool-projection-memory.js";
 export * from "./zcode-slash-command-help.js";
 export * from "./zcodeEndpoint.js";
-export * from "./zcode-source-headers.js";
 export * from "./zcode-agent-policy.js";
 export * from "./zcode-media-policy.js";
 export * from "./media-preview.js";
@@ -128,11 +126,9 @@ export * from "./channels.js";
 export * from "./storage.js";
 export * from "./oauth.js";
 export * from "./desktopMenu.js";
-export * from "./feedback.js";
 export * from "./e2e-test-bridge.js";
 export * from "./remoteAppConfig.js";
 export * from "./helpAppConfig.js";
-export * from "./remoteAssetInstallMode.js";
 export * from "./onboardingRecord.js";
 export * from "./remoteResourcePackages.js";
 export * from "./plan-identity.js";
@@ -169,6 +165,7 @@ export type {
   ConnectRemoteRequest,
   CreateTempTextAttachmentRequest,
   CreateTempTextAttachmentResult,
+  SelectedFileData,
   SaveFileRequest,
   SaveFileResult,
   PrintPageToPdfResult,
@@ -255,7 +252,6 @@ export * from "./permission-request-preview.js";
 export * from "./settings-sync.js";
 export * from "./uuid.js";
 export * from "./usage-stats.js";
-export * from "./coding-plan-subscription.js";
 export * from "./forceUpdate.js";
 export * from "./intranetProbe.js";
 export * from "./intranetDefaults.js";
@@ -281,7 +277,6 @@ export * from "./pluginStoreOrder.js";
 export * from "./clientConfig.js";
 export * from "./pluginStoreOrdering.js";
 export * from "./session-debug.js";
-export { redactFeedbackText } from "./feedbackPrivacy.js";
 
 export * from "./processResourceTelemetry.js";
 export * from "./longTaskAttributionSummary.js";

@@ -512,9 +512,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     };
 
     const modelExecutionConfig = createRuntimeAiSdkModelExecutionConfig(options.env, {
-      appVersion,
       network: configResult.config.network,
-      sourceTitle: options.sourceTitle,
     });
     const modelAdapter =
       options.modelAdapter ??
@@ -742,7 +740,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       mcpPort,
       eventSink: options.eventSink,
       modelFactory,
-      providerRuntimeHeadersPort: options.providerRuntimeHeadersPort,
       resolveEffectiveModelSelection: options.resolveEffectiveModelSelection,
       isRemoteWorkspace: () =>
         isRemoteWorkspaceIdentity(runtimeConfig.memory?.workspaceIdentity ?? ""),
@@ -753,7 +750,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       dynamicWorkflowSnippetPort,
       modelCatalogPort,
       automationPort: options.automationPort,
-      offPeakPort: options.offPeakPort,
       appVersion,
       traceContext,
     });

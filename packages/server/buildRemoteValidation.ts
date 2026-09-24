@@ -5,7 +5,14 @@ export interface RemoteServerBundleValidationInput {
 
 const unresolvedUndiciRuntimeImportPattern = /\b(?:require|import)\d*\(["']undici["']\)/;
 
-export function validateRemoteServerBundle({ source }: RemoteServerBundleValidationInput): void {
+export function validateRemoteServerBundle({
+  source,
+  bundledInputs,
+}: RemoteServerBundleValidationInput): void {
+  // JS 和原生 addon 必须同源；拒绝再次把另一个 node-pty 版本混入远端包。
+  if (bundledInputs.some((path) => /(?:^|[/\\])node-pty[/\\]lib[/\\]/.test(path))) {
+    throw new Error("Remote server must use the dedicated @lydell/node-pty-linux-x64 JS runtime");
+  }
   const hasUnresolvedUndiciRuntimeImport = unresolvedUndiciRuntimeImportPattern.test(source);
 
   if (hasUnresolvedUndiciRuntimeImport) {

@@ -182,7 +182,6 @@ interface InitAutoUpdaterOptions {
   settingService?: SettingServiceLike;
   locale?: Locale;
   updateFeedSource?: RuntimeUpdateFeedSource;
-  deviceMid?: string;
   resolveEndpointOrigin?: () => string | Promise<string>;
 }
 
@@ -830,7 +829,6 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
     endpointOrigin: ZCODIUM_UPDATE_ORIGIN || DEFAULT_ZCODE_ENDPOINT_ORIGIN,
     ...(manifestUrl ? { manifestUrl } : {}),
     releasePlatform: getElectronReleasePlatform(),
-    deviceMid: options.deviceMid,
     // 自有更新源优先于调用方的端点解析：resolveCurrentZCodeEndpointOrigin 读的是
     // ZCODE_BASE_URL / settings.zcodeEndpointOrigin，其缺省值是上游地址，不能让它决定更新源。
     resolveEndpointOrigin: () =>

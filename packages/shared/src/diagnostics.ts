@@ -53,7 +53,6 @@ export const DiagnosticMetricSchema = z.enum([
   "sequence",
   "rendererPrepareMs",
   "hostPrepareMs",
-  "providerRegistrySyncMs",
   "taskMetaReadMs",
   "cliRequestMs",
   "cliBootstrapMs",

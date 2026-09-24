@@ -2,12 +2,11 @@ import { join } from "node:path";
 import { access } from "node:fs/promises";
 import type { StdioStream } from "@zcode/server/remote/backend.js";
 import { quotePosixPathArg } from "@zcode/server/remote/posixShell.js";
-import type { RemoteAssetNetworkPort } from "@zcode/server/remote/remoteAssetNetwork.js";
 
 export const REMOTE_BASE = "~/.zcodium/server";
 
 export interface RemoteAssetDeployOptions {
-  /** 取消当前连接初始化；共享 cache 仍可独立完成，但不得继续写入远端 staging。 */
+  /** 取消当前连接初始化；不得继续写入远端 staging。 */
   signal?: AbortSignal;
   releaseDir?: string | null;
   resolveReleaseDir?: (
@@ -15,11 +14,7 @@ export interface RemoteAssetDeployOptions {
     options?: { forceRefresh?: boolean },
   ) => Promise<string | null>;
   resolveComponentSha256?: (componentId: string) => Promise<string | null>;
-  remoteCdnBaseUrl?: string;
-  remoteCdnBaseUrls?: string[];
-  remoteCacheDir?: string;
-  manifestRequestTimeoutMs?: number;
-  remoteAssetNetwork?: RemoteAssetNetworkPort;
+  resolveComponentVersion?: (componentId: string) => Promise<string | null>;
 }
 
 export interface DeployLoggers {
@@ -76,16 +71,11 @@ export function buildRemoteExecutableReplaceCommand(
 
 export function createRemoteAssetPlaceholderError(
   platformArch: string,
-  options: RemoteAssetDeployOptions,
+  _options: RemoteAssetDeployOptions,
   resourceLabel: string,
 ): Error {
-  // 远端部署资源在生产态需要走 CDN + 本地缓存。
-  // 如果这里仍然只报“本地文件缺失”，排障时会误判成打包漏文件；
-  // 统一把错误指向配置（CDN 基址/缓存目录）和缓存内容，避免定位方向跑偏。
   return new Error(
-    `[deploy] ${resourceLabel} missing for ${platformArch}. ` +
-      `Development should read from mock-cdn/releases; production should download and cache remote assets from CDN ` +
-      `(remoteCdnBaseUrl=${formatOptionalValue(options.remoteCdnBaseUrl)}, remoteCdnBaseUrls=${formatOptionalValues(options.remoteCdnBaseUrls)}, remoteCacheDir=${formatOptionalValue(options.remoteCacheDir)}).`,
+    `[deploy] Bundled ${resourceLabel} missing for ${platformArch}; rebuild remote assets or reinstall ZCodium.`,
   );
 }
 

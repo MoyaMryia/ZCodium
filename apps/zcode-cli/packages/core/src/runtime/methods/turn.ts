@@ -46,10 +46,7 @@ import type { PromptRuntimeCommand } from "../command-queue.js";
 import { enqueueCancellableRuntimeCommand } from "./runtime-command-submit.js";
 import { buildReferencedSessionContextReminderBody } from "../../session-context/read-session-context.js";
 import { runRegularTurnLoop } from "./turn-loop.js";
-import {
-  maybeStartDeferredSessionTitleGeneration,
-  maybeStartSessionTitleGeneration,
-} from "./session-title.js";
+import { maybeStartSessionTitleGeneration } from "./session-title.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
 import { finishOutputTokenRecovery } from "./turn-output-token-continuation.js";
 import { recordTurnUsageFact } from "./usage-observability.js";
@@ -131,7 +128,6 @@ export async function executeTurnCommand(
   let targetRunHeartbeat: ReturnType<typeof setInterval> | undefined;
   let userMessageId: MessageId | undefined;
   let loopState: RegularTurnLoopState | undefined;
-  let shouldRetryTitleGenerationAfterTurn = false;
   // 线上“已工作 N 秒”但没有终态的根因候选是：内层 Turn try/catch 之前的 await
   // 拒绝直接穿出。记录当前阶段并区分是否已被内层处理，便于生产日志还原卡点。
   let turnPhase = "queued";
@@ -184,7 +180,6 @@ export async function executeTurnCommand(
         admittedModel =
           rewindCommand === null
             ? createTurnModel(this, {
-                requestDependencies: options?.modelExecution?.requestDependencies,
                 selection: admittedModelSelection,
               })
             : undefined;
@@ -273,7 +268,7 @@ export async function executeTurnCommand(
       turnMachine = new TurnMachineImpl(turnMachine.start());
       phaseStartedAt = startTurnPhase("session_persistence");
       await this.ensureSessionPersisted(displayInput, turnTraceContext);
-      // execution-scoped 临时 Provider（例如闲时任务）拥有本轮自己的模型，不改写
+      // execution-scoped 临时 Provider拥有本轮自己的模型，不改写
       // Session Selection；普通 Submission 才在真正开跑时应用其原子选择。
       const submissionModel = await applySubmissionExecutionState(
         this,
@@ -303,14 +298,7 @@ export async function executeTurnCommand(
           input: displayInput,
           messageId: userMessageId,
           inputId: options?.inputId,
-          ...(options?.automationId
-            ? { automationId: options.automationId }
-            : options?.offPeakTaskId
-              ? {
-                  offPeakTaskId: options.offPeakTaskId,
-                  ...(options.offPeakRunType ? { offPeakRunType: options.offPeakRunType } : {}),
-                }
-              : {}),
+          ...(options?.automationId ? { automationId: options.automationId } : {}),
           foregroundExecutionId: this.activeForegroundExecution?.foregroundExecutionId,
           queryId,
           inputSource: options?.inputSource,
@@ -523,16 +511,12 @@ export async function executeTurnCommand(
           );
           // 标题生成以前等主 turn 成功后才启动，用户 stop/cancel 首轮请求时
           // generated title 永远没有机会发起。首条 query 持久化后即可异步生成，避免被主链路取消拖死。
-          const titleGenerationStarted = maybeStartSessionTitleGeneration.call(
+          maybeStartSessionTitleGeneration.call(
             this,
             displayInput,
             userMessageId,
             turnTraceContext,
-            {
-              deferIfProviderRuntimeHeadersRefresh: true,
-            },
           );
-          shouldRetryTitleGenerationAfterTurn = !titleGenerationStarted;
         }
         // Plugin reminder 必须在对应 user 消息写入历史和 session store 后再追加：
         // provider 形态因此稳定为 user → system，cold hydration 也按同一因果顺序恢复。
@@ -555,8 +539,7 @@ export async function executeTurnCommand(
         loopState = {
           activeTurn,
           ...(options?.automationId ? { automationId: options.automationId } : {}),
-          // 闲时派发轮的身份进入 loop state，供工具执行边界 deny OffPeakCreate。
-          ...(options?.offPeakTaskId ? { offPeakTaskId: options.offPeakTaskId } : {}),
+
           anomalyWarningsInjected: 0,
           backgroundSubagentResultConsumed: options?.backgroundSubagentResultConsumed === true,
           workflowResultConsumed: options?.workflowResultConsumed === true,
@@ -572,7 +555,6 @@ export async function executeTurnCommand(
             ? {
                 subagentModelOverride: {
                   selection: options.intent.modelSelection,
-                  requestDependencies: options.modelExecution.requestDependencies,
                   background: options.modelExecution.subagents.background,
                 },
               }
@@ -668,16 +650,6 @@ export async function executeTurnCommand(
           turnId,
           userMessageId,
         });
-        if (shouldRetryTitleGenerationAfterTurn && userMessageId) {
-          // 需要请求前刷新 provider runtime headers 的模型
-          // 若在主 turn 前生成标题，会先占用鉴权刷新窗口，导致真正的用户消息失败。
-          maybeStartDeferredSessionTitleGeneration.call(
-            this,
-            displayInput,
-            userMessageId,
-            turnTraceContext,
-          );
-        }
         this.turnNumber++;
 
         const projection = await this.rebuildProjection();

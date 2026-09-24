@@ -5,7 +5,6 @@ import type {
   AgentRuntimeConfig,
   ExecuteTurnOptions,
   ExpertWorkflowCommandResult,
-  ProviderRuntimeHeadersPort,
   PresentationSurface,
   ResumeSessionResult,
   StartSavedWorkflowRunResult,
@@ -28,11 +27,9 @@ import type {
 import type { ZCodeModelOption } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 export type { ZCodeModelOption } from "@zcode/shared";
-import type { ModelProviderSourceTitle } from "../model-config.js";
 import type { ZCodeInstalledPluginData } from "../plugins.js";
 import type {
   AutomationPort,
-  OffPeakPort,
   BackgroundTaskCancelResult,
   CollaborationMode,
   ContextSourcePort,
@@ -126,11 +123,6 @@ export interface ZCodeAppOptions {
   version?: string;
   traceContext?: TraceContext;
   runtimeConfig?: ZCodeAppRuntimeConfigInput;
-  /**
-   * stdio 协议模式的 agent 进程由 Electron host 拉起，模型服务需要看到 electron 来源。
-   * 普通 CLI 不传，继续使用 cli 默认值。
-   */
-  sourceTitle?: ModelProviderSourceTitle;
   eventStore?: SessionEventStorePort;
   sessionStore?: SessionStorePort;
   sessionMailboxPort?: SessionMailboxPort;
@@ -141,11 +133,6 @@ export interface ZCodeAppOptions {
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
   /** 新 Session 使用的 Environment 默认选择；仅在没有显式 runtime modelSelection 时参与初始化。 */
   configuredDefaultModelSelection?: ModelSelection;
-  /**
-   * provider runtime headers 端口：主 runtime 每次调用报自己的会话；child runtime 一律向父
-   * runtime 取派生实例。
-   */
-  providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   loggerFactory?: LoggerFactory;
   officialPluginRoots?: string[];
   pluginStorageRoot?: string;
@@ -177,7 +164,6 @@ export interface ZCodeAppOptions {
   uiLocale?: UiLocale;
   onWorkflowEvent?: (event: WorkflowEvent) => void | Promise<void>;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   /** 首次真实用户执行或 cold-resume fallback 时解析一次，之后由 app 生命周期缓存。 */
   resolveInitialBashShellSelection?: () => Promise<ExecutionShellSelection | undefined>;
   /** Trusted embedder policy; workspace/project files cannot populate this field. */
@@ -614,7 +600,7 @@ export interface ZCodeApp {
     modelId: string | ModelSelection,
     options?: {
       /**
-       * per-turn（off-peak idle plan）：true = 仅切运行态——不写磁盘模型选择、
+       * per-turn 临时模型选择：true = 仅切运行态——不写磁盘模型选择、
        * 不产出 modelChange 聊天通知。用于 turn 级临时切换（应用/还原成对出现）。
        */
       transient?: boolean;

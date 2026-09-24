@@ -29,11 +29,6 @@ import {
   onLocalDatabaseStartupReady,
   configureDatabaseStartupQuit,
 } from "./databaseStartupRelay.js";
-import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
-import {
-  createDesktopContextPromptRollout,
-  createElectronDesktopContextPromptConfigFetcher,
-} from "./desktopContextPromptRollout.js";
 import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
 import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
@@ -82,7 +77,6 @@ import {
   ZCODIUM_UPDATE_ORIGIN,
   DEFAULT_ZCODE_ENDPOINT_ORIGIN,
   DEFAULT_LOCALE,
-  ZCODE_VERSION,
   resolveZCodeEndpointOrigin,
   type UpdateStatePayload,
   HostMessageTypes,
@@ -167,7 +161,7 @@ import {
 } from "./desktopHostProcess.js";
 import { spawnCronScheduler, type CronSchedulerHandle } from "./desktopCronScheduler.js";
 import {
-  clearOAuthRoutesForWindow,
+  clearWorkspaceDeepLinkStateForWindow,
   handleDeepLink,
   handleOpenWorkspacePath,
   registerDeepLinkProtocol,
@@ -189,7 +183,6 @@ import {
   listRegisteredHostAgentProcessIds,
   setBrowserUseGuestWebContentsIdsProvider,
 } from "./resourceManagerWindow.js";
-import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
 import { registerRemoteIpcHandlers } from "./desktopMainIpcRemote.js";
 import { applyDesktopChromiumNetworkPolicies } from "./desktopNetworkPolicy.js";
@@ -606,17 +599,8 @@ function forwardCronRunResult(
 ): void {
   cronScheduler?.handleCronRunResult(result);
 }
-function forwardOffPeakRunResult(
-  result: Parameters<CronSchedulerHandle["handleOffPeakRunResult"]>[0],
-): void {
-  cronScheduler?.handleOffPeakRunResult(result);
-}
 function wakeCronScheduler(automationId: string): void {
   cronScheduler?.wake(automationId);
-}
-function wakeOffPeakScheduler(offPeakTaskId?: string): void {
-  // 复用同一条 scheduler-wake 通道（tick 同时覆盖 cron 与 off-peak 分支），仅日志标签区分。
-  cronScheduler?.wake(`offpeak:${offPeakTaskId ?? "sync"}`);
 }
 // 选一个本地 host 执行派发：本期本地 workspace 由任一本地窗口 host 的 createTask 按 path 拉起/复用 agent。
 function resolveCronDispatchHost(): ElectronUtilityProcess | null {
@@ -641,53 +625,6 @@ async function resolveCurrentZCodeEndpointOrigin() {
     overrideOrigin: (await mainSettingService.get()).zcodeEndpointOrigin,
   });
 }
-let desktopContextPromptRollout: ReturnType<typeof createDesktopContextPromptRollout> | undefined;
-function resolveDesktopContextPromptEnabledForHost(): boolean {
-  const rollout = desktopContextPromptRollout;
-  if (!rollout) {
-    return false;
-  }
-  // Host 创建时顺便触发过期刷新，但只读取当前快照；网络请求不能阻塞 Local/Remote Host。
-  void rollout.refresh();
-  return rollout.getSnapshot().enabled;
-}
-
-// 首个 Host 创建前的有界灰度裁决门。Host/Agent 的 presentation surface 在进程启动时
-// 冻结（services/node.ts 顶层 const + CLI --surface），而灰度请求是旁路、不阻塞 Host。若首个
-// Host fork 早于请求 resolve，成功结果（enabled:true）对已冻结的 Host/Agent 无可达生效路径。
-// 这里给"成功结果"一条有界的生效路径：首 Host fork 前 await 一次裁决（≤2s），失败/超时仍按当前
-// 快照继续（desktopContextPrompt fail-open）。first-only 永久
-// latch——后续 Host fork await 已 resolve 的 promise（近乎 0ms），且各 resolve*ForHost()
-// 同步读取已被刷新的 live 快照。
-const DESKTOP_FIRST_HOST_SPAWN_DECISION_TIMEOUT_MS = 2_000;
-let firstHostSpawnDecisionPromise: Promise<void> | null = null;
-function awaitFirstHostSpawnDecision(): Promise<void> {
-  if (firstHostSpawnDecisionPromise) {
-    return firstHostSpawnDecisionPromise;
-  }
-  firstHostSpawnDecisionPromise = (async () => {
-    const rollout = desktopContextPromptRollout;
-    if (!rollout) {
-      return;
-    }
-    try {
-      const decision = await rollout.awaitFirstDecision(
-        DESKTOP_FIRST_HOST_SPAWN_DECISION_TIMEOUT_MS,
-      );
-      logger.info("[desktop-context-prompt] first host spawn decision resolved", {
-        enabled: decision.enabled,
-        configVersion: decision.configVersion,
-      });
-    } catch (error) {
-      // awaitFirstDecision 永不 reject（refresh 内部已 catch + timeout 回退快照），此处仅兜底。
-      logger.warn("[desktop-context-prompt] first host spawn decision failed, fail-open", {
-        error,
-      });
-    }
-  })();
-  return firstHostSpawnDecisionPromise;
-}
-
 app.on("browser-window-focus", (_event, win) => {
   rebuildMenu();
   // 设置/更新等无 Host 的 ZCode 窗口也算前台：router 会先把旧 workspace Host 清成 null，
@@ -705,28 +642,8 @@ app.on("browser-window-created", (_event, win) => {
 const remoteSessionManager = createRemoteWorkspaceSessionManager({
   logger,
   windowHostProcessMap,
-  resolveRemoteAssetDirs: () =>
-    resolveRemoteAssetDirs({ locale: currentApplicationLocale }, hostProcessLocalEnv),
+  resolveRemoteAssetDirs,
   resolveWslTarget: resolveCanonicalWslTarget,
-});
-
-const deviceMid = ensureDesktopDeviceMidSync();
-// 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
-const readHelpConfig = createDesktopHelpConfigReader({
-  appVersion: ZCODE_VERSION || app.getVersion(),
-  deviceMid,
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-});
-// 同一个 /api/v1/client/configs fetcher 供两个灰度 rollout 共用（请求参数与鉴权完全一致，
-// 各自独立缓存/去重，服务端按 data.configs.<key> 区分功能）。
-const electronClientConfigsFetcher = createElectronDesktopContextPromptConfigFetcher({
-  appVersion: ZCODE_VERSION || app.getVersion(),
-  deviceMid,
-  resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
-});
-desktopContextPromptRollout = createDesktopContextPromptRollout({
-  fetchConfig: electronClientConfigsFetcher,
-  logger,
 });
 
 ipcMain.on(PlatformChannels.ReportDiagnostic, (_event, input: unknown) => {
@@ -1242,7 +1159,6 @@ async function executeDesktopCommandForApp(
   senderWindow?: BrowserWindow | null,
 ) {
   return executeDesktopCommand({
-    fetchHelpConfig: readHelpConfig,
     command,
     senderWindow,
     logger,
@@ -1478,7 +1394,6 @@ function openUpdateStatusWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: false,
-      additionalArguments: [`--device-id=${deviceMid}`],
     },
   });
   // 更新窗口要保留系统窗口控件，但不能允许缩放或全屏。
@@ -1586,7 +1501,6 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       }),
     windowHostProcessMap,
     onHostProcessReady: (windowKey) => cuaPipFocusRouter.refreshWindow(windowKey),
-    awaitFirstHostSpawnDecision,
     spawnHostProcess: (win, label, initMessage) =>
       spawnHostProcess(
         win,
@@ -1599,7 +1513,6 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
         },
         {
           hostProcessLocalEnv,
-          desktopContextPromptEnabled: resolveDesktopContextPromptEnabledForHost,
           logger,
           broadcastHub,
           taskRealtimeBus,
@@ -1616,9 +1529,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
           onCuaOperationStateSourceExited: (source) =>
             windowsCuaOperationIndicator.clearSource(source),
           onCronRunResult: forwardCronRunResult,
-          onOffPeakRunResult: forwardOffPeakRunResult,
           onCronSchedulerWakeRequested: wakeCronScheduler,
-          onOffPeakSchedulerWakeRequested: wakeOffPeakScheduler,
           authorizeLocalMediaPreviewPath: localMediaPreviewPathRegistry.authorize,
           // Bugfix: bot service 运行在本地窗口 host 内，/reconnect 必须能从本地 host 请求 main 创建远端 session。
           handleBotRemoteWorkspaceReconnectRequest: async ({
@@ -1730,7 +1641,6 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
     // startupBootstrap 只标记 active workspace 是否不可用，但 local Host 会为所有
     // 已恢复 workspace 建立后台索引。始终注入 canonical fallback，才能覆盖非 active 历史目录已删除的情况。
     agentSpawnFallbackCwd: getConversationWorkspaceDir(),
-    deviceMid,
     runtimeProcessEnvPatchPromise: runtimeProcessEnvPreparation.patchPromise,
     runtimeProcessEnvFallbackPatch: runtimeProcessEnvPreparation.fallbackPatch,
     initialDesktopZoomLevel: currentDesktopZoomLevel,
@@ -1815,8 +1725,6 @@ app.whenReady().then(async () => {
   installLocalMediaPreviewProtocol(session.defaultSession.protocol, {
     isPathAuthorized: localMediaPreviewPathRegistry.isAuthorized,
   });
-  // Electron 的 net.request 只能在 app ready 后使用；灰度请求仍是旁路预热，不阻塞首个 Host。
-  void desktopContextPromptRollout?.refresh();
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );
@@ -1854,7 +1762,6 @@ app.whenReady().then(async () => {
         logger,
         resolveDispatchHost: resolveCronDispatchHost,
         // keep-awake 已改为纯设置驱动；计数上报保留给后续诊断/配额用途，不再联动 blocker。
-        onOffPeakActiveCountChanged: () => {},
       });
     } catch (error) {
       logger.error("[cron-scheduler] failed to spawn scheduler process:", error);
@@ -1910,7 +1817,6 @@ app.whenReady().then(async () => {
     },
     settingService: mainSettingService,
     locale: currentApplicationLocale,
-    deviceMid,
     resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
     updateFeedSource: resolveUpdateFeedSourceFromStartupConfig({
       argv: process.argv,
@@ -1944,7 +1850,6 @@ app.whenReady().then(async () => {
   });
 
   registerPlatformIpcHandlers({
-    fetchHelpConfig: readHelpConfig,
     logger,
     // CDP-on-guest pivot：renderer `<webview>` dom-ready 上报 guest webContentsId → attach。
     attachBrowserGuest: (key, webContentsId, options) => {
@@ -2042,7 +1947,6 @@ app.whenReady().then(async () => {
     }),
     syncAppSettings: syncImmediateAppSettings,
     setShortcutRecordingActive,
-    deviceMid,
   });
 
   registerRemoteIpcHandlers({
@@ -2127,8 +2031,8 @@ app.on("browser-window-created", (_, win) => {
     }
     // Electron 进入 closed 回调时，win.webContents 可能已经被销毁。
     // 之前这里现取 win.webContents.id，会在关窗收尾阶段抛出 "Object has been destroyed"。
-    // 改为在窗口创建时缓存 webContents id，确保清理 OAuth 路由时不再访问已销毁对象。
-    clearOAuthRoutesForWindow(windowWebContentsId);
+    // 改为在窗口创建时缓存 webContents id，确保清理工作区深链接状态时不再访问已销毁对象。
+    clearWorkspaceDeepLinkStateForWindow(windowWebContentsId);
     // 录制中关窗/崩溃时 renderer 不会发复位 IPC，这里按发起 webContents 复位录制态，
     // 防止菜单 accelerator 被永久摘除。
     resetShortcutRecordingForWebContents(windowWebContentsId);

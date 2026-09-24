@@ -17,7 +17,6 @@ import {
   addMarketplace,
   comparePluginUpdate,
   describeMarketplacePlugin,
-  ensureDefaultPluginMarketplaces,
   discoverNodePluginsSync,
   ensureMarketplaceManifestAvailable,
   getPluginSourceDiagnosticCode,
@@ -270,7 +269,6 @@ export function getZCodePluginsOverview(
   options: ResolveZCodePluginsOptions = {},
 ): ZCodePluginsOverviewData {
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
-  ensureDefaultPluginMarketplaces(pluginStorageRoot);
   const outcome = resolveZCodePlugins({
     ...options,
     configResult,
@@ -291,7 +289,7 @@ export function getZCodePluginsOverview(
   const installedIds = new Set(installed.map((record) => record.id));
 
   // 每个市场的 manifest 只读一次：同时取 entries（目录条目）与 featured（策展名单）。
-  // zcode-plugins-official 的内置与 CDN 分片已在 adapter 层合并为唯一 canonical manifest。
+  // zcode-plugins-official 只读取当前随包 seed，个人市场仍读取自己的缓存。
   const catalogs: Array<{
     summary: ZCodeMarketplaceSummaryData;
     entries: PluginMarketplaceEntry[];
@@ -510,7 +508,6 @@ export async function updateZCodePluginMarketplace(
   options: UpdateZCodeMarketplaceOptions,
 ): Promise<ZCodeMarketplaceUpdateData> {
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
-  ensureDefaultPluginMarketplaces(pluginStorageRoot);
   const declared = resolveDeclaredMarketplaceSources({
     configResult,
   });
@@ -591,7 +588,6 @@ export async function installZCodeMarketplacePlugin(
   options: InstallZCodeMarketplacePluginOptions,
 ): Promise<ZCodePluginInstallData> {
   const { configResult, pluginStorageRoot, workingDirectory } = resolvePluginContext(options);
-  ensureDefaultPluginMarketplaces(pluginStorageRoot);
   if (options.dryRun === true) {
     const declarationSource = resolveDeclaredMarketplaceSources({
       configResult,
@@ -955,7 +951,6 @@ export async function validateZCodePlugin(
   options: ValidateZCodePluginOptions,
 ): Promise<PluginLoadOutcome["diagnostics"]> {
   const { pluginStorageRoot } = resolvePluginContext(options);
-  ensureDefaultPluginMarketplaces(pluginStorageRoot);
   if (options.source) {
     try {
       const source = await parseMarketplaceSourceInput(options.source);
@@ -1006,7 +1001,6 @@ export async function describeZCodePlugin(
   options: DescribeZCodePluginOptions,
 ): Promise<DescribeMarketplacePluginResult> {
   const { pluginStorageRoot } = resolvePluginContext(options);
-  ensureDefaultPluginMarketplaces(pluginStorageRoot);
   return describeMarketplacePlugin({
     marketplace: options.marketplace,
     name: options.pluginName,

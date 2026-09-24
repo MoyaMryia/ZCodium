@@ -28,7 +28,6 @@ import {
 } from "./public-egress-policy.js";
 import { readResponseBody } from "./response-body.js";
 
-const TRACE_HEADER = "x-zcode-trace-id";
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
@@ -169,13 +168,14 @@ function fetchHttpResponse(
     return fetch(url.toString(), {
       body: request.body ? Buffer.from(request.body) : undefined,
       method: request.method ?? "GET",
-      headers: buildHeaders(request),
+      // trace 属于本地执行上下文；出站只使用显式请求头，避免向目标站点泄露内部身份。
+      headers: new Headers(request.headers),
       redirect: request.redirect ?? "manual",
       signal,
     });
   }
 
-  const headers = buildHeaders(request);
+  const headers = new Headers(request.headers);
   const transport = url.protocol === "https:" ? https : http;
   const agent = createRequestAgent(url, proxyUrl, tlsCaCertificates);
   const lookup = publicDnsLookup
@@ -300,14 +300,6 @@ function safeProxyHost(proxyUrl: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function buildHeaders(request: HttpClientRequest): Headers {
-  const headers = new Headers(request.headers);
-  if (request.trace?.traceId && !headers.has(TRACE_HEADER)) {
-    headers.set(TRACE_HEADER, request.trace.traceId);
-  }
-  return headers;
 }
 
 function headersToOutgoing(headers: Headers): http.OutgoingHttpHeaders {

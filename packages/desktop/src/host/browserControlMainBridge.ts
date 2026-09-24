@@ -10,7 +10,7 @@ import type {
 
 /**
  * host↔main browser 执行桥。host 侧把一条命令经 parentPort 发给 main（WebContentsView+CDP 执行），
- * 按 requestId 关联回传结果。仿 createFullFeedbackLogArchiveViaMain 的 pending map 模式。
+ * 按 requestId 关联回传结果，由本 bridge 管理待完成请求。
  *
  * 设计成可注入 postMessage + 无全局依赖，便于单测（假 parentPort）。
  */

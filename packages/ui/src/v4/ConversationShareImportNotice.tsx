@@ -39,7 +39,6 @@ export const ConversationShareImportNotice = memo(function ConversationShareImpo
   workspaceIdentity,
   workspaceRemoteSessionId,
   unsupportedRowCount = 0,
-  onOpenShareUrl,
   onOpenFileLink,
   onOpenCodeViewer,
 }: {
@@ -53,7 +52,6 @@ export const ConversationShareImportNotice = memo(function ConversationShareImpo
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   unsupportedRowCount?: number;
-  onOpenShareUrl?: () => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
 }) {
@@ -76,31 +74,15 @@ export const ConversationShareImportNotice = memo(function ConversationShareImpo
         onOpenFileLink={onOpenFileLink}
         onOpenCodeViewer={onOpenCodeViewer}
       />
-      {onOpenShareUrl ? (
-        <button
-          type="button"
-          data-conversation-share-import-divider="true"
-          className="group/share-import flex w-full items-center gap-3 px-4 py-2 text-ui-base text-foreground-subtle hover:text-foreground"
-          onClick={onOpenShareUrl}
-        >
-          <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-          <SquareArrowRightEnter aria-hidden="true" className="size-3.5 shrink-0" />
-          <span className="min-w-0 break-words text-center leading-5 underline-offset-4 group-hover/share-import:underline">
-            {label}
-          </span>
-          <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-        </button>
-      ) : (
-        <div
-          data-conversation-share-import-divider="true"
-          className="flex w-full items-center gap-3 px-4 py-2 text-ui-base text-foreground-subtle"
-        >
-          <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-          <SquareArrowRightEnter aria-hidden="true" className="size-3.5 shrink-0" />
-          <span className="min-w-0 break-words text-center leading-5">{label}</span>
-          <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-        </div>
-      )}
+      <div
+        data-conversation-share-import-divider="true"
+        className="flex w-full items-center gap-3 px-4 py-2 text-ui-base text-foreground-subtle"
+      >
+        <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+        <SquareArrowRightEnter aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="min-w-0 break-words text-center leading-5">{label}</span>
+        <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+      </div>
     </div>
   );
 });

@@ -1,17 +1,13 @@
 import { create } from "zustand";
-import type { ConversationShareAccessMode } from "@zcode/shared";
 import type { ConversationShareFailureIssue } from "@zcode/services";
 
 type ConversationShareScope = "all" | "partial";
 type ConversationShareSelectionView = "selection" | "timeline";
 type ConversationShareSelectionStage = "selection" | "configuration";
-export const DEFAULT_CONVERSATION_SHARE_ACCESS_MODE: ConversationShareAccessMode =
-  "public_importable";
 
 export interface ConversationShareAttempt {
   key: string;
   clientRequestId: string;
-  disclosureAcceptedAt: number;
 }
 
 export interface ConversationShareDisplayError {
@@ -30,7 +26,7 @@ export interface ConversationShareDisplayWarnings {
   omittedIssueCount?: number;
 }
 
-export type ConversationShareProgressPhase = "collecting" | "uploading" | "checking";
+export type ConversationShareProgressPhase = "collecting" | "packing" | "saving";
 
 interface ConversationShareSelectionDraft {
   scope: ConversationShareScope;
@@ -39,17 +35,15 @@ interface ConversationShareSelectionDraft {
   availableRowIds: readonly number[];
   excludedRowIds: readonly number[];
   productTurnIdByRowId: Readonly<Record<number, string>>;
-  accessMode: ConversationShareAccessMode;
 }
 
 interface ConversationShareDockState {
   title?: string;
-  disclosureAccepted: boolean;
   publishing: boolean;
   progress: ConversationShareProgressPhase;
   completedArtifacts: number;
   totalArtifacts: number;
-  publishedShareUrl: string | null;
+  exportedFile: { name: string; downloadStarted: boolean } | null;
   error: ConversationShareDisplayError | null;
   warnings: ConversationShareDisplayWarnings | null;
   attempt: ConversationShareAttempt | null;
@@ -61,7 +55,6 @@ interface ConversationShareSelectionState {
   dockStates: Record<string, ConversationShareDockState>;
   setPopoverOpen: (open: boolean) => void;
   setScope: (taskId: string, scope: ConversationShareScope) => void;
-  setAccessMode: (taskId: string, accessMode: ConversationShareAccessMode) => void;
   syncAvailableRowIds: (taskId: string, rowIds: readonly number[]) => void;
   syncAvailableTurns: (
     taskId: string,
@@ -87,16 +80,14 @@ const EMPTY_DRAFT: ConversationShareSelectionDraft = Object.freeze({
   availableRowIds: Object.freeze([]),
   excludedRowIds: Object.freeze([]),
   productTurnIdByRowId: Object.freeze({}),
-  accessMode: DEFAULT_CONVERSATION_SHARE_ACCESS_MODE,
 });
 
 export const DEFAULT_CONVERSATION_SHARE_DOCK_STATE: ConversationShareDockState = Object.freeze({
-  disclosureAccepted: false,
   publishing: false,
   progress: "collecting",
   completedArtifacts: 0,
   totalArtifacts: 0,
-  publishedShareUrl: null,
+  exportedFile: null,
   error: null,
   warnings: null,
   attempt: null,
@@ -181,23 +172,12 @@ export const useConversationShareSelectionStore = create<ConversationShareSelect
                     productTurnIdByRowId:
                       state.drafts[taskId]?.productTurnIdByRowId ??
                       EMPTY_DRAFT.productTurnIdByRowId,
-                    accessMode: state.drafts[taskId]?.accessMode ?? EMPTY_DRAFT.accessMode,
                   }
                 : EMPTY_DRAFT,
           },
           dockStates,
         };
       }),
-    setAccessMode: (taskId, accessMode) =>
-      set((state) => ({
-        drafts: {
-          ...state.drafts,
-          [taskId]: {
-            ...(state.drafts[taskId] ?? EMPTY_DRAFT),
-            accessMode,
-          },
-        },
-      })),
     syncAvailableRowIds: (taskId, rowIds) =>
       set((state) => {
         const current = getConversationShareDraft(state, taskId);

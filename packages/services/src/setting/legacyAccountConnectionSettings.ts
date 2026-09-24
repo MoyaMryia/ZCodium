@@ -16,7 +16,7 @@ export interface LegacyTeamConnection {
   readonly projectId: string;
 }
 
-/** 仅迁移器解释旧键；组织信息由 Host 的只读 OAuth 查询注入。退役旧版后删除。 */
+/** 仅用于离线兼容：识别缺组织的旧键，普通设置保存时保留原始字段。 */
 export function readIncompleteLegacyTeamConnections(value: unknown): LegacyTeamConnection[] {
   if (!needsLegacyAccountConnectionMigration(value)) return [];
   const raw = record(value);

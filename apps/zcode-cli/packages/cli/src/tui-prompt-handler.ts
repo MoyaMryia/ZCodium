@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE, type SupportedLocale } from "@zcode/i18n";
 import type { TuiRequestPermission } from "@zcode/tui";
 import type { GlobalOptions } from "@zcode/shared-types";
 import { createCommandCenter, parseSlashCommand } from "./command-center.js";
+import { isRetiredAccountCommand } from "./retired-account-command.js";
 import type { CommandCenterApp } from "./command-center.js";
 import { resolveDisplayLocale } from "./locale.js";
 import { createCliHeadlessBrowserRuntime } from "./headless-browser.js";
@@ -19,12 +20,6 @@ import {
 } from "./tui-prompt-handler-runtime.js";
 import { DEFAULT_CLI_CLEANUP_TIMEOUT_MS, runCliCleanupWithTimeout } from "./shutdown.js";
 import {
-  configureApiKeyForTui,
-  loginBigmodelForTui,
-  loginForTui,
-  logoutForTui,
-} from "./tui-auth.js";
-import {
   listCustomCommandsForTui,
   listSessionsForTui,
   listSkillsForTui,
@@ -36,7 +31,7 @@ import {
   TUI_TITLE_GENERATION_CONFIG,
   type TuiPromptHandler,
 } from "./tui-command-state.js";
-import { createTuiModelAvailabilityChecker } from "./tui-login-state.js";
+import { createTuiModelAvailabilityChecker } from "./tui-model-availability.js";
 import { withTuiMetadata } from "./tui-submit-metadata.js";
 import type {
   CliModeState,
@@ -151,11 +146,6 @@ export function createTuiSubmitPrompt(
         projectConfigPath: deps.projectConfigPath,
         providerRegistry: providerRegistryRuntime.runtime.registryService,
         configuredDefaultModelSelection,
-        ...(providerRegistryRuntime.providerRuntimeHeadersPort
-          ? {
-              providerRuntimeHeadersPort: providerRegistryRuntime.providerRuntimeHeadersPort,
-            }
-          : {}),
         resume: sessionId !== undefined,
         runtimeConfig: {
           ...(modeState.override ? { mode: modeState.override } : {}),
@@ -178,7 +168,7 @@ export function createTuiSubmitPrompt(
       throw error;
     }
     if (browserRuntime) browserRuntimes.set(createdApp as object, browserRuntime);
-    // 初始化在等待旧身份导入时 TUI 可能已关闭；迟到 App 不能重新成为当前会话。
+    // 初始化期间 TUI 可能已关闭；迟到 App 不能重新成为当前会话。
     if (closeHandlerPromise) {
       await closeApp(createdApp);
       throw new Error("TUI prompt handler is closed");
@@ -265,9 +255,6 @@ export function createTuiSubmitPrompt(
     listCustomCommands: () => listCustomCommandsForTui(deps),
     listSessions: () => listSessionsForTui(deps),
     listSkills: () => listSkillsForTui(deps),
-    configureApiKey: (options) => configureApiKeyForTui(deps, options),
-    login: (options) => loginForTui(deps, options),
-    loginBigmodel: (options) => loginBigmodelForTui(deps, options),
     loadCustomCommand: (name) => loadCustomCommandForTui(deps, name),
     newApp,
     recordInputHistory: async (input, kind) => {
@@ -281,7 +268,6 @@ export function createTuiSubmitPrompt(
       }
       await runtime.modelSelectionConfigRepository.saveConfiguredDefault(selection);
     },
-    logout: () => logoutForTui(deps),
     setLocale: async (locale) => {
       if (app?.setLocale) {
         const result = await app.setLocale(locale);
@@ -325,7 +311,12 @@ export function createTuiSubmitPrompt(
     try {
       // Model/effort changes configure subsequent requests, including during an active turn.
       const command = parseSlashCommand(typeof input === "string" ? input : input.text);
-      if (command?.type === "known" && (command.name === "model" || command.name === "effort")) {
+      // busy 输入绕过普通 submit；旧登录参数可能含密钥，必须交回命令入口拒绝，不能进入模型队列。
+      if (
+        command &&
+        (isRetiredAccountCommand(command.rawName) ||
+          (command.type === "known" && (command.name === "model" || command.name === "effort")))
+      ) {
         return {
           kind: "command_result",
           result: await submitPrompt(input, {

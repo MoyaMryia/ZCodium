@@ -11,13 +11,6 @@ export {
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
 } from "./model-provider/providerFacadeServices.js";
-export {
-  createAccountRequestAuthService,
-  type IAccountRequestAuthService,
-  type AccountRequestAuthInput,
-  type AccountRequestAuthMaterial,
-  type AccountRequestAuthResolver,
-} from "./model-provider/accountRequestAuthService.js";
 export { IProviderProvisioningTargetService } from "./model-provider/providerProvisioning.js";
 export {
   collectServiceMemoryDiagnostics,
@@ -80,12 +73,8 @@ export { ICredentialService } from "./credential/credential.js";
 // Broadcast service — IBroadcastService is both a type (interface) and value (descriptor)
 export { IBroadcastService } from "./broadcast/broadcast.js";
 
-// Onboarding 完成记录服务（本地持久化，后续上传服务器）
+// Onboarding 完成记录服务（仅本地持久化）
 export { IOnboardingRecordService } from "./onboarding/onboardingRecord.js";
-export type {
-  CreateOnboardingRecordServiceOptions,
-  OnboardingRecordServiceFactory,
-} from "./onboarding/onboardingRecord.js";
 // 这里只能导出 descriptor 和类型。根 index 会被 renderer 经 value import 拉进浏览器包，
 // 若 value 导出 createOnboardingRecordService，会连带 fs/atomicFileUtils → @zcode/shared/node →
 // node:timers/promises 整条 Node 链进浏览器，模块加载直接抛错导致整个应用黑屏。
@@ -224,9 +213,6 @@ export type { SessionRealtimePort } from "./session/sessionRealtimePort.js";
 // FileWatcher service — IFileWatcherService is both a type (interface) and value (descriptor)
 export { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 
-// OAuth service — IOAuthService is both a type (interface) and value (descriptor)
-export { IOAuthService } from "./oauth/oauth.js";
-
 // UsageStats service — IUsageStatsService is both a type (interface) and value (descriptor)
 export { IUsageStatsService } from "./usage-stats/usageStats.js";
 
@@ -234,10 +220,7 @@ export { IUsageStatsService } from "./usage-stats/usageStats.js";
 export type { IStorageService } from "./storage/contract.js";
 
 // CodingPlanSubscription service — ICodingPlanSubscriptionService is both a type (interface) and value (descriptor)
-export {
-  ICodingPlanSubscriptionService,
-  type OffPeakClientConfig,
-} from "./coding-plan-subscription/codingPlanSubscription.js";
+export { ICodingPlanSubscriptionService } from "./coding-plan-subscription/codingPlanSubscription.js";
 export {
   IClientScenesService,
   type ClientSceneConfig,
@@ -247,9 +230,6 @@ export {
   type ClientScenesResponse,
 } from "./client-scenes/clientScenes.js";
 export { isValidCronExpr } from "./session/automationCronValidation.js";
-// 闲时任务管理服务（与 automation 服务面独立）；接口/描述符 browser-safe。
-export { IOffPeakTaskService } from "./session/offPeakTask.js";
-export type { OffPeakUpdateTaskParams } from "./session/offPeakTask.js";
 
 // Skills service — ISkillsService is both a type (interface) and value (descriptor)
 export { ISkillsService } from "./skills/skills.js";
@@ -284,8 +264,6 @@ export { ICommandsService } from "./commands/commands.js";
 
 export { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 
-export { IFeedbackService } from "./feedback/feedback.js";
-export type { FeedbackUploadProgress } from "./feedback/feedback.js";
 export { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
 export type {
   PromptAttachmentStageParams,
@@ -293,21 +271,4 @@ export type {
   PromptAttachmentTransferPhase,
   PromptAttachmentTransferProgress,
 } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
-export type {
-  CreateFeedbackTicketInput,
-  FeedbackAttachment,
-  FeedbackAttachmentKind,
-  FeedbackComment,
-  FeedbackDeviceInfo,
-  FeedbackListQuery,
-  FeedbackListResult,
-  FeedbackReporter,
-  FeedbackTicketDetail,
-  FeedbackTicketFramework,
-  FeedbackTicketModule,
-  FeedbackTicketSeverity,
-  FeedbackTicketStatus,
-  FeedbackTicketSummary,
-  FeedbackTicketType,
-} from "@zcode/shared";
 export { IClientConfigService } from "./client-config/clientConfig.js";
