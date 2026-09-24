@@ -50,12 +50,11 @@ test("Host has no callable official request credential or online organization re
     import.meta.url,
   );
   assert.equal(settings.createSettingServiceWithMigrations, undefined);
-  const teamKeys = await tsImport(
-    "../../packages/services/src/bigmodel/teamPlanApiKey.ts",
-    import.meta.url,
+  await assert.rejects(
+    access(new URL("../../packages/services/src/bigmodel/teamPlanApiKey.ts", import.meta.url)),
+    { code: "ENOENT" },
+    "No callable project API Key list/create/decrypt path may remain",
   );
-  assert.equal(teamKeys.copyBigModelTeamPlanProjectApiKeySecret, undefined);
-  assert.equal(teamKeys.ensureBigModelTeamPlanProjectApiKey, undefined);
 });
 
 test("legacy team settings remain offline while concurrent local preferences persist across restart", async (t) => {

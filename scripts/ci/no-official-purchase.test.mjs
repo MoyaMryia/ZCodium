@@ -44,9 +44,13 @@ test("retired payment RPC cannot read credentials or contact a payment endpoint"
     "cancelEnterpriseOrder",
     "continueEnterpriseOrderPayment",
     "checkEnterpriseOrderStatus",
+    "getEnterprisePricing",
+    "getStaticTeamProducts",
+    "getForceUpdateConfig",
+    "getModelContextBudgetStrategy",
   ]) {
-    assert.throws(
-      () => channel.call(undefined, command, [{ providerId: "fixture", bizId: "fixture" }]),
+    await assert.rejects(
+      async () => channel.call(undefined, command, [{ providerId: "fixture", bizId: "fixture" }]),
       /Method not found/,
     );
   }
@@ -71,4 +75,67 @@ test("local App Usage still reads Agent statistics without any account or paymen
   });
   assert.equal(await service.getAppUsageSnapshot({ range: "week", timeZone: "UTC" }), result);
   assert.deepEqual(requests, [{ range: "week", timeZone: "UTC" }]);
+});
+
+test("remaining workflow configuration has no account dependency and preserves snapshot semantics", async (t) => {
+  const key = "ZCODE_DYNAMIC_WORKFLOW_MODE";
+  const previous = process.env[key];
+  delete process.env[key];
+  t.after(() => {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+  });
+  let requests = 0;
+  let mode = "onDemand";
+  let fail = false;
+  const apiClient = {
+    async request(input, init) {
+      requests++;
+      assert.equal(new URL(input).pathname, "/api/v1/client/configs");
+      assert.equal(init.method, "GET");
+      assert.equal(init.headers, undefined);
+      assert.equal(init.body, undefined);
+      if (fail) throw new Error("Fixture request failed");
+      return Response.json({ data: { configs: { dynamicWorkflow: { mode } } } });
+    },
+  };
+  const service = createCodingPlanSubscriptionService({
+    apiClient,
+    get credentialService() {
+      throw new Error("Workflow must not acquire account credentials");
+    },
+  });
+  const [a, b] = await Promise.all([
+    service.getDynamicWorkflowClientConfig(),
+    service.getDynamicWorkflowClientConfig(),
+  ]);
+  assert.deepEqual(a, { mode: "onDemand", enabled: true, source: "remote" });
+  assert.deepEqual(b, a);
+  assert.equal(requests, 1);
+  mode = "disabled";
+  assert.deepEqual(await service.getDynamicWorkflowClientConfig(), a);
+  assert.equal(requests, 1);
+  assert.deepEqual(await service.getDynamicWorkflowClientConfig({ forceRefresh: true }), {
+    mode: "disabled",
+    enabled: false,
+    source: "remote",
+  });
+  process.env[key] = "alwaysOn";
+  assert.deepEqual(await service.getDynamicWorkflowClientConfig(), {
+    mode: "alwaysOn",
+    enabled: true,
+    source: "override",
+  });
+  assert.equal(requests, 2);
+  delete process.env[key];
+  fail = true;
+  assert.deepEqual(await service.getDynamicWorkflowClientConfig({ forceRefresh: true }), {
+    mode: "disabled",
+    enabled: false,
+    source: "default",
+  });
+  fail = false;
+  mode = "alwaysOn";
+  assert.equal((await service.getDynamicWorkflowClientConfig()).enabled, true);
+  assert.equal(requests, 4);
 });

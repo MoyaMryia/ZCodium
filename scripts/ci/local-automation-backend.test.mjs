@@ -64,7 +64,8 @@ test("retired idle configuration RPC is absent and never consults official crede
     () => ProxyChannel.fromService(service).call(undefined, "getOffPeakClientConfig", [{}]),
     /Method not found/,
   );
-  assert.equal(await service.getModelContextBudgetStrategy(), "preflight-v1");
+  const shared = await tsImport("../../packages/shared/src/index.ts", import.meta.url);
+  assert.equal(shared.DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY, "preflight-v1");
 });
 
 test("database startup preserves retired queue rows without resuming or rewriting them", async (t) => {

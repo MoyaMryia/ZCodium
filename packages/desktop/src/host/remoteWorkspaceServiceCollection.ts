@@ -97,7 +97,6 @@ export function createRemoteWorkspaceServiceCollection(params: {
   const localBroadcastService = createBroadcastService(params.parentPort);
   const localCodingPlanSubscriptionService = createCodingPlanSubscriptionService({
     apiClient: localApiClient,
-    credentialService: localCredentialService,
   });
   const conversationShareService = new ConversationShareService({
     zcodeAgentService: params.connectionServices.zcodeAgentService,
