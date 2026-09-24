@@ -55,6 +55,7 @@
     "@release-it/conventional-changelog": "^10.0.6",
     "@tanstack/react-virtual": "^3.13.23",
     "@types/node": "^25.5.0",
+    "@zcode/shared": "workspace:*",
     "concurrently": "^9.1.2",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "conventional-changelog-writer": "^8.4.0",

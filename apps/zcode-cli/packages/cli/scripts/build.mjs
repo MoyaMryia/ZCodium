@@ -197,6 +197,11 @@ export const resolveBuildAliases = ({
     "../../packages/shared/src/zcodeEndpoint.ts",
   ),
   "@zcode/shared/node": resolve(rootDirectory, "../../packages/shared/src/node.ts"),
+  // esbuild 的通用 shared alias 会吞掉子路径，内置资产合同必须显式解析。
+  "@zcode/shared/builtin-plugin-assets": resolve(
+    rootDirectory,
+    "../../packages/shared/src/builtinPluginAssets.ts",
+  ),
   "@zcode/shared": resolve(rootDirectory, "../../packages/shared/src/index.ts"),
   "@zcode/core": resolve(cliDirectory, "../core/dist/index.js"),
 });

@@ -1,3 +1,4 @@
+import { BUILTIN_PLUGIN_SEED_PATHS } from "@zcode/shared/builtin-plugin-assets";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
 
 // 内置插件的商店信息 seed（原样写入官方 marketplace.json 的条目 raw，键名与 CDN 目录
@@ -59,119 +60,12 @@ const ZCODIUM_AUTHOR = { name: "ZCodium", url: "https://zcode.z.ai" } as const;
 const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obra" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
-const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
-
-export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
-  "docs/api.json",
-  "docs/documents.json",
-  "docs/overview.md",
-  // documents.json 已注册 recording lookup；若不强制校验正文，会 seed 出无法读取录屏指南的残缺插件。
-  "docs/recording.md",
-  "docs/workflow.md",
-  "scripts/browser-client.mjs",
-  "skills/control-browser/SKILL.md",
-  "skills/web-gui-tester/SKILL.md",
-]
-
-export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = [
-  // 三个 brief 是 SKILL.md 路由表的目的地；scripts/ 是渲染与表单能力的执行体，
-  // convert_pdf_to_images.py 同时是 visual-judge 工作流的渲染门。缺任一项都会装出
-  // 「看得见技能、调不到脚本」的残缺插件。
-  "agents/visual-judge.md",
-  "skills/pdf/SKILL.md",
-  "skills/pdf/briefs/report.md",
-  "skills/pdf/briefs/resume.md",
-  "skills/pdf/briefs/poster.md",
-  "skills/pdf/scripts/convert_pdf_to_images.py",
-  "skills/pdf/scripts/create_validation_image.py",
-  "skills/pdf/scripts/check_fillable_fields.py",
-  "skills/pdf/scripts/extract_form_field_info.py",
-  "skills/pdf/scripts/fill_fillable_fields.py",
-  "skills/pdf/scripts/fill_pdf_form_with_annotations.py",
-  "skills/pdf/scripts/check_bounding_boxes.py",
-  "skills/pdf/scripts/check_bounding_boxes_test.py",
-  // pdf_qa 家族是质量门，五个模块互相导入；只 seed pdf_qa.py 会让门在首次 import 就死。
-  "skills/pdf/scripts/pdf_qa.py",
-  "skills/pdf/scripts/pdf_qa_document.py",
-  "skills/pdf/scripts/pdf_qa_text.py",
-  "skills/pdf/scripts/pdf_qa_checks.py",
-  "skills/pdf/scripts/pdf_qa_colors.py",
-  "skills/pdf/scripts/html2pdf.py",
-  "skills/pdf/scripts/html2pdf_render.py",
-  "skills/pdf/scripts/cover_render.py",
-  "skills/pdf/scripts/toc_validate.py",
-  "skills/pdf/scripts/toc_validate_document.py",
-] as const;
-
-export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = [
-  // 脚本与模板是技能正文描述的能力的执行体；routes/references 是 SKILL.md 的下一步
-  // 阅读路径。缺任一项都会装出「看得见技能、读不到参考」的残缺插件。
-  "agents/visual-judge.md",
-  "skills/docx/SKILL.md",
-  "skills/docx/scripts/__init__.py",
-  "skills/docx/scripts/document.py",
-  "skills/docx/scripts/utilities.py",
-  "skills/docx/scripts/packing.py",
-  "skills/docx/scripts/identifiers.py",
-  "skills/docx/scripts/docx_editor.py",
-  "skills/docx/scripts/tracked_changes.py",
-  "skills/docx/scripts/comments.py",
-  "skills/docx/scripts/postcheck.py",
-  "skills/docx/scripts/postcheck_document.py",
-  "skills/docx/scripts/postcheck_rules.py",
-  "skills/docx/scripts/fix_footer_fields.py",
-  "skills/docx/scripts/add_toc_placeholders.py",
-  "skills/docx/scripts/templates/comments.xml",
-  "skills/docx/scripts/templates/commentsExtended.xml",
-  "skills/docx/scripts/templates/commentsExtensible.xml",
-  "skills/docx/scripts/templates/commentsIds.xml",
-  "skills/docx/scripts/templates/people.xml",
-  "skills/docx/setup.sh",
-  "skills/docx/routes/create.md",
-  "skills/docx/routes/read.md",
-  "skills/docx/routes/comment.md",
-  "skills/docx/routes/edit.md",
-  "skills/docx/routes/format.md",
-  "skills/docx/references/python-api.md",
-  "skills/docx/references/toc.md",
-  "skills/docx/env_setup/setup.md",
-  "skills/docx/env_setup/env_check.sh",
-  "skills/docx/scenes/academic.md",
-  "skills/docx/scenes/contract.md",
-  "skills/docx/scenes/copywriting.md",
-  "skills/docx/scenes/exam.md",
-  "skills/docx/scenes/official-doc.md",
-  "skills/docx/scenes/report.md",
-  "skills/docx/scenes/resume.md",
-  "skills/docx/references/chart-templates.md",
-  "skills/docx/references/common-rules.md",
-  "skills/docx/references/decorations.md",
-  "skills/docx/references/design-system.md",
-  "skills/docx/references/faq.md",
-  "skills/docx/references/math-formulas.md",
-  "skills/docx/references/xmleditor-api.md",
-] as const;
-
-const OFFICIAL_CUA_REQUIRED_SEED_PATHS = [
-  "docs/computer-use.md",
-  // SDK 入口及其四个依赖模块。entry 单独 import 它们，少任何一个都会得到
-  // 一个看得见 computer-use 却在第一次调用时 ERR_MODULE_NOT_FOUND 的插件。
-  "scripts/computer-use-client.mjs",
-  "scripts/computer-use-errors.mjs",
-  "scripts/computer-use-envelope.mjs",
-  "scripts/computer-use-keys.mjs",
-  "scripts/computer-use-target.mjs",
-  "skills/computer-use/SKILL.md",
-] as const;
-
-// zcode-guide 原本没有 requiredSeedPaths，seed 丢文件时会静默装出一个
-// 没有 /workflow 命令的插件——症状是命令不存在，没有任何诊断。commands/ 与技能正文都钉住。
-const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = [
-  "commands/workflow.md",
-  "skills/dynamic-workflows/SKILL.md",
-  "skills/dynamic-workflows/examples.md",
-  "skills/dynamic-workflows/patterns.md",
-] as const;
+export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["browser-use-plugin"];
+const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["node-repl-host"];
+export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["documents-plugin"];
+export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["pdf-plugin"];
+const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-guide-plugin"];
+const OFFICIAL_CUA_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-cua-plugin"];
 
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
@@ -262,26 +156,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
         description_i18n: { "zh-CN": `创建、编辑与审阅${chineseName}（${skill.toUpperCase()}）。` },
       },
       name,
-      // documents 的 Python 脚本是技能正文描述的全部能力的执行体；只列两个 markdown
-      // 能让校验通过，却挡不住拷贝被截断，最终装出看得见 docx 技能却 import 不到
-      // document.py 的残缺插件。与 OFFICIAL_CUA_REQUIRED_SEED_PATHS 扩项同理。
-      requiredSeedPaths:
-        name === "documents"
-          ? OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS
-          : // pdf 的 Phase 1 只有技能与三个 brief，没有 scripts/。brief 是 SKILL.md
-            // 路由表的目的地，缺任一即"看得见技能、读不到 brief"；scripts 落地后必须
-            // 同步扩项，否则会装出技能描述了却调不到的残缺插件。
-            name === "pdf"
-            ? OFFICIAL_PDF_REQUIRED_SEED_PATHS
-            : // recalc.py 是 SKILL.md「Recalculating formulas」章节的唯一执行体，
-            // openpyxl 读取与 soffice 重算都走它；漏掉就是看得见技能、调不到脚本。
-            name === "spreadsheets"
-            ? [
-                "agents/visual-judge.md",
-                "skills/xlsx/SKILL.md",
-                "skills/xlsx/scripts/recalc.py",
-              ]
-            : ["agents/visual-judge.md", `skills/${skill}/SKILL.md`],
+      requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS[`${name}-plugin`],
       rootCandidates: [
         `packages/${name}-plugin`,
         `../${name}-plugin`,
@@ -302,7 +177,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       description_i18n: { "zh-CN": "查找插图与参考配图。" },
     },
     name: "image-search",
-    requiredSeedPaths: [".mcp.json"],
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["image-search-plugin"],
     rootCandidates: [
       "packages/image-search-plugin",
       "../image-search-plugin",
@@ -371,16 +246,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../plugin-creator-plugin",
       "../../../plugin-creator-plugin",
     ],
-    requiredSeedPaths: [
-      "skills/plugin-creator/SKILL.md",
-      "skills/plugin-creator/scripts/create-basic-plugin.mjs",
-      "skills/plugin-creator/scripts/marketplace-files.mjs",
-      "skills/plugin-creator/scripts/upsert-dev-marketplace.mjs",
-      "skills/plugin-creator/scripts/scaffold-files.mjs",
-      "skills/plugin-creator/scripts/validate-plugin.mjs",
-      "skills/plugin-creator/references/plugin-json-spec.md",
-      "skills/plugin-creator/references/installing-and-updating.md",
-    ],
+    requiredSeedPaths: BUILTIN_PLUGIN_SEED_PATHS["plugin-creator-plugin"],
   },
   {
     defaultEnabled: true,

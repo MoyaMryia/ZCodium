@@ -87,3 +87,5 @@ packages/desktop/.e2e-network-capture/
 /ZCodium-*.AppImage
 /ZCodium-*.rpm
 /ZCodium-*.pkg.tar.zst
+
+packages/desktop/bundled-remote-assets/

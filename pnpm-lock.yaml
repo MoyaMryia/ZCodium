@@ -39,6 +39,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.6.0
+      '@zcode/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       concurrently:
         specifier: ^9.1.2
         version: 9.2.1
