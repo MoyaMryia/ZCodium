@@ -11,7 +11,6 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "../ui/hover-card.
 import { Progress } from "../ui/progress.js";
 import { cn } from "../lib/utils.js";
 import type { LanguageModelUsage } from "ai";
-import { Loader2 } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useContext, useMemo } from "react";
 import { getUsage } from "tokenlens";
@@ -111,12 +110,9 @@ const ContextIcon = () => {
   );
 };
 
-export type ContextTriggerProps = ComponentProps<typeof Button> & {
-  /** 触发器转圈：额度自动重置进行中时替换 ContextIcon（对应「正在重置」状态）。 */
-  loading?: boolean;
-};
+export type ContextTriggerProps = ComponentProps<typeof Button>;
 
-export const ContextTrigger = ({ children, loading = false, ...props }: ContextTriggerProps) => {
+export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
   return (
     <HoverCardTrigger asChild>
       {children ?? (
@@ -127,14 +123,7 @@ export const ContextTrigger = ({ children, loading = false, ...props }: ContextT
           {...props}
           className={cn(props.className)}
         >
-          {loading ? (
-            <Loader2
-              className="size-3.5 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <ContextIcon />
-          )}
+          <ContextIcon />
         </Button>
       )}
     </HoverCardTrigger>

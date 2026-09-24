@@ -70,6 +70,7 @@ jobs:
           node scripts/ci/self-managed-models-smoke.mjs
           node scripts/ci/model-choice-smoke.mjs
           node scripts/ci/local-usage-smoke.mjs
+          node scripts/ci/local-context-smoke.mjs
       - name: Model setup without official purchases
         run: node scripts/ci/no-official-purchase-smoke.mjs
       - name: Local preferences without official accounts
