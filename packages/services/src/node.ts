@@ -214,6 +214,13 @@ export { createCommandsService } from "./commands/commandsService.js";
 export { createHooksService } from "./hooks/hooksService.js";
 export { createMemoryService } from "./memory/memoryService.js";
 export { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
+export {
+  encodeConversationArchive,
+  decodeConversationArchive,
+  ConversationArchiveError,
+  type ConversationArchiveInput,
+  type DecodedConversationArchive,
+} from "./conversation-share/conversationArchive.js";
 export { createLocalPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransferService.js";
 export {
   createLocalConversationShareArtifactSource,
