@@ -59,7 +59,7 @@ import {
 import { resolveV4ModelTriggerDisplay } from "@/v4/composer/modelTriggerDisplay.js";
 import {
   setPendingSettingsSectionIntent,
-  setPendingSettingsUsageCodingPlanIntent,
+  setPendingSettingsUsageIntent,
 } from "@/lib/settingsNavigation.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import type { ModelSelectionView } from "@zcode/services";
@@ -446,7 +446,7 @@ function V4ComposerModelControlsImpl({
       }
       // 剩余额度「更多」直达 Coding Plan 使用统计（按上面写入的来源偏好选中当前套餐），
       // 不落到应用用量；通用 Usage 入口仍走 setPendingSettingsUsageIntent。
-      setPendingSettingsUsageCodingPlanIntent();
+      setPendingSettingsUsageIntent();
       openSettingsTab();
     },
     [openSettingsTab],

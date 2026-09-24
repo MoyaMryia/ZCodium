@@ -1,57 +1,13 @@
-import { AlertTriangle, InfoIcon } from "lucide-react";
-import { Button } from "@/components/ui/button.js";
+import { AlertTriangle } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
-import {
-  formatUsageErrorMessage,
-  isUsageCredentialError,
-  isUsageTeamPlanBusinessError,
-} from "@/lib/usageErrorCopy.js";
 
-export function UsageStatsErrorNotice({ error }: { error: string }) {
+export function UsageStatsErrorNotice() {
   const { intl } = useZCodeIntl();
-  // 团队套餐业务错误（如"您当前暂无有效的团队套餐授权记录…"）含"授权"字样，
-  // 直接 isUsageCredentialError 会误判成凭据问题（显示检查 API Key 按钮），业务错误优先。
-  const usageErrorIsTeamPlanBusiness = isUsageTeamPlanBusinessError(error);
-  const usageErrorIsCredential = !usageErrorIsTeamPlanBusiness && isUsageCredentialError(error);
-
+  // 此页只读 Agent 本地数据库；本地失败不能被误判为官方凭据问题或回显内部错误。
   return (
-    // 参考 Plan Card teamUnavailable 的内联展示（InfoIcon + warning 文字），
-    // 不加边框/背景容器，避免把业务状态提示渲染成独立错误条。
-    <div className="flex w-fit min-w-0 items-center gap-1.5 text-ui-base">
-      {usageErrorIsTeamPlanBusiness ? (
-        <InfoIcon className="size-3 shrink-0 text-warning" aria-hidden="true" />
-      ) : (
-        <AlertTriangle
-          className={
-            usageErrorIsCredential
-              ? "size-3 shrink-0 text-warning"
-              : "size-3 shrink-0 text-destructive"
-          }
-        />
-      )}
-      <span
-        className={
-          usageErrorIsTeamPlanBusiness
-            ? "min-w-0 truncate text-warning"
-            : usageErrorIsCredential
-              ? "min-w-0 truncate whitespace-nowrap text-foreground"
-              : "min-w-0 truncate whitespace-nowrap text-destructive"
-        }
-      >
-        {formatUsageErrorMessage(intl, "stats", error)}
-      </span>
-      {usageErrorIsCredential ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 shrink-0 rounded-md bg-background"
-          onClick={() => setPendingSettingsSection("modelProvider")}
-        >
-          {intl.formatMessage({ id: "settings.usage.checkApiKey" })}
-        </Button>
-      ) : null}
+    <div role="alert" className="flex min-w-0 items-start gap-1.5 text-ui-base text-destructive">
+      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span>{intl.formatMessage({ id: "usage.error.stats.generic" })}</span>
     </div>
   );
 }
