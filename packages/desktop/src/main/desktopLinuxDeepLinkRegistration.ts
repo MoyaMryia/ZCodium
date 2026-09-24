@@ -226,6 +226,97 @@ function writeFileIfChanged(path: string, content: string): boolean {
   return true;
 }
 
+/** mimeapps.list 里只处理这两节的默认/附加关联。 */
+const LINUX_MIME_ASSOCIATION_SECTIONS = new Set([
+  "[Default Applications]",
+  "[Added Associations]",
+]);
+
+/**
+ * 把 `mime=<desktopFileId>`（或分号列表中的本应用）从 mimeapps.list 内容里摘掉。
+ * 只保留必须的 `x-scheme-handler/zcode`；text/html 之类一律移除，交回浏览器。
+ */
+function stripDesktopEntryFromMimeApps(content: string, desktopFileId: string): string {
+  const lines = content.split("\n");
+  const output: string[] = [];
+  let section = "";
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      section = trimmed;
+      output.push(line);
+      continue;
+    }
+    if (LINUX_MIME_ASSOCIATION_SECTIONS.has(section) && trimmed.length > 0 && !trimmed.startsWith("#")) {
+      const separator = trimmed.indexOf("=");
+      if (separator > 0) {
+        const mime = trimmed.slice(0, separator).trim();
+        const value = trimmed.slice(separator + 1).trim();
+        if (mime !== LINUX_DEEP_LINK_MIME_TYPE && value.includes(desktopFileId)) {
+          const kept = value
+            .split(";")
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0 && entry !== desktopFileId);
+          if (kept.length === 0) {
+            // 没有其他处理者时整行移除，避免留下空关联。
+            continue;
+          }
+          output.push(`${mime}=${kept.join(";")}`);
+          continue;
+        }
+      }
+    }
+    output.push(line);
+  }
+  return output.join("\n");
+}
+
+/**
+ * 自愈：桌面入口只应认 `zcode://` 协议。若本应用曾被设成 text/html 等类型的默认
+ * 处理者（误选、历史版本或桌面环境写入），这里把它从 mimeapps.list 中摘除。
+ */
+function removeUnwantedMimeAssociations(params: {
+  mimeAppsPaths: readonly string[];
+  desktopFileId: string;
+  logger: LinuxDeepLinkRegistrationLogger;
+}): boolean {
+  let changed = false;
+  for (const mimeAppsPath of params.mimeAppsPaths) {
+    if (!existsSync(mimeAppsPath)) {
+      continue;
+    }
+    let original: string;
+    try {
+      original = readFileSync(mimeAppsPath, "utf8");
+    } catch (error) {
+      params.logger.warn("[deep-link] 读取 mimeapps.list 失败，跳过关联清理", {
+        mimeAppsPath,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+    const rewritten = stripDesktopEntryFromMimeApps(original, params.desktopFileId);
+    if (rewritten === original) {
+      continue;
+    }
+    try {
+      writeFileSync(mimeAppsPath, rewritten, { encoding: "utf8" });
+      changed = true;
+    } catch (error) {
+      params.logger.warn("[deep-link] 写入 mimeapps.list 失败，跳过关联清理", {
+        mimeAppsPath,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  if (changed) {
+    params.logger.info("[deep-link] 已移除非必须的 mime 默认关联", {
+      desktopFileId: params.desktopFileId,
+    });
+  }
+  return changed;
+}
+
 export function registerLinuxDeepLinkProtocol(options: RegisterLinuxDeepLinkProtocolOptions): void {
   const command = resolveLinuxDeepLinkCommand({
     env: options.env,
@@ -310,6 +401,17 @@ export function registerLinuxDeepLinkProtocol(options: RegisterLinuxDeepLinkProt
         stderr: defaultResult.stderr?.trim(),
       });
     }
+
+    // 桌面入口只保留必须的 zcode:// 协议；text/html 等类型一律摘除，避免
+    // 用户双击 html 之类的文件时被 ZCodium 接管。
+    removeUnwantedMimeAssociations({
+      mimeAppsPaths: [
+        join(applicationsDir, "mimeapps.list"),
+        join(options.homeDir, ".config", "mimeapps.list"),
+      ],
+      desktopFileId,
+      logger: options.logger,
+    });
 
     if (updateResult.error) {
       options.logger.warn("[deep-link] update-desktop-database 不可用，已跳过", {
