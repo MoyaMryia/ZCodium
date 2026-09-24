@@ -169,11 +169,40 @@ detect() →
 | --- | --- | --- | --- |
 | Windows | 子进程 `cua-driver mcp`/`serve` | 无 TCC | Scheduled Task（`autostart`） |
 | macOS | `EmbeddedCuaDriverHost` 私 daemon + SDK | Electron main TCC（`/electron`） | daemon（随 app） |
-| Linux | 子进程 / 同进程 SDK | 无 | 可选 systemd user（待定） |
+| Linux | 同进程 SDK（默认）或 app 私有 daemon 子进程 | 无 | 随 app（**不做 systemd user**，见 §6.1） |
 
 - 同进程 SDK：`CuaDriver.create()`；`--embedded` 继承宿主授权（macOS）。
 - daemon 模式：`cua-driver serve`；`--direct`（MCP 进程内持有 runtime）/`--socket`（显式服务）。
 - MCP 客户端接入：`cua-driver mcp`（各 agent 自带 MCP 客户端）。
+
+### 6.1 Linux 常驻决策：随 app 的私有 daemon，不用 systemd user
+
+实测证据（本机 GNOME 42 / Wayland / cua-driver 0.28.2）：
+
+- `CuaDriver.create()` 同进程 SDK：`platform.js` 设置 `CUA_DRIVER_RS_ENABLE_WAYLAND=1` 后
+  `list_windows` / `get_app_state` 能看到原生 Wayland 窗口（Calculator 462 元素）。
+- `EmbeddedCuaDriverHost(bin, bundleId)` 在 Linux **可启动**（起 `cua-driver mcp --embedded --socket`，
+  有 generation / `restart()` / `waitForExit()`），但其 `environment` 受**固定安全白名单**约束：显式传
+  `CUA_DRIVER_RS_ENABLE_WAYLAND` 报 `EmbeddedDriverError.Configuration: ... is not in the embedded
+  safe allowlist`；白名单只含 `DISPLAY` / `WAYLAND_DISPLAY` / `XDG_*` / `HOME` / `PATH` /
+  `DBUS_SESSION_BUS_ADDRESS` 等，**不含 Wayland 开关**，默认继承同样被过滤，`dangerouslyBypassApprovals`
+  也不能放行 → daemon 只看到 XWayland 窗口（实测 2 个）。故 `EmbeddedCuaDriverHost` 是 macOS（TCC）
+  设施，在 Linux Wayland 不可用。
+
+结论：
+
+- **macOS**：`EmbeddedCuaDriverHost`（TCC 归 ZCode.app，daemon 必须由 app 进程起；Wayland 开关无关）。
+- **Windows**：子进程 + Scheduled Task（另一路）。
+- **Linux**：默认走 node_repl host 内**同进程 SDK**（当前实现，已验证）；如需多窗口共享 daemon，由
+  Desktop main 自己 spawn `cua-driver serve --socket <app socket>`（env 自控，可设 Wayland 开关），
+  所有窗口 host 用 `CuaDriver.connect(socket)`。**不引入 systemd user**：
+  1. 二进制/契约漂移——daemon 必须是 app 打包的那份（`contractVersion` / generation），systemd unit
+     固定路径，app 升级后残留旧 daemon 且无版本协商入口；
+  2. 发行假设——systemd 不覆盖 WSL / 容器 / 非 systemd 发行版，且多一个安装注册步骤；
+  3. 安全边界——session 全局 socket 对同用户任意进程开放，app 私有 socket 权限更紧；
+  4. 跨平台一致——macOS/Windows 都是 app-owned 子进程，Linux 同模型可复用生命周期/重启/父存活逻辑。
+
+代价：app 重启后 daemon 冷启动一次；driver 冷启动成本低，可接受。
 
 ## 7. 失败语义
 
@@ -214,6 +243,6 @@ detect() →
 ## 10. 待定
 
 1. KWin 适配器：等上游 vs 自建（§4.7）。
-2. Linux 常驻形态（子进程 vs systemd user）。
-3. macOS/Windows 的 E2E 环境与 runner。
-4. 兼容层是否登记为受管模块（当前 `packages/zcode-cua` 不在策略受管列表）。
+2. macOS/Windows 的 E2E 环境与 runner。
+3. 兼容层是否登记为受管模块（当前 `packages/zcode-cua` 不在策略受管列表）。
+4. Linux 是否需要 app-owned 共享 daemon（当前默认同进程 SDK，见 §6.1）。

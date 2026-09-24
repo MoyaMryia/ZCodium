@@ -375,8 +375,9 @@ if (!isMainThread && isWorkerCallData(workerData)) {
 export async function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ComputerUseRuntime | undefined> {
-  const socketPath =
-    env.ZCODE_CUA_DRIVER_SOCKET?.trim() ?? env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
+  // 只认 cua-driver 的 socket；旧闭源 Helper 的 broker socket 不是 driver endpoint，
+  // 连同名 fallback 一并移除（见 computer-use-runtime.md P2）。
+  const socketPath = env.ZCODE_CUA_DRIVER_SOCKET?.trim();
   const enabled = Boolean(socketPath) || env.ZCODE_CUA_DRIVER_EMBEDDED === "1";
   if (!enabled) return undefined;
   const { runtime } = await assembleComputerUseRuntimeAsync({
