@@ -16,11 +16,21 @@ test("Host has no callable official request credential or online organization re
     "accountProviderApiClient",
     "accountProviderApiKeyResolver",
     "accountProviderApiTypes",
+    "codingPlanProviderAvailability",
+    "bigmodelStartPlanZcodeJwt",
+    "zaiStartPlanBilling",
   ]) {
     await assert.rejects(
       access(new URL(`../../packages/services/src/model-provider/${file}.ts`, import.meta.url)),
       { code: "ENOENT" },
       `${file} must be removed, not left as an unused credential acquisition path`,
+    );
+  }
+  for (const file of ["bigmodel/codingPlanEntitlement", "providers/zaiBusinessTokenResolver"]) {
+    await assert.rejects(
+      access(new URL(`../../packages/services/src/${file}.ts`, import.meta.url)),
+      { code: "ENOENT" },
+      `${file} must not retain official entitlement requests or business token exchange`,
     );
   }
   for (const file of [
