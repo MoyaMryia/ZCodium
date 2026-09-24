@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { build } from "esbuild";
 import { createRemotePtyBuildPlugin } from "../remote-pty-build.mjs";
 import { verifyBundledRemoteAssets } from "../bundle-remote-assets.mjs";
+import { smokeCuaDriverRuntime } from "./cua-driver-smoke.mjs";
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "../..");
@@ -35,6 +36,7 @@ try {
   };
   assert.ok((await stat(node)).mode & 0o111, "archive must retain Node executable mode");
   assert.equal((await run(node, ["--version"], options)).stdout.trim(), "v22.16.0");
+  await smokeCuaDriverRuntime(join(staging, "glm/linux-x64/packages/node-repl-host"), node);
   assert.equal(
     (
       await run(node, [join(staging, "server/zcode-server.cjs"), "--version"], options)

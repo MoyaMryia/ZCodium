@@ -34,6 +34,7 @@ import { runCommand } from "./spawn-command.mjs";
 import { prepareRemoteNode, REMOTE_NODE_VERSION } from "./remote-node-runtime.mjs";
 import { bundleRepositoryRemoteAssets } from "./bundle-remote-assets.mjs";
 import { validateBuiltinPluginAssets } from "./builtin-plugin-assets.mjs";
+import { stageCuaDriverRuntime } from "./cua-driver-runtime-assets.mjs";
 export { DEFAULT_NODE_DIST_BASE, nodeDistBase } from "./remote-node-runtime.mjs";
 
 export { computeComponentSourceSha256, packComponentSourceAsArchive };
@@ -289,6 +290,9 @@ async function stageRemoteOfficialPlugins(glmDir) {
         filter: shouldCopyOfficialPluginAsset,
       });
     }
+    if (plugin.directory === "node-repl-host") {
+      await stageCuaDriverRuntime(targetRoot, { platform: "linux", arch: "x64" });
+    }
     for (const relativePath of remoteOfficialPluginRequiredPaths) {
       if (!relativePath.startsWith(`${plugin.stagedPath}/`)) continue;
       const stagedAssetPath = join(glmDir, ...relativePath.split("/"));
@@ -300,7 +304,7 @@ async function stageRemoteOfficialPlugins(glmDir) {
     }
     console.log(`  [ok] mock-cdn glm official plugin ${plugin.stagedPath}`);
   }
-  await validateBuiltinPluginAssets(join(glmDir, "packages"));
+  await validateBuiltinPluginAssets(join(glmDir, "packages"), { platform: "linux", arch: "x64" });
 }
 
 async function stageRemoteBundledSkillPack(glmDir) {

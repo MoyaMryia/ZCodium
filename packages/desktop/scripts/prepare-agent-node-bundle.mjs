@@ -8,7 +8,7 @@ import {
 // 由 app 内置的 Electron Node runtime（ELECTRON_RUN_AS_NODE）执行，替代以前随包内置的独立 Node 二进制。
 //
 // 为什么这么做：
-// - agent 没有任何原生 NAPI 插件（ripgrep 是 WASM，其余纯 JS），可直接跑在 Electron 的 Node 上；
+// - Agent 主入口为 JS；独立 node_repl 宿主另携带目标平台 CUA N-API 库；
 // - Electron 41 内置 Node 24.x，与 zcode-cli 的目标运行时一致；
 // - 单平台体积从 ~180MB 降到 ~16MB，且同一份 JS 跨平台通用；
 // - app-server 命令路径不会加载 @zcode/tui，所以这里天然不打包 TUI。
@@ -22,6 +22,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { validateBuiltinPluginAssets } from "../../../scripts/builtin-plugin-assets.mjs";
+import { stageCuaDriverRuntime } from "../../../scripts/cua-driver-runtime-assets.mjs";
 import { stageAgentBundle } from "./stage-agent-bundle.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -201,6 +202,9 @@ async function stageOfficialPlugins() {
         filter: shouldCopyOfficialPluginAsset,
       });
     }
+    if (plugin.directory === "node-repl-host") {
+      await stageCuaDriverRuntime(targetRoot, { platform, arch });
+    }
     for (const relativePath of plugin.requiredSeedPaths ?? []) {
       const stagedAssetPath = resolve(targetRoot, ...relativePath.split("/"));
       if (!existsSync(stagedAssetPath)) {
@@ -211,7 +215,7 @@ async function stageOfficialPlugins() {
     }
     console.log(`[prepare:agent-bundle] staged official plugin ${plugin.stagedPath}`);
   }
-  await validateBuiltinPluginAssets(resolve(glmDir, "packages"));
+  await validateBuiltinPluginAssets(resolve(glmDir, "packages"), { platform, arch });
 }
 
 async function stageBundledSkillPack() {

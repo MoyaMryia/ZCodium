@@ -154,10 +154,14 @@ jobs:
         run: node scripts/bundle-remote-assets.mjs verify
       - name: Prepare desktop runtime
         run: pnpm prepare:desktop-runtime
+      - name: Verify native CUA and shared plugin host
+        run: node scripts/ci/cua-driver-smoke.mjs
       - name: Build workspace and desktop
         run: pnpm build:bootstrap
       - name: Package and verify desktop
         run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch x64 --skip-prepare --skip-build
+      - name: Verify CUA with the packaged Electron runtime
+        run: node scripts/ci/cua-driver-smoke.mjs --packaged
       - name: Collect installers
         run: node scripts/ci/desktop-release.mjs collect "$ZCODE_TARGET_OS"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

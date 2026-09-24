@@ -3,7 +3,10 @@ import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { BUILTIN_PLUGIN_ASSETS } from "../../packages/shared/src/builtinPluginAssets.ts";
+import {
+  BUILTIN_PLUGIN_ASSETS,
+  cuaRuntimeRequiredPaths,
+} from "../../packages/shared/src/builtinPluginAssets.ts";
 import { validateBuiltinPluginAssets } from "../builtin-plugin-assets.mjs";
 import { build } from "esbuild";
 import { resolveBuildAliases } from "../../apps/zcode-cli/packages/cli/scripts/build.mjs";
@@ -12,7 +15,7 @@ test("CLI bundle resolves the shared asset contract through its production alias
   const result = await build({
     stdin: {
       contents:
-        'import { BUILTIN_PLUGIN_ASSETS } from "@zcode/shared/builtin-plugin-assets"; console.log(BUILTIN_PLUGIN_ASSETS.length);',
+        'import { BUILTIN_PLUGIN_ASSETS, cuaRuntimeRequiredPaths } from "@zcode/shared/builtin-plugin-assets"; console.log(BUILTIN_PLUGIN_ASSETS.length);',
       resolveDir: process.cwd(),
     },
     bundle: true,
@@ -48,9 +51,15 @@ test("staging fails if any required asset is missing, including the shared host 
       await writeFile(file, "fixture");
     }
   }
+  for (const path of cuaRuntimeRequiredPaths(process.platform, process.arch)) {
+    const file = join(directory, "node-repl-host", path);
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, "fixture");
+  }
   await validateBuiltinPluginAssets(directory);
   for (const path of [
     "node-repl-host/dist/mcp/server.js",
+    `node-repl-host/${cuaRuntimeRequiredPaths(process.platform, process.arch).at(-2)}`,
     "zcode-cua-plugin/scripts/computer-use-target.mjs",
     "documents-plugin/skills/docx/scripts/document.py",
     "pdf-plugin/skills/pdf/scripts/pdf_qa_checks.py",

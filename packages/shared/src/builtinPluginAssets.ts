@@ -1,3 +1,40 @@
+/** Generated dependencies are confined to the shared MCP host, never a workspace install. */
+export const CUA_RUNTIME_MODULES_PATH = "dist/mcp/node_modules";
+
+export function cuaNativePackage(platform: string, arch: string): string {
+  if (!["linux", "win32", "darwin"].includes(platform) || !["x64", "arm64"].includes(arch)) {
+    throw new Error(`Unsupported CUA target: ${platform}-${arch}`);
+  }
+  const suffix = platform === "linux" ? "-gnu" : platform === "win32" ? "-msvc" : "";
+  return `@trycua/cua-driver-${platform}-${arch}${suffix}`;
+}
+
+export function cuaRuntimeRequiredPaths(platform: string, arch: string): string[] {
+  const native = cuaNativePackage(platform, arch);
+  const library =
+    platform === "win32"
+      ? "cua_driver_sdk.dll"
+      : platform === "darwin"
+        ? "libcua_driver_sdk.dylib"
+        : "libcua_driver_sdk.so";
+  return [
+    "dist/mcp/CUA-NOTICES.md",
+    ...[
+      "@trycua/cua-driver/package.json",
+      "@trycua/cua-driver/dist/index.js",
+      "@trycua/cua-driver/dist/native/node-runtime.js",
+      "@ubjs/core/package.json",
+      "@ubjs/core/dist/esm/index.js",
+      "@ubjs/node/package.json",
+      "@ubjs/node/typescript/dist/resolve-lib.js",
+      `${native}/package.json`,
+      `${native}/${library}`,
+      `${native}/cua_driver_node_runtime.node`,
+      `${native}/node-runtime-NOTICE.md`,
+    ].map((path) => `${CUA_RUNTIME_MODULES_PATH}/${path}`),
+  ];
+}
+
 /** Immutable asset contract shared by bootstrap, desktop staging and remote deployment. */
 export const BUILTIN_PLUGIN_SEED_PATHS = {
   "browser-use-plugin": [

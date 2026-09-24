@@ -1,3 +1,4 @@
+import { walkPluginSeedFiles, shouldIncludePluginSeedFile } from "./plugin-seed-files.js";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
@@ -367,9 +368,13 @@ function collectFilesystemPluginFiles(
     ...includedTopLevelPaths,
     ...(definition.runtimeTopLevelPaths ?? []),
   ]);
-  for (const sourcePath of walkFiles(rootPath, allowedTopLevelPaths)) {
+  for (const sourcePath of walkPluginSeedFiles(
+    rootPath,
+    allowedTopLevelPaths,
+    new Set(definition.runtimeSubtrees ?? []),
+  )) {
     const relativePath = toPosixPath(sourcePath.slice(rootPath.length + 1));
-    if (!shouldIncludePluginFile(relativePath, allowedTopLevelPaths)) continue;
+    if (!shouldIncludePluginSeedFile(relativePath, allowedTopLevelPaths)) continue;
     const bytes = readFileSync(sourcePath);
     files.push({
       mode: modeForSeedFile(relativePath, statSync(sourcePath).mode),
@@ -379,22 +384,6 @@ function collectFilesystemPluginFiles(
     });
   }
   return files.sort((left, right) => left.path.localeCompare(right.path));
-}
-
-function* walkFiles(
-  directory: string,
-  allowedTopLevelPaths: ReadonlySet<string>,
-  depth = 0,
-): Generator<string> {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (shouldSkipDirectory(entry.name, depth, allowedTopLevelPaths)) continue;
-    const fullPath = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      yield* walkFiles(fullPath, allowedTopLevelPaths, depth + 1);
-      continue;
-    }
-    if (entry.isFile()) yield fullPath;
-  }
 }
 
 function readSeedFileBytes(
@@ -456,6 +445,8 @@ function readSeedPluginDescription(
 }
 
 function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSource): boolean {
+  // 修复：标记只证明曾发布过这个版本，磁盘清理或损坏丢失必需库时仍需重新 seed。
+  if (!isSeedUsable(targetRoot, plugin.definition)) return false;
   const markerPath = join(targetRoot, SEED_MARKER_FILE);
   if (!existsSync(markerPath)) return false;
   try {
@@ -650,29 +641,6 @@ function runtimeDir(): string | undefined {
 
 function entrypointDir(): string | undefined {
   return process.argv[1] ? dirname(process.argv[1]) : undefined;
-}
-
-function shouldSkipDirectory(
-  name: string,
-  depth: number,
-  allowedTopLevelPaths: ReadonlySet<string>,
-): boolean {
-  if (name === ".turbo" || name === "coverage" || name === ".venv" || name === "__pycache__") {
-    return true;
-  }
-  return name === "node_modules" && !(depth === 0 && allowedTopLevelPaths.has(name));
-}
-
-function shouldIncludePluginFile(
-  relativePath: string,
-  allowedTopLevelPaths: ReadonlySet<string>,
-): boolean {
-  const segments = relativePath.split("/");
-  if (segments.includes(".DS_Store") || segments.some((segment) => segment.endsWith(".pyc"))) {
-    return false;
-  }
-  const [topLevel] = relativePath.split("/");
-  return topLevel !== undefined && allowedTopLevelPaths.has(topLevel);
 }
 
 function modeForSeedFile(filePath: string, sourceMode?: number): number {

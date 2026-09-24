@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BUILTIN_PLUGIN_REQUIRED_PATHS } from "./builtinPluginAssets.js";
+import { BUILTIN_PLUGIN_REQUIRED_PATHS, cuaRuntimeRequiredPaths } from "./builtinPluginAssets.js";
 import { ACTIVE_REMOTE_RESOURCE_PACKAGE_IDS } from "./remoteResourcePackages.js";
 
 export const BUNDLED_REMOTE_PLATFORM = "linux-x64";
@@ -27,6 +27,7 @@ export function remoteComponentRequiredPaths(id: string): string[] {
       return [
         "zcode.cjs",
         ...BUILTIN_PLUGIN_REQUIRED_PATHS.map((path) => `packages/${path}`),
+        ...cuaRuntimeRequiredPaths("linux", "x64").map((path) => `packages/node-repl-host/${path}`),
         "packages/bundled-skills/skills/dynamic-workflows/SKILL.md",
         "packages/bundled-skills/skills/dynamic-workflows/patterns.md",
         "packages/bundled-skills/skills/dynamic-workflows/examples.md",

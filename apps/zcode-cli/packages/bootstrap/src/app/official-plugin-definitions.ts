@@ -1,4 +1,8 @@
-import { BUILTIN_PLUGIN_SEED_PATHS } from "@zcode/shared/builtin-plugin-assets";
+import {
+  BUILTIN_PLUGIN_SEED_PATHS,
+  CUA_RUNTIME_MODULES_PATH,
+  cuaRuntimeRequiredPaths,
+} from "@zcode/shared/builtin-plugin-assets";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE } from "@zcode/contracts";
 
 // 内置插件的商店信息随包 seed，解析复用 adapter 的 parseEntryStoreListing。
@@ -51,6 +55,8 @@ export interface OfficialPluginDefinition {
   rootCandidates: readonly string[];
   /** Extra top-level paths intentionally staged as plugin runtime assets. */
   runtimeTopLevelPaths?: readonly string[];
+  /** Generated dependency subtrees; never arbitrary workspace node_modules. */
+  runtimeSubtrees?: readonly string[];
   version: string;
 }
 
@@ -60,7 +66,10 @@ const SUPERPOWERS_AUTHOR = { name: "Jesse Vincent", url: "https://github.com/obr
 
 export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS =
   BUILTIN_PLUGIN_SEED_PATHS["browser-use-plugin"];
-const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["node-repl-host"];
+const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = [
+  ...BUILTIN_PLUGIN_SEED_PATHS["node-repl-host"],
+  ...cuaRuntimeRequiredPaths(process.platform, process.arch),
+];
 export const OFFICIAL_DOCUMENTS_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["documents-plugin"];
 export const OFFICIAL_PDF_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["pdf-plugin"];
 const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = BUILTIN_PLUGIN_SEED_PATHS["zcode-guide-plugin"];
@@ -76,6 +85,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 进模型工具池由两个能力插件的启停决定，Helper 由 SDK 首次调用时才拉起。
     defaultEnabled: true,
     name: OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME,
+    runtimeSubtrees: [CUA_RUNTIME_MODULES_PATH],
     requiredSeedPaths: OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS,
     rootCandidates: [
       "packages/node-repl-host",

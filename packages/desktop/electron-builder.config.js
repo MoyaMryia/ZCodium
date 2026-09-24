@@ -14,6 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { runCommand, runCommandAndReadStdout } from "../../scripts/spawn-command.mjs";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
+import { validateBuiltinPluginAssets } from "../../scripts/builtin-plugin-assets.mjs";
 import { verifyBundledRemoteAssets } from "../../scripts/bundle-remote-assets.mjs";
 import { noticesFileName, stageElectronNotices } from "../../scripts/third-party-notices.mjs";
 import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tools-config.mjs";
@@ -533,6 +534,10 @@ export default {
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
   ],
   beforePack: async (context) => {
+    await validateBuiltinPluginAssets(
+      resolve(import.meta.dirname, "bundled-agents", targetPlatform.key, "glm/packages"),
+      { platform: targetPlatform.os, arch: targetPlatform.arch },
+    );
     await verifyBundledRemoteAssets(
       resolve(import.meta.dirname, "bundled-remote-assets"),
       context.packager.appInfo.version,
@@ -576,6 +581,10 @@ export default {
     await stageElectronNotices(context.appOutDir, resources, framework.version);
   },
   afterPack: async (context) => {
+    await validateBuiltinPluginAssets(join(resolvePackagedResourcesDir(context), "glm/packages"), {
+      platform: targetPlatform.os,
+      arch: targetPlatform.arch,
+    });
     await verifyBundledRemoteAssets(
       join(resolvePackagedResourcesDir(context), "remote-assets"),
       context.packager.appInfo.version,
