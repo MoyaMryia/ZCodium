@@ -9,7 +9,6 @@ import type { AccountProviderCredentialStore } from "../model-provider/accountPr
 
 interface OAuthProviderLogoutDependencies {
   readonly accountProviderCredentialStore: Pick<AccountProviderCredentialStore, "deleteApiKey">;
-  readonly refreshAccountProviders?: (reason: string) => Promise<unknown>;
 }
 
 export function createOAuthProviderLogoutHandler(
@@ -28,7 +27,6 @@ export function createOAuthProviderLogoutHandler(
         }),
       );
     }
-    await dependencies.refreshAccountProviders?.(`oauth-logout:${provider}`);
   };
 }
 

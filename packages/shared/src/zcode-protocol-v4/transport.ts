@@ -137,7 +137,6 @@ export const conversationOpenTimingSchema = z
   .object({
     version: z.literal(1),
     hostPrepareMs: openTimingMsSchema,
-    providerRegistrySyncMs: openTimingMsSchema,
     taskMetaReadMs: openTimingMsSchema,
     cliRequestMs: openTimingMsSchema,
     cliBootstrapMs: openTimingMsSchema,
