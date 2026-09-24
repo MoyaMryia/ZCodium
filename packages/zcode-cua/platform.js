@@ -91,6 +91,18 @@ export function createCompatRuntimeOptions({ client, helper } = {}) {
 }
 
 /**
+ * Linux Wayland 会话必须显式打开 cua-driver 的 Wayland 窗口后端。
+ * 否则 `list_windows` / `get_app_state` 只能枚举 XWayland 窗口，原生 Wayland
+ * 应用（如 GNOME Calculator）不可见。X11 会话不设置，避免强制走 Wayland。
+ * 该环境变量由 cua-driver 原生库在初始化时读取，故必须在 import SDK 之前生效。
+ */
+function ensureDriverWindowBackend({ platform, env }) {
+  if (platform !== "linux" || !env || env.CUA_DRIVER_RS_ENABLE_WAYLAND) return;
+  const wayland = env.XDG_SESSION_TYPE === "wayland" || Boolean(env.WAYLAND_DISPLAY);
+  if (wayland) env.CUA_DRIVER_RS_ENABLE_WAYLAND = "1";
+}
+
+/**
  * @param {object} options
  * @param {string} [options.platform] `process.platform`
  * @param {object} [options.env] 探测用环境变量
@@ -109,6 +121,7 @@ export function assembleComputerUseRuntime({
   connectDriver,
   compat,
 } = {}) {
+  ensureDriverWindowBackend({ platform, env });
   const path = resolvePlatformPath({ platform, env, ...probes });
   const requiresMacOsPermissions = path.path === "native" && platform === "darwin";
 
@@ -162,6 +175,8 @@ export async function assembleComputerUseRuntimeAsync({
   compat,
   driverModule,
 } = {}) {
+  // 必须在 import 原生 SDK 之前设置（原生库在初始化时读取该变量）。
+  ensureDriverWindowBackend({ platform, env });
   const CuaDriver = driverModule ?? (await loadCuaDriver());
   const connectDriver = CuaDriver
     ? (path) =>

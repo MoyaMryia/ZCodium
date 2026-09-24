@@ -123,3 +123,21 @@ test("describeCompatReadiness：扩展可达 / 新 GNOME → 就绪", () => {
   assert.equal(describeCompatReadiness({ gnomeShellVersion: "42", portalRemoteDesktopVersion: "1", winRectsVersion: "8" }).ready, true);
   assert.equal(describeCompatReadiness({ gnomeShellVersion: "46", portalRemoteDesktopVersion: "2" }).ready, true);
 });
+
+test("Linux Wayland 会话自动启用 cua-driver Wayland 窗口后端", () => {
+  const env = { XDG_SESSION_TYPE: "wayland" };
+  assembleComputerUseRuntime({ platform: "linux", env, client: makeClient() });
+  assert.equal(env.CUA_DRIVER_RS_ENABLE_WAYLAND, "1");
+});
+
+test("Linux X11 会话不启用 Wayland 后端", () => {
+  const env = { XDG_SESSION_TYPE: "x11" };
+  assembleComputerUseRuntime({ platform: "linux", env, client: makeClient() });
+  assert.equal(env.CUA_DRIVER_RS_ENABLE_WAYLAND, undefined);
+});
+
+test("已显式设置的驱动后端变量不被覆盖", () => {
+  const env = { XDG_SESSION_TYPE: "wayland", CUA_DRIVER_RS_ENABLE_WAYLAND: "0" };
+  assembleComputerUseRuntime({ platform: "linux", env, client: makeClient() });
+  assert.equal(env.CUA_DRIVER_RS_ENABLE_WAYLAND, "0");
+});
