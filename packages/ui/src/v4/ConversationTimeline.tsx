@@ -1767,8 +1767,16 @@ function ConversationTimelineImpl({
           // V4 已自管 prepend、吸底和记忆锚点；和其它虚拟列表一致，应从内容子树禁用锚点候选。
           style={{ overflowAnchor: "none" }}
         >
+          {/*
+           * 两个分支必须各带自己的 key。消息层的遮罩由 syncMessageLayerMask 直接写进
+           * DOM 内联样式，而同一位置、同为 div 的两个分支会被 React 复用同一个节点：
+           * 从滚到中间的会话点「新建任务」时，旧遮罩会原样留给空态容器，且空态容器没有
+           * mask-repeat:no-repeat，遮罩会退化成平铺，把水印裁成一条横带（表现为水印
+           * 只剩半截或整块看不见）。key 不同即强制换新节点，旧遮罩无从继承。
+           */}
           {renderUnits.length === 0 && !headerSlot ? (
             <div
+              key="v4-timeline-empty-slot"
               className={cn(
                 centeredEmptyLayout
                   ? "flex w-full max-w-2xl shrink-0 items-center justify-center"
@@ -1780,6 +1788,7 @@ function ConversationTimelineImpl({
             </div>
           ) : (
             <div
+              key="v4-timeline-message-layer"
               ref={messageLayerRef}
               data-v4-timeline-message-layer="true"
               className="relative w-full flex-1 [mask-repeat:no-repeat] [-webkit-mask-repeat:no-repeat]"
