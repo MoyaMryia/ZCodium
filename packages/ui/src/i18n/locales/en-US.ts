@@ -416,7 +416,7 @@ const enUS: Record<string, string> = {
   "conversationShare.disclosure.scope.note":
     "The system does not scan or redact this content automatically. Review each item before sharing.",
   "conversationShare.import.source": "Imported from share: {title}",
-  "conversationShare.import.dividerLabel": "Imported from share",
+  "conversationShare.import.dividerLabel": "Imported conversation",
   "conversationShare.import.fallbackRemoteWorkspace":
     "Imported from share: {title}. The current workspace is remote, which import does not support yet, so the session was created in the local workspace {workspacePath}.",
   "conversationShare.import.fallbackDefaultWorkspace":

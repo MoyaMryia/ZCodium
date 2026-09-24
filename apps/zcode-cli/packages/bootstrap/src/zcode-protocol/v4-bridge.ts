@@ -18,6 +18,7 @@ import {
 import { createExternalTurnFaultError } from "@zcode/core";
 import {
   V4_NOTIFICATIONS,
+  restoreSharedContextImportState,
   conversationInputIntentSchema,
   type AttachmentRef,
   type CommandEnvelope,
@@ -848,19 +849,9 @@ export function createConversationV4Gateway(
         });
         const data = entry?.data;
         const session = await context.deps.sessionStore.getSession(sessionId as SessionId);
-        if (
-          data &&
-          typeof data === "object" &&
-          !Array.isArray(data) &&
-          typeof (data as Record<string, unknown>).shareUrl === "string" &&
-          session?.title
-        ) {
-          context.v4Gateway?.updateSharedContextImport(sessionId, {
-            contextId: reference.context_id,
-            title: session.title,
-            shareUrl: String((data as Record<string, unknown>).shareUrl),
-            status: "reserved",
-          });
+        const restored = restoreSharedContextImportState(session?.title, data, "reserved");
+        if (restored && "contextId" in restored) {
+          context.v4Gateway?.updateSharedContextImport(sessionId, restored);
         }
       }
       return conversationInputIntent;
@@ -927,20 +918,9 @@ export function createConversationV4Gateway(
         });
         const data = entry?.data;
         const session = await store.getSession(sessionId as SessionId);
-        if (
-          data &&
-          typeof data === "object" &&
-          !Array.isArray(data) &&
-          typeof (data as Record<string, unknown>).shareUrl === "string" &&
-          typeof (data as Record<string, unknown>).contextId === "string" &&
-          session?.title
-        ) {
-          context.v4Gateway?.updateSharedContextImport(sessionId, {
-            contextId: String((data as Record<string, unknown>).contextId),
-            title: session.title,
-            shareUrl: String((data as Record<string, unknown>).shareUrl),
-            status: "discarded",
-          });
+        const restored = restoreSharedContextImportState(session?.title, data, "discarded");
+        if (restored && "contextId" in restored) {
+          context.v4Gateway?.updateSharedContextImport(sessionId, restored);
         }
       }
       return updated;

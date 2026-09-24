@@ -370,7 +370,7 @@ const zhCN: Record<string, string> = {
   "conversationShare.disclosure.scope.sensitive": "凭证、Token、密码、私钥、内部地址、个人信息",
   "conversationShare.disclosure.scope.note": "系统不会自动扫描或脱敏，请逐项确认。",
   "conversationShare.import.source": "已从分享导入：{title}",
-  "conversationShare.import.dividerLabel": "已从分享导入",
+  "conversationShare.import.dividerLabel": "导入的对话",
   "conversationShare.import.fallbackRemoteWorkspace":
     "已从分享导入：{title}。当前工作区是远程的，暂不支持导入，会话已创建在本地工作区 {workspacePath}。",
   "conversationShare.import.fallbackDefaultWorkspace":

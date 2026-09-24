@@ -622,22 +622,10 @@ export class ProductProjection {
   ): void {
     const title = source?.title.trim();
     if (!title) return;
-    if (
-      this.snapshot.sharedContextImport?.title === title &&
-      (source as { contextId?: string }).contextId ===
-        (this.snapshot.sharedContextImport as { contextId?: string }).contextId &&
-      (source as { status?: string }).status ===
-        (this.snapshot.sharedContextImport as { status?: string }).status
-    ) {
-      return;
-    }
-    this.snapshot = {
-      ...this.snapshot,
-      sharedContextImport: {
-        ...source,
-        title,
-      },
-    };
+    const next = { ...source, title };
+    // contextId/status 相同不代表来源相同；冷恢复的新归档摘要不能被旧 seed 吞掉。
+    if (JSON.stringify(this.snapshot.sharedContextImport) === JSON.stringify(next)) return;
+    this.snapshot = { ...this.snapshot, sharedContextImport: next };
   }
 
   seedUsage(seed: SessionUsageSeed): void {

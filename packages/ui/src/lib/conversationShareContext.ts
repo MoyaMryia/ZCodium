@@ -1,3 +1,5 @@
+import type { SharedContextImportState } from "@zcode/shared/zcode-protocol-v4";
+
 const SHARE_CONTEXT_BLOCK_PATTERN =
   /(?:\n\n)?# zcode-share-context:\n```zcode-share-context\n([\s\S]*?)\n```\s*$/u;
 
@@ -18,12 +20,8 @@ interface ConversationShareContextReference {
  * sharedContextRefs，attach 也就无从谈起。
  */
 export function resolveAttachableShareContext(
-  sharedContextImport:
-    | { contextId: string; title: string; shareUrl: string; status: string }
-    | { title: string }
-    | null
-    | undefined,
-): { contextId: string; title: string; shareUrl: string; status: string } | null {
+  sharedContextImport: SharedContextImportState | null | undefined,
+): Extract<SharedContextImportState, { contextId: string }> | null {
   if (!sharedContextImport || !("contextId" in sharedContextImport)) return null;
   return sharedContextImport.status === "discarded" ? null : sharedContextImport;
 }
