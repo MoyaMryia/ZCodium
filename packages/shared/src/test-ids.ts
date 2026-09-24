@@ -4,11 +4,10 @@
  * 并且每个都需要中文注释
  */
 
+/** 侧栏底部的本地偏好菜单入口 */
+export const TID_SIDEBAR_PREFERENCES_TRIGGER = "sidebar-preferences-trigger";
+
 // Login entry
-/** 右上角登录触发按钮 */
-export const TID_LOGIN_TRIGGER = "login-trigger";
-/** 用户菜单中的登录操作 */
-export const TID_LOGIN_MENU_ITEM = "login-menu-item";
 /** 登录页切换到 API Key 登录方式按钮 */
 export const TID_LOGIN_USE_API_KEY_BUTTON = "login-use-api-key-button";
 /** API Key 登录 provider 选择触发器 */
@@ -39,8 +38,6 @@ export const TID_APP_HEADER = "app-header";
 export const TID_LOCALE_TOGGLE = "locale-toggle";
 /** 主题切换按钮 */
 export const TID_THEME_TOGGLE = "theme-toggle";
-/** 退出登录按钮 */
-export const TID_LOGOUT_BUTTON = "logout-button";
 /** 终端显隐切换按钮 */
 export const TID_TERMINAL_TOGGLE = "terminal-toggle";
 export const TID_SIDE_PANE_TOGGLE = "side-pane-toggle";
@@ -421,8 +418,8 @@ export const TID_SUBAGENT_BUILT_IN_MODEL_TRIGGER = "subagent-built-in-model-trig
 export const TID_SETTINGS_USAGE_TAB = "settings-usage-tab";
 /** 侧边栏头像菜单剩余额度子菜单入口 */
 export const TID_SIDEBAR_USAGE_REMAINING_TRIGGER = "sidebar-usage-remaining-trigger";
-/** 侧边栏头像菜单使用统计入口 */
-export const TID_SIDEBAR_CODING_PLAN_USAGE_BUTTON = "sidebar-coding-plan-usage-button";
+/** 侧边栏偏好菜单的本地使用统计入口 */
+export const TID_SIDEBAR_USAGE_BUTTON = "sidebar-usage-button";
 
 // Model Provider Settings
 /** 模型供应商顶部添加按钮 */

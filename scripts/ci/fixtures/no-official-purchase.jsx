@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
 import { ChatErrorBanner } from "../../../packages/ui/src/ChatErrorBanner.js";
 import { CodingPlanStatusPanel } from "../../../packages/ui/src/settings/model-provider-section/StatusCards.js";
-import { WorkspaceSidebarFooterUsageSummaryContent } from "../../../packages/ui/src/WorkspaceSidebarFooterUsageSummary.js";
+import { WorkspaceSidebarUsageMenuItem } from "../../../packages/ui/src/WorkspaceSidebarUsageMenuItem.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +45,7 @@ function Fixture() {
           <button type="button">Menu</button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <WorkspaceSidebarFooterUsageSummaryContent
+          <WorkspaceSidebarUsageMenuItem
             onUsageClick={() => {
               window.purchaseFixture.usage++;
             }}

@@ -93,12 +93,7 @@ interface RemoteConnectionOpenPreference {
   preferredWslDistro?: string;
 }
 
-type WelcomeScreenOpenReason =
-  | "startup-provider-required"
-  | "manual-login"
-  | "provider-request"
-  | "logout-provider-required"
-  | "session-expired";
+type WelcomeScreenOpenReason = "startup-provider-required" | "provider-request" | "session-expired";
 
 /**
  * Root —— 应用根组件
@@ -188,11 +183,7 @@ function RootInner({
   const oauthPollingActive = useZCodeStore((state) => state.oauthPollingActive);
   const setOAuthPollingActive = useZCodeStore((state) => state.setOAuthPollingActive);
   const markOAuthSuccess = useZCodeStore((state) => state.markOAuthSuccess);
-  const {
-    settings: appSettings,
-    refresh: refreshAppSettings,
-    update: updateAppSettings,
-  } = useSettings();
+  const { settings: appSettings, refresh: refreshAppSettings } = useSettings();
   const [welcomeScreenOpenReason, setWelcomeScreenOpenReason] =
     useState<WelcomeScreenOpenReason | null>(() =>
       consumeZcodeJwtInvalidRestartMarker() ? "session-expired" : null,
@@ -456,7 +447,6 @@ function RootInner({
     setWorkspaceActionError,
     startDraftInWorkspace,
     startNewTaskFromActiveWorkspace,
-    handleLogout,
     handleSelectProject,
     handleSelectConversationWorkspace,
     handleResolveConversationWorkspace,
@@ -479,14 +469,6 @@ function RootInner({
     allowOpenWorkspace,
     preferDirectoryBrowser: shouldPreferDirectoryBrowser,
     openDirectoryBrowser: handleOpenDirectoryBrowser,
-    refreshProviderState,
-    updateAppSettings,
-    setOAuthError,
-    setUser,
-    onProviderFamilyDomainClearedAfterLogout: () => {
-      setWelcomeScreenOpenReason("logout-provider-required");
-    },
-    userId: user?.id,
     onOpenRemoteConnection: allowRemoteWorkspace ? handleOpenRemoteConnection : undefined,
   });
   const handleRemoteWorkspaceActivated = useCallback(
@@ -847,9 +829,6 @@ function RootInner({
     setWelcomeScreenOpenReason("provider-request");
   }, [loginEntryRequest]);
 
-  const handleOpenLoginEntry = () => {
-    setWelcomeScreenOpenReason("manual-login");
-  };
   const handleWelcomeScreenComplete = useCallback(
     async (reason: LoginCompleteReason) => {
       await refreshAppSettings();
@@ -939,9 +918,6 @@ function RootInner({
     onCreateTask: handleCreateTask,
     onOpenWorkspace: handleOpenWorkspace,
     allowOpenWorkspace,
-    onLogin: !user ? handleOpenLoginEntry : undefined,
-    onLogout: user ? handleLogout : undefined,
-    user,
   };
 
   if (isStartupRenderBlocked) {
@@ -1034,9 +1010,6 @@ function RootInner({
               remoteWorkspaceSessions={remoteWorkspaceSessions}
               allowRemoteWorkspace={allowRemoteWorkspace}
               handleBackFromSettings={handleBackFromSettings}
-              handleLogout={user ? handleLogout : undefined}
-              onLogin={!user ? handleOpenLoginEntry : undefined}
-              user={user}
               reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
               remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
               reconnectingRemoteWorkspaceLogsByWorkspaceKey={
