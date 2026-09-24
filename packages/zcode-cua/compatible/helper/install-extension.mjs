@@ -29,6 +29,28 @@ function shellMajorVersion() {
   }
 }
 
+function extensionState() {
+  try {
+    const out = execFileSync("gnome-extensions", ["info", UUID], { encoding: "utf8" });
+    return /State:\s*(\w+)/.exec(out)?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+function winRectsReachable() {
+  try {
+    execFileSync(
+      "gdbus",
+      ["call", "--session", "--dest", "org.cua.WinRects", "--object-path", "/org/cua/WinRects", "--method", "org.cua.WinRects.GetVersion"],
+      { stdio: "ignore" },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const major = shellMajorVersion();
 if (Number.isFinite(major) && major >= 45) {
   console.log(`GNOME Shell ${major} ≥ 45：使用 cua-driver 官方 winrects@cua，跳过 ${UUID}。`);
@@ -46,8 +68,17 @@ console.log(`已安装扩展 → ${target}`);
 
 try {
   execFileSync("gnome-extensions", ["enable", UUID], { stdio: "ignore" });
-  console.log(`已启用 ${UUID}。`);
 } catch {
-  console.log(`未能自动启用；登录/登出后运行：gnome-extensions enable ${UUID}`);
+  // 未启用也可继续：下面统一按可达性给出引导。
 }
-console.log("首次安装需登录/登出一次，GNOME Shell 才会加载扩展。");
+
+// 就绪判定：只有 org.cua.WinRects 在当前会话可应答，compat 才能工作。
+// Wayland 下 GNOME Shell 无法热重载，新装/改动的扩展必须登录/登出一次才生效。
+if (winRectsReachable()) {
+  console.log(`已就绪：org.cua.WinRects 可达（State: ${extensionState() ?? "?"}）。`);
+} else {
+  console.log(
+    `扩展已安装（State: ${extensionState() ?? "?"}），但当前会话还未加载 org.cua.WinRects。`,
+  );
+  console.log("→ 请注销并重新登录一次（Wayland 下无法热重载 GNOME Shell）。");
+}

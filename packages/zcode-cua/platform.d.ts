@@ -41,6 +41,13 @@ export declare function probeGnomeEnvironment(): {
   winRectsVersion?: string;
 };
 
+export declare function describeCompatReadiness(probes?: GnomeProbes): {
+  ready: boolean;
+  needsExtension: boolean;
+  reason: string;
+  guidance?: string;
+};
+
 export declare function assembleComputerUseRuntime(
   options?: AssembleComputerUseRuntimeOptions,
 ): AssembledComputerUseRuntime;

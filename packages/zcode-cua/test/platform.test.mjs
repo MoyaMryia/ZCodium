@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assembleComputerUseRuntime, createCompatRuntimeOptions } from "../platform.js";
+import { assembleComputerUseRuntime, createCompatRuntimeOptions, describeCompatReadiness } from "../platform.js";
 
 function makeClient() {
   return {
@@ -110,4 +110,16 @@ test("createCompatRuntimeOptions 返回 applies 端口", () => {
   const options = createCompatRuntimeOptions({ client: makeClient(), helper });
   assert.equal(options.applies, true);
   assert.equal(typeof options.execute, "function");
+});
+
+test("describeCompatReadiness：老 GNOME 未加载扩展 → 需要安装 + 重登", () => {
+  const result = describeCompatReadiness({ gnomeShellVersion: "42", portalRemoteDesktopVersion: "1" });
+  assert.equal(result.ready, false);
+  assert.equal(result.needsExtension, true);
+  assert.match(result.guidance, /install:gnome-extension/);
+});
+
+test("describeCompatReadiness：扩展可达 / 新 GNOME → 就绪", () => {
+  assert.equal(describeCompatReadiness({ gnomeShellVersion: "42", portalRemoteDesktopVersion: "1", winRectsVersion: "8" }).ready, true);
+  assert.equal(describeCompatReadiness({ gnomeShellVersion: "46", portalRemoteDesktopVersion: "2" }).ready, true);
 });

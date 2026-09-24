@@ -57,6 +57,32 @@ export function probeGnomeEnvironment() {
   return probes;
 }
 
+/**
+ * 老 GNOME compat 的就绪判定：`org.cua.WinRects` 可达才可用；
+ * 不可达时给出“安装扩展 + 登录/登出一次”的引导（Wayland 无法热重载 Shell）。
+ */
+export function describeCompatReadiness(probes = {}) {
+  const shell = Number.parseInt(String(probes.gnomeShellVersion ?? ""), 10);
+  const portal = Number.parseInt(String(probes.portalRemoteDesktopVersion ?? ""), 10);
+  const legacy = (Number.isFinite(shell) && shell < 45) || (Number.isFinite(portal) && portal < 2);
+  if (!legacy) {
+    return { ready: true, needsExtension: false, reason: "native path (compat not required)" };
+  }
+  const reachable =
+    probes.winRectsVersion !== undefined &&
+    probes.winRectsVersion !== null &&
+    String(probes.winRectsVersion).trim() !== "";
+  if (reachable) {
+    return { ready: true, needsExtension: false, reason: "compat ready (org.cua.WinRects reachable)" };
+  }
+  return {
+    ready: false,
+    needsExtension: true,
+    reason: "legacy GNOME needs the WinRects extension loaded",
+    guidance: "运行 pnpm --filter @zcode/zcode-cua install:gnome-extension 后注销并重新登录一次",
+  };
+}
+
 /** Linux 老 GNOME 的 compat 选项（注入 client 以便解析元素框 / set_value）。 */
 export function createCompatRuntimeOptions({ client, helper } = {}) {
   const backend = createWaylandInputBackend({ helper: helper ?? createHelperClient() });
