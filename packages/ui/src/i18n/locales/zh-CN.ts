@@ -3685,7 +3685,6 @@ const zhCN: Record<string, string> = {
   "settings.plugins.marketplaces.empty": "暂无插件市场",
   "settings.plugins.marketplaces.official": "官方",
   "settings.plugins.marketplaces.plugins": "{count} 个插件",
-  "settings.plugins.marketplaces.refreshCatalogHint": "刷新以加载官方目录。",
   "settings.plugins.marketplacePlugins.title": "市场插件",
   "settings.plugins.marketplacePlugins.empty": "暂无市场插件",
   "settings.plugins.marketplacePlugins.install": "安装",

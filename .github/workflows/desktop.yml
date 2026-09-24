@@ -52,6 +52,7 @@ jobs:
         run: |
           node scripts/ci/cli-local-entrypoints-smoke.mjs
           node scripts/ci/local-automation-protocol-smoke.mjs
+          node scripts/ci/bundled-plugin-marketplace-protocol-smoke.mjs
           node scripts/ci/tui-model-setup-smoke.mjs
       - name: Install browser for remote form checks
         run: pnpm exec playwright-core install --with-deps chromium
@@ -75,7 +76,9 @@ jobs:
           node scripts/ci/session-local-errors-smoke.mjs
           node scripts/ci/local-onboarding-smoke.mjs
       - name: Bundled catalog browser checks
-        run: node scripts/ci/client-catalog-smoke.mjs
+        run: |
+          node scripts/ci/client-catalog-smoke.mjs
+          node scripts/ci/bundled-plugin-marketplace-smoke.mjs
       - name: Model setup without official purchases
         run: node scripts/ci/no-official-purchase-smoke.mjs
       - name: Local preferences without official accounts

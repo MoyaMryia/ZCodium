@@ -244,7 +244,7 @@ export function buildStoreItems(input: {
     if (existing) {
       // 内置卸载态同时存在于完整 Catalog 和 restorable 列表：只有没有实际
       // Marketplace ownership 时才覆盖为 restorable。若 installed/installedMeta/info
-      // 已表明同名 CDN 插件归用户所有，必须保留 installed，避免详情页误显示 Restore。
+      // 已表明同名插件由用户显式安装，必须保留 installed，避免详情页误显示 Restore。
       const hasMarketplaceOwnership =
         existing.installed || existing.installedMeta !== undefined || existing.info !== undefined;
       if (hasMarketplaceOwnership) continue;
@@ -295,7 +295,7 @@ export function buildStoreItems(input: {
   return [...items.values()];
 }
 
-/** 公开分段：Featured（CDN featured 名单按序）+ 分类聚合（无分类归 other，排最后）。 */
+/** 公开分段：Featured（随包 featured 名单按序）+ 分类聚合（无分类归 other，排最后）。 */
 export function selectFeaturedItems(
   publicItems: StorePluginItem[],
   marketplaces: ZCodePluginMarketplaceSummary[],

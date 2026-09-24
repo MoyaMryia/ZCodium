@@ -3942,7 +3942,6 @@ const enUS: Record<string, string> = {
   "settings.plugins.marketplaces.empty": "No marketplaces added",
   "settings.plugins.marketplaces.official": "Official",
   "settings.plugins.marketplaces.plugins": "{count} plugins",
-  "settings.plugins.marketplaces.refreshCatalogHint": "Refresh to load the official catalog.",
   "settings.plugins.marketplacePlugins.title": "Marketplace plugins",
   "settings.plugins.marketplacePlugins.empty": "No marketplace plugins found",
   "settings.plugins.marketplacePlugins.install": "Install",

@@ -5336,7 +5336,6 @@ export const diagnosticModules: readonly string[] = [
   "packages/ui/src/settings/model-provider-section/useOptimisticReorder.ts",
   "packages/ui/src/settings/model-provider-section/useProviderModelDraft.ts",
   "packages/ui/src/settings/model-provider-section/utils.tsx",
-  "packages/ui/src/settings/officialMarketplaceAutoRefresh.ts",
   "packages/ui/src/settings/pluginCapabilityProjection.ts",
   "packages/ui/src/settings/pluginConfigPatch.ts",
   "packages/ui/src/settings/pluginCreatorPrefill.ts",
