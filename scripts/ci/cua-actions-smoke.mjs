@@ -111,11 +111,12 @@ async function session() {
     }
     assert.ok(window, "Fixture window must be registered by the window manager");
     const bind = `const app = await cua.getWindow({pid:${window.pid}},${window.window_id});`;
+    // Ubuntu 24 的 AT-SPI 使用 push button，新版本使用 button；两者都是同一控件角色。
     const observe = `
       const tree = await app.getAXState({emit:false});
       const field = /\\[(\\d+)\\] entry "Message"/.exec(tree);
-      const save = /\\[(\\d+)\\] button "Save"/.exec(tree);
-      if(!field || !save) throw new Error("Fixture accessibility controls missing: " + tree.slice(-1500));
+      const save = /\\[(\\d+)\\] (?:push )?button "Save"/.exec(tree);
+      if(!field || !save) throw new Error("Fixture accessibility controls missing: " + tree);
     `;
     await cell(bind + observe);
     const shot = await cell(bind + "await app.getScreenshot();");
@@ -148,8 +149,8 @@ async function session() {
       bind +
         `
       const {state} = await app.getAXStateAndScreenshot({emit:false});
-      const source = /\\[(\\d+)\\] button "Drag source"/.exec(state);
-      const destination = /\\[(\\d+)\\] button "Drop target"/.exec(state);
+      const source = /\\[(\\d+)\\] (?:push )?button "Drag source"/.exec(state);
+      const destination = /\\[(\\d+)\\] (?:push )?button "Drop target"/.exec(state);
       if(!source || !destination) throw new Error("Drag fixture controls missing");
       await app.drag(Number(source[1]),Number(destination[1]),{deliveryMode:"foreground"});
     `,
