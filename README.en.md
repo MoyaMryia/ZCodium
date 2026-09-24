@@ -28,10 +28,10 @@ Backfilling methods include supplying the missing built-in plugins and skills, l
 
 Verified against 3.14.1. Upstream `328c1a0 feat: update v3.14.3` has since open-sourced the `bots` stack (four platform adapters plus the platform-selection GUI) and phone remote control, among others; this repository has merged 3.14.3, so some gaps below are now covered by upstream and the full delta needs re-verification against 3.14.3.
 
-**Backfilled** (see [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)):
+**Backfilled**:
 
-- Nine built-in plugins: documents, pdf, presentations, spreadsheets, skill-creator, plugin-creator, image-search, restore-legacy-sessions, zcode-guide. Open-source commit `44b25ed46c` removed their sources while the official package still ships them.
-- The Computer Use model-visible surface: `scripts/computer-use-client.mjs`, skill, and docs. The native runtime (koffi/sharp, roughly 20 MiB) is not published with the package, matching upstream's `runtimeTopLevelPaths: []`.
+- Ten built-in plugins and skills: documents, pdf, presentations, spreadsheets, skill-creator, plugin-creator, image-search, restore-legacy-sessions, zcode-guide, zcode-cua. Open-source commit `44b25ed46c` removed their sources while the official package still ships them. Scope: [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md), [.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md), and [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md).
+- The Computer Use model-visible surface: `apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`, skill, and docs. The native runtime (koffi/sharp, roughly 20 MiB) is not published with the package, matching upstream's `runtimeTopLevelPaths: []`.
 
 **Not yet backfilled** (located via i18n key gaps at 3.14.1, 528 keys total; to be re-verified after the 3.14.3 merge):
 
@@ -44,19 +44,22 @@ Verified against 3.14.1. Upstream `328c1a0 feat: update v3.14.3` has since open-
 | `settings`         | 24 keys  | Includes Claude model slot mapping and Anthropic/OpenAI/Gemini multi-protocol endpoint templates |
 | Other              | 51 keys  | `server`, `appHeader`, `rewards`, `onboarding`, and others                                       |
 
-Of these, `bots` and `webRemoteControl` were open-sourced by upstream in 3.14.3 and are now merged in this repository.
+Of these, `bots` and `webRemoteControl` were open-sourced by upstream in 3.14.3 and are now merged in this repository. What remains is the other four areas plus "other" — roughly 166 keys by the 3.14.1 count. The exact number needs re-verification after the 3.14.3 merge.
 
 **Deliberately not backfilled**:
 
 - Repository snapshot upload. Official builds before 3.14.0 packaged the entire workspace (including `.git`) before every prompt and uploaded it encrypted to object storage, with the server holding the private key. Upstream removed this behavior and this repository does not implement it either; only a localhost-only reproduction is kept at [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) for audit comparison — keys are generated locally and non-loopback targets are rejected by default.
 - Official telemetry collection and reporting. ZCodium retains privacy-filtered local diagnostics, with external export disabled by default. Users can explicitly configure their own OTLP collector. See [diagnostics](DIAGNOSTICS.md).
 
-### Decided backfill routes
+### Backfill routes
 
-These directions are settled but not yet implemented; details to be discussed separately:
+**Landed**:
 
-- **`bots`: official implementation plus the AstrBot bridge, side by side.** Upstream 3.14.3 open-sourced the official `bots` stack (four platform adapters and the platform-selection GUI), which is now merged in this repository. The in-house [AstrBot](https://github.com/AstrBotDevs/AstrBot) bridge is kept and wired into the official GUI as its own provider option; AstrBot owns the platform adapters while this repository maintains only the bridge contract. [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin), see [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md).
-- **Generic Computer Use**: see [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md). Layered behind an Actuator interface; the existing infrastructure (broker/bridge) is already in place and was generic to begin with.
+- **`bots`: official implementation plus the AstrBot bridge, side by side.** Upstream 3.14.3 open-sourced the official `bots` stack (four platform adapters and the platform-selection GUI), which is now merged in this repository. The in-house [AstrBot](https://github.com/AstrBotDevs/AstrBot) bridge is no longer a service parallel to the official `BotsService`; it has been folded into the official `BotsService` as a single transport provider (`BotProviderAdapter`, with the channel fixed to `astrbot`) and wired into both the official Bots GUI and the phone remote-control entry. AstrBot owns the platform adapters while this repository maintains only the bridge contract (wire protocol v2). [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin), see [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md).
+- **Computer Use runtime**: the native execution layer is not built in-house. It reuses `@trycua/cua-driver` from the open-source [`trycua/cua`](https://github.com/trycua/cua) project (MIT, Rust, macOS / Windows / Linux), with the adapter in [packages/zcode-cua/](packages/zcode-cua/). The client is injected by the upper layer, and the runtime stays fail-closed without one. Older GNOME / Wayland gets a separate physical-input compatibility layer. Capability mapping and gaps, the adapter contract, and per-platform mechanisms are covered in [.agents/specs/computer-use-capabilities.md](.agents/specs/computer-use-capabilities.md), [.agents/specs/computer-use-runtime.md](.agents/specs/computer-use-runtime.md), and [.agents/specs/computer-use-platform-architecture.md](.agents/specs/computer-use-platform-architecture.md) respectively.
+
+**Settled but not yet implemented**:
+
 - **image-search defaults to a local backend**: changed to `http://127.0.0.1:8787`, see [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md). No local image-search backend ships in this repository yet; you deploy your own.
 
 ### Relationship to upstream
@@ -73,8 +76,18 @@ This repository tracks upstream [zai-org/ZCode](https://github.com/zai-org/ZCode
 
 ## Updates
 
-- 2026-9-23: Upstream released ZCode v3.14.3.
-- 2026-9-24: Merged upstream 3.14.3 (`328c1a0`); adopted the official bots and the newly open-sourced remote-control surfaces, keeping the `.zcodium` data namespace and the in-house AstrBot bridge.
+- 2026-09-24: Folded the AstrBot bridge into the official `BotsService` as a transport provider, and wired it into the official Bots GUI and the phone remote-control entry (#11–#14).
+- 2026-09-24: Switched the Computer Use runtime to `@trycua/cua-driver` as the single native engine and removed the in-house desk-pilot; the client is injected by the upper layer, the runtime stays fail-closed without one, and older GNOME / Wayland goes through a separate physical-input compatibility layer.
+- 2026-09-24: Merged upstream 3.14.3 (`328c1a0`); adopted the official bots and the newly open-sourced remote-control surfaces, keeping the `.zcodium` data namespace.
+- 2026-09-24: Bumped the root `package.json` version to `3.14.3-modified` to mark this repository's artifacts; see Versioning below.
+
+## Versioning
+
+The root `package.json` version carries a `-modified` suffix after the upstream version (currently `3.14.3-modified`) so this repository's artifacts are distinguishable from official packages. The suffix is a valid semver prerelease identifier and is accepted by `node scripts/ci/desktop-release.mjs check-version`.
+
+Release tags must match the version exactly, i.e. `v3.14.3-modified`; CI artifact names become `ZCodium-3.14.3-modified-<platform>-<arch>.<ext>`. The CLI distribution defaults to the same version, so `dist/zcode/releases/3.14.3-modified/` is the default output directory.
+
+Note: if `ZCODE_REMOTE_ASSET_CDN_BASE_URL` is pinned to a versioned directory, it must match the running version, or `assertRemoteCdnBaseVersionMatches` fails at startup. Upstream has no `3.14.3-modified` directory, so host the remote assets yourself or use a version-less release root.
 
 ## Setup
 
@@ -197,7 +210,7 @@ Pushing `v<package.json.version>` creates a **draft Release** with both platform
 
 The workflow uses the built-in `GITHUB_TOKEN` and needs no additional service credentials or signing certificates. Installers are unsigned. In-app updates and standalone remote runtime assets are outside this workflow. See the [CI/CD spec](.agents/specs/desktop-ci-release.md).
 
-See [third-party/README.md](third-party/README.md) for notice generation, distribution checks, and where the notices are included in each distribution.
+Third-party notices are generated by [scripts/generate-third-party-notices.mjs](scripts/generate-third-party-notices.mjs) from the manifests, source copies, and license texts under [third-party/](third-party/); the output is [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), shipped with each distribution. CLI distribution assembly and verification live in [scripts/zcode-distribution/](scripts/zcode-distribution/).
 
 ### Desktop
 
@@ -270,8 +283,12 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 | `packages/services`                                  | Business services and persistence                                                       |
 | `packages/shared`, `packages/rpc`, `packages/client` | Shared protocols and types, RPC framework, and Agent client SDK                         |
 | `packages/provider`, `packages/provider-node`        | Common provider capabilities and Node implementations                                   |
+| `packages/model-option-map`                          | Model option map compilation                                                            |
+| `packages/formal-proof`                              | Product behavior state-space enumerator                                                 |
+| `packages/zcode-cua`                                 | Computer Use runtime adapter                                                            |
 | `apps/zcode-cli`                                     | Agent CLI, TUI, runtime, and tools                                                      |
 | `scripts`, `config`, `third-party`                   | Build and maintenance scripts, built-in configuration, and third-party notice materials |
+| `harness/remote`                                     | SSH Docker image for remote-workspace integration work                                  |
 
 Added by ZCodium:
 
@@ -280,6 +297,12 @@ Added by ZCodium:
 | `.agents/specs/`                             | Backfill specs: scope, state ownership, interface contracts, acceptance |
 | `apps/zcode-cli/packages/*-plugin`           | Built-in plugin and skill sources                                       |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | Localhost reproduction of the repo snapshot upload, for audit only      |
+| `.agents/skills/`                            | Coding-agent skills: architecture governance, Electron, React, etc.     |
+| `docs/`                                      | GitHub Pages landing site                                               |
+
+Coding conventions, the pre-work baseline check, and per-domain rules live in [AGENTS.md](AGENTS.md); plugin-store domain vocabulary is in [CONTEXT.md](CONTEXT.md) and UI design rules in [DESIGN.md](DESIGN.md).
+
+The `astrbot-zcodium-plugin/` directory on disk is a separate working copy of the companion AstrBot plugin; it is not under this repository's version control and is not produced by cloning this repository.
 
 ## Project Notice
 
