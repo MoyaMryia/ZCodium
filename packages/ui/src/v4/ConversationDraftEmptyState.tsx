@@ -5,15 +5,11 @@
  * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
  */
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-// 空态水印用珊瑚轮廓的单色 alpha 资产。应用图标是黑底 + 白珊瑚的双色设计，
-// 整体压到 14% 透明度时白珊瑚会先消失、只剩灰方块，因此这里只取轮廓并用
-// bg-current 着色，颜色跟随主题前景。与 ZCodeStartupLogoBadge / ZCodeAboutLogo
-// 共用同一枚 ZCodium 应用图标，但那个不适合低透明度水印。
-const zcodiumWatermarkUrl = new URL("../../../../public/logo/watermark.png", import.meta.url).href;
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { logger } from "@/logger.js";
+import { ZCODIUM_WATERMARK_PATH } from "@/v4/zcodiumWatermarkPath.js";
 
 const GREETING_BOUNDARY_HOURS = [5, 9, 12, 14, 18, 23] as const;
 const GREETING_MIN_FONT_SIZE_PX = 20;
@@ -181,8 +177,7 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
       <div
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute left-1/2 top-1/2 aspect-[5/4] w-[min(72vw,25rem)] -mt-10",
-          "-translate-x-1/2 -translate-y-1/2 text-foreground-subtlest",
+          "pointer-events-none absolute left-1/2 top-1/2 aspect-[5/4] w-[min(72vw,25rem)] -mt-10 -translate-x-1/2 -translate-y-1/2 text-foreground-subtlest",
         )}
       >
         <ZCodeEmptyStateLogo className="h-full w-full" />
@@ -214,27 +209,34 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
 }
 
 function ZCodeEmptyStateLogo({ className }: { className?: string }) {
-  // 原实现分两套资产：浅色用 currentColor 线框 SVG，深色用自带渐变与透明度的 Z.svg，
-  // 两者都是为 Z 字标上色。换成 ZCodium 应用图标后不能直接沿用同一手法：那枚是
-  // 黑底 + 白珊瑚的双色设计，整体压到 14% 透明度时白珊瑚会先消失，只剩一块灰方块。
-  // 因此改为按珊瑚轮廓生成单色 alpha 资产（public/logo/watermark.png），
-  // 用 bg-current 着色并只保留轮廓，颜色跟随主题前景，两个主题下都可见。
-  const watermarkStyle: CSSProperties = {
-    maskImage: `url(${zcodiumWatermarkUrl})`,
-    WebkitMaskImage: `url(${zcodiumWatermarkUrl})`,
-    maskSize: "contain",
-    WebkitMaskSize: "contain",
-    maskRepeat: "no-repeat",
-    WebkitMaskRepeat: "no-repeat",
-    maskPosition: "center",
-    WebkitMaskPosition: "center",
-  };
+  // 沿用官方浅色主题那版的手法：内联矢量 + currentColor，由 DOM 同步绘制。
+  // 不能改回位图蒙版——`mask-image` 指向 PNG 时，元素光栅化若早于图片解码完成，
+  // Chromium 只画出当时已就绪的那一段轮廓，水印会缺掉半截并一直留到下次重绘。
+  // 轮廓取自珊瑚单色 alpha 资产（public/logo/watermark.png）；应用图标是黑底 +
+  // 白珊瑚的双色设计，整体压到 14% 透明度时白珊瑚会先消失，只剩一块灰方块，
+  // 所以水印只用轮廓并跟随主题前景色。viewBox 与原资产同构，contain 由
+  // preserveAspectRatio 默认值负责，水印的大小与位置和位图版完全一致。
+  //
+  // 底端渐隐：珊瑚墨迹底边比 composer 卡片顶边低约 5px（标题字号变化时 3~11px），
+  // 而卡片只是 3% 的染色（bg-surface 带 alpha）、阴影还会从卡片顶边往上溢约 3px，
+  // 否则那一小段珊瑚会画进输入框的染色/阴影里。渐隐到 78% 处全透明，比阴影带上沿
+  // 还高约 9px；官方浅色那版 logo 也有同样的底端渐隐，rebrand 成珊瑚时漏掉了。
   return (
-    <div
+    <svg
       aria-hidden="true"
       data-v4-draft-logo="zcodium"
-      style={watermarkStyle}
-      className={cn("h-full w-full bg-current opacity-[0.14] dark:opacity-[0.2]", className)}
-    />
+      viewBox="0 0 512 512"
+      fill="currentColor"
+      className={cn(
+        "opacity-[0.14] dark:opacity-[0.2]",
+        "[mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_78%)]",
+        "[mask-repeat:no-repeat] [mask-size:100%_100%]",
+        "[-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_78%)]",
+        "[-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]",
+        className,
+      )}
+    >
+      <path d={ZCODIUM_WATERMARK_PATH} />
+    </svg>
   );
 }
