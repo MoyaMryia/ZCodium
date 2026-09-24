@@ -345,7 +345,6 @@ import {
   buildAgentRuntimeEnv,
 } from "./runtime-tools/agentProxyEnv.js";
 import { ensureAppCaCert } from "./runtime-tools/appCaCert.js";
-import { buildHelperOpenArgs, isCuaLocalDevelopmentRuntime } from "@zcode/zcode-cua/broker/server";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   BROKER_SOCKET_ENV,
@@ -376,7 +375,6 @@ import {
   type CuaProductMcpServerResolverContext,
   type CuaPermissionRestartOptions,
   type CuaPermissionRestartResult,
-  type CuaPermissionState,
   type CuaPermissionStatusQueryOptions,
   type CuaPermissionStatusResult,
 } from "#src/cua-permission-broker/index.js";
@@ -387,8 +385,10 @@ import {
 } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
 import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHelperHost.js";
-import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
+import { HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
 import { resolveBrokerSocketPath } from "@zcode/zcode-cua/broker/socketPath";
+// Computer Use 权限状态改由 cua-driver 的 check_permissions 提供（见 platform.js 的装配）。
+import { assembleCuaPermissionServiceAsync } from "@zcode/zcode-cua/platform";
 import {
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   formatLogPrefix,
@@ -1468,53 +1468,6 @@ export function createLocalServices(options: {
   // 哪天 host bundle 也补上 __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ define（Helper 侧已经有），
   // 编译期门自动生效，不需要再回来改这里。
 
-  const launchStandaloneCuaHelperForStatus = async (): Promise<string | null> => {
-    if (process.platform !== "darwin") return null;
-    const { existsSync } = await import("node:fs");
-    const { execFile } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const socketPath = resolveBrokerSocketPath();
-    // standaloneHelperCandidatePaths 未在上游 exports 白名单——此处按同一规则枚举安装候选
-    //（dev-desktop → dev/ 前缀；app 名一律取 helperConstants，不写字面量）。
-    const home = process.env.ZCODE_HOME?.trim() || join(homedir(), ZCODE_USER_DATA_DIR_NAME);
-    const baseRoot = join(home, "computer-use");
-    // 安装布局见上游 helperLauncher.resolveCuaHelperInstallRoot：dev 是独立子根 `dev/` 且 app
-    // 名换成 DEV_HELPER_APP_NAME；preview 是独立子根 `preview/` 但**沿用**稳定 app 名
-    //（分根的理由是 build id 不同、共享根会互相覆盖安装，不是改名）。
-    // 只枚举 HELPER_APP_NAME 导致 dev 下永远找不到候选，设置页拉起静默失败、
-    // 权限显示未知。dev 的两种名字都留着：一键 dev bundle 也可能装成稳定名。
-    const candidates = [
-      join(baseRoot, "dev", DEV_HELPER_APP_NAME),
-      join(baseRoot, "dev", HELPER_APP_NAME),
-      join(baseRoot, HELPER_APP_NAME),
-      join(baseRoot, "preview", HELPER_APP_NAME),
-    ];
-    const appPath = candidates.find((candidate) => existsSync(candidate));
-    if (!appPath) return null;
-    // Helper 启动参数统一由 buildHelperOpenArgs 构造，避免多处手写导致漏传或漂移。
-    // 设置页只读权限探测不承载 PiP，不传 --launcher-pid 和 --pip-mode；
-    // exit-log 使用 .settings.exit.log。新增参数应定义在 HelperLaunchSpec 中供调用方共用。
-    const args = buildHelperOpenArgs({
-      appPath,
-      socketPath,
-      exitLogPath: `${socketPath}.settings.exit.log`,
-      ...(isCuaLocalDevelopmentRuntime(process.env)
-        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
-        : {}),
-    });
-    try {
-      await promisify(execFile)("/usr/bin/open", args, { timeout: 5_000 });
-    } catch {
-      // LaunchServices 已接单也可能超时；继续等 ping。
-    }
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      const ready = await probeStableCuaHelperSocket();
-      if (ready) return ready;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    return null;
-  };
-
   // enabled 与 onCuaPipSessionLifecycle 是否挂上，都由 serviceAuthorityMode 单点决定；
   // 提出来命名，避免下面的启动期诊断与真实取值漂移。
   const cuaPipSessionEnabled =
@@ -1544,10 +1497,21 @@ export function createLocalServices(options: {
     serviceAuthorityMode: options?.serviceAuthorityMode ?? null,
     lifecycleWired: options?.serviceAuthorityMode === "desktop-local",
   });
-  // Computer Use Helper macOS 权限状态服务：renderer 经 host RPC 查询当前 Helper 的运行态与权限，并在
-  // 用户授权后从明确入口精确重启一次 Helper。重启**必须走 resolver.restart()**（不是裸 host.restart），
-  // 因为 resolver 优先复用既有 socket/token；裸 host.restart() 可能 fresh 新凭据，使已有 Agent
-  // 继续持有旧 transport，无法连接新的 broker。
+  // Computer Use 权限状态改由 cua-driver 的 check_permissions 提供，取代闭源 Helper 的
+  // permission_status broker 调用。读权限标志不需要 TCC，所以在宿主进程里查询是安全的；
+  // 「申请授权」必须由 Electron main 经 @zcode/zcode-cua/macos-permissions 触发，
+  // 这样 TCC 弹窗归属 ZCode.app 而不是本宿主进程。
+  // cua-driver 没有可重启的常驻 Helper：授权改由系统设置面板处理，restartHelper 只回报成功，
+  // 让 UI 收起引导而不影响任何既有 Agent。
+  let cuaDriverPermissionService: ICuaPermissionService | undefined;
+  const getCuaDriverPermissionService = async (): Promise<ICuaPermissionService> => {
+    // 原生库加载一次就够：client 长期持有，避免每次设置页刷新都重载几十 MB 的 .so/.dylib。
+    cuaDriverPermissionService ??= await assembleCuaPermissionServiceAsync({
+      platform: process.platform,
+      env: process.env,
+    });
+    return cuaDriverPermissionService;
+  };
   const cuaPermissionService: ICuaPermissionService = {
     async getStatus(
       workspacePath: string,
@@ -1561,177 +1525,33 @@ export function createLocalServices(options: {
         };
       }
       const context = workspacePath ? { workspacePath, workspaceIdentity } : undefined;
-      // 插件关闭只门控后续 Agent；权限页刷新不得进入 acquire，否则会把仍被已有 Agent 使用的 Helper 停掉。
-      if (
-        !shouldUseCuaPermissionService({
-          cuaEnabled: isCuaEnabledForContext(context),
-        })
-      ) {
+      // 插件关闭只门控后续 Agent；权限页刷新不得触碰运行时，避免设置页操作影响已有 Agent。
+      if (!shouldUseCuaPermissionService({ cuaEnabled: isCuaEnabledForContext(context) })) {
         return {
           available: false,
           reason: "ZCode Computer Use is not enabled (plugin off or not product mode).",
         };
       }
-      // 懒启动：状态查询绝不拉起 Helper。托管 host 在（如刚完成授权流）→ 全量查询；
-      // 否则探测稳定 socket 上自启动的 Helper（probe-only）；都没有 → 未运行（首次使用时自动启动）。
-      const peeked = defaultCuaProductHelperLifecycle.peek()?.helper;
-      const helper = peeked && isDefaultCuaProductHelperCurrent(peeked) ? peeked : undefined;
-      const host = helper ? helper.macPermissionHost : undefined;
-      if (!host || !host.running) {
-        // Helper 按需启动：设置页查询 = 拉起 standalone Helper（稳定 socket、
-        // 无 launcher-pid → 300s 无访问自动休眠，不进托管体系）。拉起后经稳定 socket 查真值。
-        let stable = await probeStableCuaHelperSocket();
-        if (!stable) {
-          stable = await launchStandaloneCuaHelperForStatus();
-        }
-        if (!stable) {
-          return {
-            available: false,
-            reason:
-              "ZCode Computer Use is not running; it will start automatically on first Computer Use use.",
-            idle: true,
-          } satisfies { available: false; reason: string; idle: true };
-        }
-        // standalone Helper 上直接查权限真值（身份模式，无 token）。
-        try {
-          const { callBrokerMethod } = await import("@zcode/zcode-cua/broker/helperHealth");
-          const report = await callBrokerMethod<{
-            grant_owner: string;
-            owner?: { display_name?: string };
-            accessibility: CuaPermissionState;
-            accessibility_probe_ok?: boolean;
-            screen_recording: CuaPermissionState;
-          }>({
-            socketPath: stable,
-            method: "permission_status",
-            timeoutMs: 3000,
-          });
-          return {
-            grantOwner: report.grant_owner,
-            grantOwnerDisplayName: report.owner?.display_name ?? report.grant_owner,
-            accessibility: report.accessibility,
-            accessibilityProbeOk: report.accessibility_probe_ok === true,
-            screenRecording: report.screen_recording,
-            screenCaptureProbeOk: false,
-          };
-        } catch {
-          return {
-            available: false,
-            reason: "ZCode Computer Use is starting up; retry in a moment.",
-            idle: true,
-          } satisfies { available: false; reason: string; idle: true };
-        }
-      }
       try {
-        const report = await host.queryPermissionStatus();
-        if (!helper || !isDefaultCuaProductHelperCurrent(helper)) {
-          return {
-            available: false,
-            reason: "ZCode Computer Use lifecycle is disposed.",
-          };
-        }
-        // Screen Recording 的真值必须来自一个新进程：撤销对已运行的常驻 Helper 不生效，
-        // 它会一直报撤销前的 granted。拿不到真值时 fail-open 沿用 report 值。
-        const screenRecording = await resolveCuaScreenRecordingState(host, report.screen_recording);
-        if (!isDefaultCuaProductHelperCurrent(helper)) {
-          return {
-            available: false,
-            reason: "ZCode Computer Use lifecycle is disposed.",
-          };
-        }
-        // 真实 screen-capture 探针：TCC screen_recording === "granted" 只说明系统记录了授权，并不保证
-        // WindowServer 已对本进程放行像素（wallpaper-frame / SR-not-live 背离）。只有真的抓到非空像素
-        // 才算 screen 端到端可用——UI 的"就绪/自动关闭"据此判定。fail-closed：探测抛错/超时一律 false。
-        // 用预检后的 state 做门控：预检已判 denied 时没有必要再花一次抓屏。
-        const screenCaptureProbeOk = await runCuaScreenCaptureReadinessProbe(
-          host,
-          screenRecording,
-          queryOptions,
-        );
-        if (!isDefaultCuaProductHelperCurrent(helper)) {
-          return {
-            available: false,
-            reason: "ZCode Computer Use lifecycle is disposed.",
-          };
-        }
-        const reportedOwnerDisplayName =
-          typeof report.owner?.display_name === "string" ? report.owner.display_name : undefined;
-        return {
-          grantOwner: report.grant_owner,
-          grantOwnerDisplayName: reportedOwnerDisplayName ?? report.grant_owner,
-          accessibility: report.accessibility,
-          accessibilityProbeOk:
-            report.accessibility_probe?.ok === true &&
-            report.accessibility_probe?.classification === "functional",
-          screenRecording,
-          screenCaptureProbeOk,
-        };
+        const service = await getCuaDriverPermissionService();
+        return await service.getStatus(workspacePath, workspaceIdentity, queryOptions);
       } catch (error) {
         return {
           available: false,
-          reason: `Could not read Computer Use Helper permission status: ${
+          reason: `Could not read Computer Use permission status: ${
             error instanceof Error ? error.message : String(error)
           }`,
         };
       }
     },
     async restartHelper(
-      workspacePath: string,
-      workspaceIdentity?: string,
-      restartOptions?: CuaPermissionRestartOptions,
+      _workspacePath: string,
+      _workspaceIdentity?: string,
+      _restartOptions?: CuaPermissionRestartOptions,
     ): Promise<CuaPermissionRestartResult> {
-      if (process.platform !== "darwin") {
-        return {
-          ok: false,
-          reason: "CUA permissions are only available on macOS.",
-        };
-      }
-      const context = workspacePath ? { workspacePath, workspaceIdentity } : undefined;
-      // 与 getStatus 一致：插件关闭时不触碰现有 Helper，避免设置页动作改变已有 Agent runtime。
-      if (
-        !shouldUseCuaPermissionService({
-          cuaEnabled: isCuaEnabledForContext(context),
-        })
-      ) {
-        return {
-          ok: false,
-          reason: "ZCode Computer Use is not enabled (plugin off or not product mode).",
-        };
-      }
-      // 走 resolver.restart()，让 host 尽可能复用 transport；不得通过 disposeWorkspace
-      // 重建正在运行的 Agent。
-      const helper = await getOrCreateDefaultCuaProductHelper(context);
-      const resolver =
-        helper && helper.macPermissionHost && isDefaultCuaProductHelperCurrent(helper)
-          ? helper.resolver
-          : undefined;
-      if (!resolver) {
-        return {
-          ok: false,
-          reason: "ZCode Computer Use is not enabled (plugin off or not product mode).",
-        };
-      }
-      try {
-        if (restartOptions?.reason === "permission_granted") {
-          await resolver.restartAfterPermissionGrant(restartOptions.onboardingSessionId);
-        } else {
-          await resolver.restart();
-        }
-        if (!helper || !isDefaultCuaProductHelperCurrent(helper)) {
-          return {
-            ok: false,
-            reason: "ZCode Computer Use lifecycle is disposed.",
-          };
-        }
-        return { ok: true };
-      } catch (error) {
-        return {
-          ok: false,
-          reason: `Failed to restart ZCode Computer Use: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        };
-      }
+      // cua-driver 无常驻 Helper 可重启；授权由系统设置面板处理。保留方法以维持
+      // ICuaPermissionService 契约（UI 仍在调用），语义降级为 no-op 成功。
+      return { ok: true };
     },
   };
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService({ apiClient });
