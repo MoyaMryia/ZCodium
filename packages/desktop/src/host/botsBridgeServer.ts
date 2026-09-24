@@ -1,7 +1,9 @@
 /* oxlint-disable eslint(max-lines) -- 桥接传输层集中维护：握手、鉴权、帧路由。 */
-// AstrBot 机器人桥接的本机 loopback WebSocket 服务 v2。见 .agents/specs/bots-astrbot-bridge.md。
+// AstrBot 桥接的本机 loopback WebSocket 服务 v2。见 .agents/specs/bots-astrbot-bridge.md。
 //
-// 边界：只监听 127.0.0.1，只做帧路由与鉴权；业务状态与轮次由 BotsService 持有。
+// 边界：只监听 127.0.0.1，只做帧路由与鉴权；业务状态由官方 BotsService 持有。
+// v2.1：输入帧交给 IBotsService.handleProviderCallback("astrbot", ...)，输出帧由
+// astrbotProvider 经 `handle.transport` 广播（provider.send / status）。
 
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
@@ -16,22 +18,23 @@ import {
 } from "@zcode/shared";
 import {
   createServiceLogger,
-  type BotsBridgeConfig,
+  type AstrBotBridgeTransport,
   type BotsDeliveryReplay,
-  type BotsWorkspaceRef,
   type ServiceLogger,
 } from "@zcode/services/node";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
-/** 传输层最小依赖面：BotsService 在结构上满足它，便于单测替换。 */
+/** 传输层最小依赖面：由 host 用 IBotsService + astrbotProvider 适配。 */
 export interface BotsBridgeServicePort {
-  getConfig(): Promise<BotsBridgeConfig>;
-  listWorkspaces(): Promise<BotsWorkspaceRef[]>;
+  /** AstrBot bot 是否启用（welcome 帧）。 */
+  isEnabled(): Promise<boolean>;
+  /** 可用于绑定的 workspace 数量（welcome 帧）。 */
+  getWorkspaceCount(): Promise<number>;
+  /** 受理一条命令帧：provider.beginTurn → 官方处理 → provider.settleTurn。 */
   handleCommand(frame: BotsBridgeCommandFrame): Promise<void>;
   ackDeliveryByFrameId(deliveryId: string): void;
   resolveResume(cursors: readonly BotsBridgeResumeCursor[]): Map<string, BotsDeliveryReplay>;
   buildSnapshot(bindingId: string): Promise<BotsBridgeDeliveryFrame | null>;
-  onFrame(listener: (frame: BotsBridgeServerFrame) => void): { dispose(): void };
 }
 
 export interface BotsBridgeServerOptions {
@@ -48,6 +51,8 @@ export interface BotsBridgeServerOptions {
 export interface BotsBridgeServerHandle {
   readonly url: string;
   readonly port: number;
+  /** provider 通过它向所有已连接会话广播出站帧。 */
+  readonly transport: AstrBotBridgeTransport;
   close(): Promise<void>;
 }
 
@@ -133,6 +138,12 @@ export async function startBotsBridgeServer(
     }
   };
 
+  const broadcast = (frame: BotsBridgeServerFrame): void => {
+    for (const session of sessions) {
+      send(session, frame);
+    }
+  };
+
   const resumeSession = async (
     session: ClientSession,
     cursors: readonly BotsBridgeResumeCursor[],
@@ -173,9 +184,9 @@ export async function startBotsBridgeServer(
       case "hello": {
         session.clientId = clientFrame.clientId;
         session.channels = clientFrame.channels;
-        const [config, workspaces] = await Promise.all([
-          options.service.getConfig(),
-          options.service.listWorkspaces(),
+        const [enabled, workspaceCount] = await Promise.all([
+          options.service.isEnabled(),
+          options.service.getWorkspaceCount(),
         ]);
         send(session, {
           v: BOTS_BRIDGE_PROTOCOL_VERSION,
@@ -183,8 +194,8 @@ export async function startBotsBridgeServer(
           id: randomUUID(),
           inReplyTo: clientFrame.id,
           ...(options.serverVersion ? { serverVersion: options.serverVersion } : {}),
-          enabled: config.enabled,
-          workspaceCount: workspaces.length,
+          enabled,
+          workspaceCount,
         });
         await resumeSession(session, clientFrame.resume ?? []);
         return;
@@ -224,12 +235,6 @@ export async function startBotsBridgeServer(
     });
   });
 
-  const frameSubscription = options.service.onFrame((frame) => {
-    for (const session of sessions) {
-      send(session, frame);
-    }
-  });
-
   const port = await new Promise<number>((resolve, reject) => {
     server.once("error", reject);
     server.listen(options.port ?? 0, host, () => {
@@ -248,8 +253,8 @@ export async function startBotsBridgeServer(
   return {
     url,
     port,
+    transport: { send: broadcast },
     async close(): Promise<void> {
-      frameSubscription.dispose();
       for (const session of sessions) {
         session.socket.close();
       }

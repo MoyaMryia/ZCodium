@@ -5,6 +5,11 @@
 官方 3.14.1 安装包内置 `bots`（Telegram/Feishu/Lark/WeCom 各一套 adapter）。
 ZCodium 既定路线不是逐平台重写，而是用 AstrBot 做平台层，ZCodium 只暴露一份桥接协议。
 
+> v2.1（整合）：AstrBot 不再是与官方 `BotsService` 并行的独立服务。桥接从「独立
+> `BotsService` + 独立配置/绑定文件」收敛为官方 `BotsService` 的**一个传输 provider**
+> （`BotProviderAdapter`）。ZCodium 侧 channel 固定为 `astrbot`，底层平台对接完全由配套
+> AstrBot 插件决定；出站使用官方回复粒度（纯文本）。wire 协议 `v2` 保持不变。
+
 v1 草案按“多平台各自配置 + 卡片交互”设计，经过对远程 AstrBot 4.26.3 的实测后收敛为 v2：
 
 - AstrBot 已经实现飞书/Lark 的 WebSocket 长连、CardKit 流式卡片、富媒体、扫码建应用。
@@ -39,31 +44,27 @@ v1 草案按“多平台各自配置 + 卡片交互”设计，经过对远程 A
 
 | 状态                                 | 所有者                                           | 说明                                                      |
 | ------------------------------------ | ------------------------------------------------ | --------------------------------------------------------- |
-| bridge 配置（`bots-bridge.v2.json`） | ZCodium `BotsRepo`                               | enabled、默认 allowedWorkspaces、bridge token 引用        |
-| 绑定（`bots-bindings.v2.json`）      | ZCodium `BotsRepo`                               | `actorKey → {workspace, sessionId, pending 交互, cursor}` |
-| bridge token                         | ZCodium credential store                         | key `bot:bridge:token`，只展示一次                        |
-| 轮次流（streamId/seq）               | ZCodium `BotsService`（内存 + 有限落盘游标）     | 插件只去重，不产生事实                                    |
-| 待处理权限/elicitation               | ZCodium `BotsService`                            | 来自 runtime 事件，唯一所有者                             |
+| bot 配置                             | ZCodium 官方 `BotsService`（`bot-config.v3.json`） | 一个 `provider:"astrbot"` 的 `BotConfig`：enabled/allowedWorkspaces/replyMode |
+| bridge token                         | ZCodium credential store                         | 由 `BotConfig.credentialRef` 指向，只展示一次             |
+| 上下文 / session / 待处理交互        | ZCodium 官方 `BotsService`（`bot-state.v3.json`） | `BotState`，key = `botId::astrbot::chatId\|providerUserId` |
+| 轮次投递 seq / cursor / replay       | `astrbotProvider`（传输层，内存）                | 插件只去重、只 ack，不产生事实                            |
+| 平台路由索引（channel+uid → binding）| `astrbotProvider`（内存）                        | 仅传输路由，不持 sessionId/pending                        |
 | AstrBot 侧事件、卡片、消息 id        | AstrBot 插件                                     | 不进入 ZCodium 持久化                                     |
-| Agent 会话与任务                     | 现有 `IZCodeTaskService` + `SessionRealtimePort` | bridge 不另建任务状态                                     |
+| Agent 会话与任务                     | 现有 `IZCodeTaskService` + `BotRemoteWorkspaceService` | 与官方其他 provider 完全一致                        |
 
-**唯一写入路径**：`BotsService` 写配置/绑定/游标；插件只发命令、只 ack。
-Agent 控制走既有 `IZCodeTaskService.sendPrompt` 与 `SessionRealtimePort.requestOwnerCommand`。
+**唯一写入路径**：官方 `BotsService` 写配置/状态；`astrbotProvider` 只写传输进度（内存）；
+插件只发命令、只 ack。Agent 控制走既有 `IZCodeTaskService.sendPrompt` 与官方远端 workspace 服务。
 
 ## 组件
 
 ```text
 packages/shared/src/bots/bridge.ts        v2 协议契约（zod），无 IO
 packages/services/src/bots/
-  domain.ts                               bridge 配置 + 绑定领域模型
-  botsRepo.ts                             原子写 + 串行锁
-  botsDeliveryLog.ts                      轮次流 seq / 有限回放
-  botsRuntimePort.ts                      对 IZCodeTaskService + SessionRealtimePort 的适配接口
-  botsEventProjector.ts                   TaskStreamMirrorableEvent → delivery payload
-  botsService.ts                          绑定、轮次状态机、命令准入、交互
+  providers/astrbotProvider.ts            官方 BotProviderAdapter：帧 ↔ 入站/出站，持传输路由与回放
+  botsDeliveryLog.ts                      轮次流 seq / 有限回放（astrbotProvider 私有）
+  botsService.ts                          官方唯一业务所有者：配置、状态、命令准入、任务驱动
 packages/desktop/src/host/
-  botsBridgeServer.ts                     loopback WS + token 鉴权 + 帧路由
-  botsRuntimeAdapter.ts                   把 host 的 taskService/realtimePort 接成 BotsRuntimePort
+  botsBridgeServer.ts                     loopback WS + token 鉴权 + 帧路由（仅 astrbot 传输）
 astrbot-zcodium-plugin（独立仓库，Python）
   main.py                                 Star 插件：收消息 → prompt → send_streaming
 ```
@@ -111,6 +112,14 @@ server→client  error      协议级错误
 - 每轮是独立的 request/response 流，插件对每个 `command` 调一次 `event.send_streaming`。
 - `awaiting_input` 时服务端保留 pending 交互；插件把选项渲染成文本并结束本次流，
   用户下一条消息触发对应 `*.respond`，继续原任务。
+
+### v2.1 轮次细化（服务端为官方 provider 后）
+
+- **每命令一个 stream**：`beginTurn` 为每条 command 起新 stream；若该命令启动了任务流
+  （官方 `notifyTaskLifecycle("started")`），命令流提升为任务流，任务期间出站继续走该流，
+  终态/等待交互时收口。非任务命令（`/status` 等）在 inbound 处理结束后立即 `status{completed}`。
+- **channel 固定 `astrbot`**：ZCodium 不感知底层平台；插件用平台前缀填充
+  `externalUserId`/`chatId` 保证跨平台唯一，真实平台对接完全由插件决定。
 
 ### delivery payload
 
@@ -211,9 +220,13 @@ server→client  error      协议级错误
 
 ## 迁移边界
 
-- v1 草案（`bot-config.v3.json` / `bot-bindings` 多 bot 模型）作废，不做迁移；首次启动写空 v2 配置。
-- 不兼容官方 `bot-config` 文件；存在时只备份不读取。
-- 协议升级递增 `v`，双版本共存期后才移除旧路径。
+- v1 草案（早期多 bot 模型）作废，不迁移。
+- v2.0（独立 `bots-bridge.v2.json` / `bots-bindings.v2.json`）→ v2.1：首次启动读取旧文件，
+  生成一个 `provider:"astrbot"` 的官方 `BotConfig`（enabled、allowedWorkspaces，`credentialRef`
+  指向既有 `bot:bridge:token`）；旧文件仅备份（`.bak`），不再读取，不删除。
+- 会话/绑定不再迁移：`bot-state.v3.json` 首次为空，用户重新 `/bind`；旧 binding 的 cursor
+  仅用于一次性补投判断，不作为事实。
+- wire 协议 `v2` 不变，插件零改动；不递增 `v`。
 
 ## 分期
 
@@ -225,3 +238,14 @@ server→client  error      协议级错误
 | P4   | host WS `botsBridgeServer` 接 v2 帧 + 补投                      | 场景 1/7       |
 | P5   | `astrbot-zcodium-plugin`：Star 插件 → bridge → `send_streaming` | 端到端         |
 | P6   | 设置 UI（bridge 开关/token/绑定管理）                           | 场景 1         |
+
+> 以上 P1–P6 为 v2.0 独立桥接历史实现。v2.1 整合阶段如下。
+
+| 阶段 | 内容                                                              | 验收                    |
+| ---- | ----------------------------------------------------------------- | ----------------------- |
+| I1   | `astrbotProvider`（`BotProviderAdapter`）+ host WS 接官方回调      | typecheck/lint；插件连通 |
+| I2   | 单配置/单状态：复用 `bot-config.v3.json` + `bot-state.v3.json`，迁移 | 场景 6/8/9/10           |
+| I3   | 运行时统一（删 `BotsRuntimePort`/`botsRuntimeAdapter`，含远端）    | 场景 2/3/4/5            |
+| I4   | 投递简化为官方文本粒度；保留 seq/ack/replay                        | 场景 1/7/2/3            |
+| I5   | UI：AstrBot 真实设置卡；放开官方已实现的 provider                   | 设置页联通              |
+| I6   | 删除旧桥接实现（`astrbotBridgeService.ts` 等）                     | 全量回归                |

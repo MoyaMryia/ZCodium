@@ -26,43 +26,60 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 ### 与官方包的能力差异
 
-以下为截至 3.14.1 的核对结果。上游 `328c1a0 feat: update v3.14.3` 已把此前只在安装包里的 `bots`（Telegram / 飞书 / Lark / 企业微信四套 adapter 与平台选择 GUI）和手机远控等并入开源仓库；本仓库已合并 3.14.3，下表部分“缺口”因此由上游直接补齐，完整差异需按 3.14.3 重新核对。
+以下按**官方 3.14.3 安装包**核对（`ZCode-3.14.3-win-x64.exe`，`appVersion: 3.14.3`，构建于 2026-09-22）。核对方法：从安装包取出 `resources/app.asar` 内 `out/renderer/assets/IntlProvider-*.js` 的语言表，与 [packages/ui/src/i18n/locales/](packages/ui/src/i18n/locales/) 做键差集。上游随 3.14.3 新开源的内容已计入下表，不再是“待核对”状态。
 
-**已补全**（见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)）：
+**已补全**：
 
-- 内置插件与技能。安装包只分发源码资源完整且明确注册的插件，范围见对应 spec。
-- Computer Use 的模型可见面：`scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
+- 内置插件与技能：documents、pdf、presentations、spreadsheets、skill-creator、plugin-creator、image-search、restore-legacy-sessions、zcode-guide、zcode-cua。安装包只分发源码资源完整且明确注册的插件；范围见 [.agents/specs/builtin-plugin-parity.md](.agents/specs/builtin-plugin-parity.md)、[.agents/specs/pdf-plugin-backfill.md](.agents/specs/pdf-plugin-backfill.md) 与 [.agents/specs/spreadsheets-plugin-backfill.md](.agents/specs/spreadsheets-plugin-backfill.md)。
+- Computer Use 的模型可见面：`apps/zcode-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`、技能与文档。原生 runtime（koffi/sharp，约 20 MiB）未随包发布，与上游 `runtimeTopLevelPaths: []` 的声明一致。
 
-**尚未补全**（3.14.1 时按 i18n 键缺口定位，共 528 个键；3.14.3 合并后待重新核对）：
+**尚未补全**（共 258 键）：
 
-| 领域               | 缺口   | 说明                                                           |
-| ------------------ | ------ | -------------------------------------------------------------- |
-| `bots`             | 258 键 | Telegram / 飞书 / Lark / 企业微信 机器人通知                   |
-| `webRemoteControl` | 104 键 | 手机远控桌面                                                   |
-| `manualClaimPlan`  | 53 键  | 权益领取与验证码流程                                           |
-| `mode`             | 38 键  | 会话模式扩展                                                   |
-| `settings`         | 24 键  | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 多协议端点模板 |
-| 其他               | 51 键  | `server`、`appHeader`、`rewards`、`onboarding` 等              |
+| 领域               | 缺口  | 说明                                                     |
+| ------------------ | ----- | -------------------------------------------------------- |
+| `webRemoteControl` | 89 键 | 手机远控桌面；仓库只有 botChannel 渠道选择外壳           |
+| `manualClaimPlan`  | 53 键 | 权益领取与验证码流程                                     |
+| `mode`             | 38 键 | 会话模式扩展                                             |
+| `settings`         | 26 键 | 含 Claude 模型槽位映射、Anthropic/OpenAI/Gemini 端点模板 |
+| `server`           | 12 键 | Server 入口                                              |
+| `appHeader`        | 8 键  | Provider 配置入口                                        |
+| `marketingTouch`   | 7 键  | 权益触达                                                 |
+| `taskList`         | 6 键  | Codex / Claude 新建任务                                  |
+| `chat`             | 5 键  | agent 切换                                               |
+| `rewards`          | 5 键  | 权益菜单                                                 |
+| `onboarding`       | 4 键  | agent 设置步骤                                           |
+| 其他               | 5 键  | `remote`、`zcode`、`titleBar`                            |
 
-其中 `bots`、`webRemoteControl` 已随 3.14.3 由上游开源并并入本仓库。
+`bots` 的 259 个键已由上游 3.14.3 全部开源并随合并进入本仓库，缺口为 0。`webRemoteControl` 只进来了渠道选择一层（15 键，另含自研 AstrBot 2 键），远控本体仍未实现，因此是当前最大缺口。反向还有 33 个键是本仓库特有、官方包没有的，主要来自 AstrBot 桥接与 `.zcodium` 命名空间。
 
 **有意不补全**：
 
 - 仓库快照上传。官方 3.14.0 之前的版本会在每次提问前打包整个 workspace（含 `.git`）并加密上传至对象存储，服务端持有私钥。该行为已从上游移除，本仓库同样不实现，仅在 [apps/zcode-cli/tools/repo-snapshot-parody/](apps/zcode-cli/tools/repo-snapshot-parody/) 保留一份 localhost 本地复现用于审计对照——密钥本地生成、默认拒绝非回环目标。
 - 官方遥测采集与上报。ZCodium 保留安全的本地诊断，默认无上报；用户可显式配置自己的 OTLP 接收端。详见[诊断说明](DIAGNOSTICS.md)。
 
-### 已定的补全路线
+### 补全路线
 
-以下方向已确定，尚未动工，细节后续单独讨论：
+**已落地**：
 
 - **`bots`：官方实现 + AstrBot 桥接并存。** 上游 3.14.3 已开源官方 `bots`
   （四套平台 adapter 与“接哪个平台”的设置 GUI），本仓库已并入。自研的
-  [AstrBot](https://github.com/AstrBotDevs/AstrBot) 桥接继续保留，并在官方 GUI 里
-  作为独立 provider 选项接入；平台适配由 AstrBot 承担，本仓库只维护桥接契约。
+  [AstrBot](https://github.com/AstrBotDevs/AstrBot) 桥接不再是与官方 `BotsService`
+  并行的独立服务，而是收敛为官方 `BotsService` 的一个传输 provider
+  （`BotProviderAdapter`，channel 固定为 `astrbot`），已在官方 Bots GUI 与手机远控入口接入；
+  平台适配由 AstrBot 承担，本仓库只维护桥接契约（wire 协议 v2）。
   [astrbot-zcodium-plugin](https://github.com/axiom-desu/astrbot-zcodium-plugin)，
   见 [.agents/specs/bots-astrbot-bridge.md](.agents/specs/bots-astrbot-bridge.md)。
-- **Computer Use 通用化**：见 [.agents/specs/generic-cua-runtime.md](.agents/specs/generic-cua-runtime.md)，
-  按 Actuator 接口分层实现，当前基础设施（broker/bridge）已齐备且本来就是通用的。
+- **Computer Use 运行时**：原生执行层不自研，复用开源项目
+  [`trycua/cua`](https://github.com/trycua/cua) 的 `@trycua/cua-driver`
+  （MIT，Rust，macOS / Windows / Linux），适配器见 [packages/zcode-cua/](packages/zcode-cua/)；
+  client 由上层注入，没有 client 时保持 fail-closed。老 GNOME / Wayland 另有一层
+  物理输入兼容层。能力对接与缺口、适配器契约与各平台机制分别见
+  [.agents/specs/computer-use-capabilities.md](.agents/specs/computer-use-capabilities.md)、
+  [.agents/specs/computer-use-runtime.md](.agents/specs/computer-use-runtime.md) 与
+  [.agents/specs/computer-use-platform-architecture.md](.agents/specs/computer-use-platform-architecture.md)。
+
+**已确定，尚未动工**：
+
 - **image-search 默认指向本地**：已改为 `http://127.0.0.1:8787`，见
   [.agents/specs/image-search-local-backend.md](.agents/specs/image-search-local-backend.md)；
   仓库内暂无本地搜图后端，需要自行部署。
@@ -81,7 +98,19 @@ ZCodium 是 ZCode 的社区衍生仓库。上游 ZCode 是 AI 编程工作台，
 
 ## 更新
 
-- 2026-09-24：合并上游 3.14.3（`328c1a0`），纳入官方 bots 与手机远控等新开源内容；继续保留 `.zcodium` 数据命名空间与自研 AstrBot 桥接。
+- 2026-09-24：AstrBot 桥接整合为官方 `BotsService` 的传输 provider，并在官方 Bots GUI 与手机远控入口接入（#11–#14）。
+- 2026-09-24：按官方 3.14.3 安装包重新核对 i18n 键缺口，`bots` 259 键已归零，剩余 258 键；核对方法记入「与官方包的能力差异」。
+- 2026-09-24：Computer Use 运行时改为复用 `@trycua/cua-driver` 作为唯一原生引擎，移除自研 desk-pilot；client 由上层注入，缺失时保持 fail-closed，老 GNOME / Wayland 另走物理输入兼容层。
+- 2026-09-24：合并上游 3.14.3（`328c1a0`），纳入官方 bots 与手机远控等新开源内容；继续保留 `.zcodium` 数据命名空间。
+- 2026-09-24：根目录 `package.json` 版本改为 `3.14.3-modified`，用于标识本仓库产物，详见下方「版本标识」。
+
+## 版本标识
+
+根目录 `package.json` 的版本号在上游版本后带 `-modified` 后缀（当前 `3.14.3-modified`），用于把本仓库产物与官方包区分开。该后缀是合法的 semver 预发布标识，`node scripts/ci/desktop-release.mjs check-version` 会接受它。
+
+发布标签必须与版本严格一致，即 `v3.14.3-modified`；CI 产物名随之变为 `ZCodium-3.14.3-modified-<platform>-<arch>.<ext>`。命令行发行包的默认版本同样取该值，因此 `dist/zcode/releases/3.14.3-modified/` 是默认输出目录。
+
+注意：`ZCODE_REMOTE_ASSET_CDN_BASE_URL` 若固定到某个版本目录，必须与运行版本一致，否则 `assertRemoteCdnBaseVersionMatches` 会在启动时直接报错。上游没有 `3.14.3-modified` 对应目录，需要自行托管远程资源，或改成不带版本的发布根目录。
 
 ## 初始化
 
@@ -214,7 +243,7 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 流程使用仓库自带的 `GITHUB_TOKEN`，无需额外服务凭据或签名证书。安装包未签名；应用内更新和独立远程运行资源不由此流程发布。规则见 [CI/CD spec](.agents/specs/desktop-ci-release.md)。
 
-第三方声明生成、发行校验流程及声明在发行物中的位置见 [third-party/README.md](third-party/README.md)。
+第三方声明由 [scripts/generate-third-party-notices.mjs](scripts/generate-third-party-notices.mjs) 依据 [third-party/](third-party/) 下的清单、源码副本与许可证文本生成，产物为随发行物分发的 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；命令行发行包的组装与校验见 [scripts/zcode-distribution/](scripts/zcode-distribution/)。
 
 ### 桌面版
 
@@ -293,16 +322,26 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 | `packages/services`                                  | 业务服务与持久化                           |
 | `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK |
 | `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现              |
+| `packages/model-option-map`                          | 模型选项映射编译                           |
+| `packages/formal-proof`                              | 产品行为状态空间枚举器                     |
+| `packages/zcode-cua`                                 | Computer Use 运行时适配器                  |
 | `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具               |
 | `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料     |
+| `harness/remote`                                     | 远程工作区联调用的 SSH Docker 镜像         |
 
 ZCodium 新增的内容：
 
 | 路径                                         | 职责                                                  |
 | -------------------------------------------- | ----------------------------------------------------- |
 | `.agents/specs/`                             | 能力补全的 spec：范围、状态所有者、接口契约与验收场景 |
+| `.agents/skills/`                            | 编码代理技能：架构治理、Electron、React 等            |
 | `apps/zcode-cli/packages/*-plugin`           | 内置插件与技能源码                                    |
 | `apps/zcode-cli/tools/repo-snapshot-parody/` | 仓库快照上传的 localhost 复现，仅用于审计对照         |
+| `docs/`                                      | GitHub Pages 落地页                                   |
+
+编码约定、开工前基线检查与各领域规范见 [AGENTS.md](AGENTS.md)；插件商店领域词汇见 [CONTEXT.md](CONTEXT.md)，UI 设计规范见 [DESIGN.md](DESIGN.md)。
+
+磁盘上的 `astrbot-zcodium-plugin/` 是配套 AstrBot 插件的独立仓库工作副本，不在本仓库版本控制内，克隆本仓库不会得到它。
 
 ## 项目声明
 

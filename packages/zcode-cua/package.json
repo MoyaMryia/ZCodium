@@ -7,12 +7,17 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "install:gnome-extension": "node compatible/helper/install-extension.mjs"
   },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "import": "./index.js"
+    },
+    "./platform": {
+      "types": "./platform.d.ts",
+      "import": "./platform.js"
     },
     "./frame-contract": {
       "types": "./frame-contract.d.ts",
@@ -58,5 +63,8 @@
       "types": "./broker-helper-health.d.ts",
       "import": "./broker-helper-health.js"
     }
+  },
+  "dependencies": {
+    "@trycua/cua-driver": "0.28.2"
   }
 }

@@ -15,7 +15,8 @@ import {
   type NodeReplRequestMeta,
   type NodeReplRunResult,
 } from "@zcode/core/repl";
-import { createComputerUseRuntime, type ComputerUseRuntime } from "@zcode/zcode-cua";
+import { type ComputerUseRuntime } from "@zcode/zcode-cua";
+import { assembleComputerUseRuntimeAsync, probeGnomeEnvironment } from "@zcode/zcode-cua/platform";
 import { z } from "zod";
 import { createBrowserBridgeGlobals, type ActiveNodeReplCall } from "./browser-bridge.js";
 import {
@@ -163,7 +164,7 @@ export function createNodeReplMcpRuntime(
   input: { executeJs?: NodeReplExecutor; cuaRuntime?: ComputerUseRuntime } = {},
 ): NodeReplMcpRuntime {
   const executeJs = input.executeJs ?? executeJsInWorker;
-  const cuaRuntime = input.cuaRuntime ?? captureComputerUseRuntimeFromEnvironment();
+  const cuaRuntime = input.cuaRuntime;
   const cuaBroker = cuaRuntime
     ? createNodeReplCuaBroker({ runtime: cuaRuntime, platform: process.platform })
     : undefined;
@@ -316,7 +317,7 @@ export async function main(): Promise<void> {
   // process.env，必然得到空值，导致 node_repl 永久把 Computer Use 判为 unavailable。
   // 这里在 main() 生命周期内先捕获 runtime；Worker 只收到二次 bridge token，
   // 不会接触 Helper 的原始 socket/token。
-  const computerUseRuntime = captureComputerUseRuntimeFromEnvironment();
+  const computerUseRuntime = await captureComputerUseRuntimeFromEnvironment();
   const handle = serveStdio(
     () => {
       const runtime = createNodeReplMcpRuntime({ cuaRuntime: computerUseRuntime });
@@ -365,15 +366,25 @@ if (!isMainThread && isWorkerCallData(workerData)) {
     });
 }
 
-export function captureComputerUseRuntimeFromEnvironment(
+/**
+ * 按平台装配 Computer Use 运行时：
+ * - Linux 老 GNOME 自动组装 compat（探测 shell/portal/WinRects 版本）；
+ * - macOS / Linux 新合成器 / X11 走 cua-driver 原生。
+ * 仅当 env 指定 driver socket / embedded 时才构造；driver 缺失保持 fail-closed。
+ */
+export async function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
-): ComputerUseRuntime | undefined {
-  const socketPath = env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
-  if (!socketPath) return undefined;
-  return createComputerUseRuntime({
-    brokerSocketPath: socketPath,
-    refreshMarkerPath: env.ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim(),
+): Promise<ComputerUseRuntime | undefined> {
+  const socketPath =
+    env.ZCODE_CUA_DRIVER_SOCKET?.trim() ?? env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
+  const enabled = Boolean(socketPath) || env.ZCODE_CUA_DRIVER_EMBEDDED === "1";
+  if (!enabled) return undefined;
+  const { runtime } = await assembleComputerUseRuntimeAsync({
+    env,
+    socketPath,
+    probes: process.platform === "linux" ? probeGnomeEnvironment() : {},
   });
+  return runtime;
 }
 
 function isWorkerCallData(value: unknown): value is WorkerCallData {

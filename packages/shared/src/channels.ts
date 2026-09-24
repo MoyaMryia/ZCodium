@@ -130,6 +130,8 @@ export const ServiceChannels = {
   SettingsSync: "settings-sync",
   /** Bots 远程聊天控制服务 */
   Bots: "bots",
+  /** AstrBot 桥接传输控制面（官方 BotsService 的 astrbot provider） */
+  AstrBotBridge: "bots-astrbot-bridge",
   /** Composer 附件在 host-local 与 remote runtime 之间的预传服务 */
   PromptAttachmentTransfer: "prompt-attachment-transfer",
   /** 闲时任务管理服务（与 automation 服务面独立） */
