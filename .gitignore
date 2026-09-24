@@ -88,5 +88,9 @@ packages/desktop/.e2e-network-capture/
 /ZCodium-*.rpm
 /ZCodium-*.pkg.tar.zst
 
+# 官方上游（zai-org/ZCode）构建的安装包，下载到本地仅作对比参考；与本站产物
+# （ZCodium-*）的命名和内容均不同，体积大且可随时重新下载，不随主仓库入库。
+/official-builds/
+
 # 误落仓库根的 favicon（真实资源在各包的 public/material-icons/ 下），不随主仓库入库。
 /favicon.svg
