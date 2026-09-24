@@ -1,0 +1,274 @@
+// AstrBot 传输 provider（v2.1）。见 .agents/specs/bots-astrbot-bridge.md。
+//
+// 这是官方 BotsService 的一个 BotProviderAdapter：
+// - 入站：bridge command 帧 → BotInboundMessage，交官方命令准入 / 任务驱动。
+// - 出站：BotOutboundMessage 文本 → bridge delivery 帧。
+// - 交互：官方 selection 走文本回退（ZCodium 侧 channel 固定为 astrbot）。
+//
+// binding 路由与 seq/ack/replay 只属于传输层；provider 不持 sessionId/pending/任务状态。
+
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import {
+  BOTS_BRIDGE_PROTOCOL_VERSION,
+  botsBridgeCommandFrameSchema,
+  type BotActor,
+  type BotInboundMessage,
+  type BotOutboundMessage,
+  type BotsBridgeCommandFrame,
+  type BotsBridgeDeliveryFrame,
+  type BotsBridgeResumeCursor,
+  type BotsBridgeServerFrame,
+  type BotsBridgeStreamState,
+} from "@zcode/shared";
+import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
+import type { AstrBotBridgeTransport, IAstrBotBridgeService } from "../astrbotBridgePort.js";
+import { BotsDeliveryLog, type BotsDeliveryReplay } from "../botsDeliveryLog.js";
+import { buildBindingId, computeActorKey } from "../domain.js";
+import type { BotProviderAdapter, BotTaskLifecyclePhase } from "./types.js";
+
+/** 官方 inbound 处理入口会注入 botId（wire 上没有该字段）。 */
+const inboundFrameSchema = botsBridgeCommandFrameSchema.extend({
+  zcodeBotId: z.string().trim().min(1),
+});
+
+function targetKey(actor: Pick<BotActor, "chatId" | "providerUserId">): string {
+  return actor.chatId?.trim() || actor.providerUserId;
+}
+
+function toBridgeState(phase: BotTaskLifecyclePhase): BotsBridgeStreamState {
+  switch (phase) {
+    case "awaiting_input":
+      return "awaiting_input";
+    case "failed":
+      return "failed";
+    default:
+      return "completed";
+  }
+}
+
+export interface AstrBotProviderOptions {
+  logger?: ServiceLogger;
+  clock?: () => number;
+  idFactory?: () => string;
+}
+
+export interface AstrBotProvider extends BotProviderAdapter, IAstrBotBridgeService {
+  dispose(): void;
+}
+
+export function createAstrBotBotProvider(options: AstrBotProviderOptions = {}): AstrBotProvider {
+  const logger = options.logger ?? createServiceLogger("bots.astrbot");
+  const clock = options.clock ?? (() => Date.now());
+  const idFactory = options.idFactory ?? (() => randomUUID());
+
+  const deliveryLog = new BotsDeliveryLog({ idFactory, clock });
+  /** targetKey → bindingId（出站路由）。 */
+  const routing = new Map<string, string>();
+  /** bindingId → 当前 streamId（内存）。 */
+  const streams = new Map<string, string>();
+  /** bindingId → 最近分配的下行 seq。 */
+  const cursors = new Map<string, number>();
+  /** bindingId → 最近一条 delivery（snapshot 用）。 */
+  const latestFrames = new Map<string, BotsBridgeDeliveryFrame>();
+  /** 已进入任务流、等待终态的 binding。 */
+  const taskRunning = new Set<string>();
+  let transport: AstrBotBridgeTransport | null = null;
+
+  function resolveBindingId(actor: Pick<BotActor, "chatId" | "providerUserId">): string {
+    return buildBindingId("astrbot", computeActorKey("astrbot", targetKey(actor)));
+  }
+
+  function emit(frame: BotsBridgeServerFrame): void {
+    transport?.send(frame);
+  }
+
+  function ensureStream(bindingId: string): string {
+    const existing = streams.get(bindingId);
+    if (existing) {
+      return existing;
+    }
+    const streamId = idFactory();
+    streams.set(bindingId, streamId);
+    return streamId;
+  }
+
+  function endTurn(bindingId: string, state: BotsBridgeStreamState): void {
+    const streamId = streams.get(bindingId) ?? idFactory();
+    emit({
+      v: BOTS_BRIDGE_PROTOCOL_VERSION,
+      kind: "status",
+      id: idFactory(),
+      bindingId,
+      streamId,
+      state,
+    });
+    streams.delete(bindingId);
+  }
+
+  function beginTurn(frame: BotsBridgeCommandFrame, botId: string): string {
+    const actor: BotActor = {
+      provider: "astrbot",
+      botId,
+      providerUserId: frame.actor.externalUserId.trim(),
+      chatType: frame.actor.chatType,
+      ...(frame.actor.chatId ? { chatId: frame.actor.chatId } : {}),
+      ...(frame.actor.displayName ? { displayName: frame.actor.displayName } : {}),
+    };
+    const bindingId = resolveBindingId(actor);
+    routing.set(targetKey(actor), bindingId);
+    const streamId = ensureStream(bindingId);
+    emit({
+      v: BOTS_BRIDGE_PROTOCOL_VERSION,
+      kind: "accepted",
+      id: idFactory(),
+      inReplyTo: frame.id,
+      streamId,
+      bindingId,
+    });
+    return bindingId;
+  }
+
+  function settleTurn(bindingId: string): void {
+    if (!taskRunning.has(bindingId)) {
+      endTurn(bindingId, "completed");
+    }
+  }
+
+  function notifyTaskLifecycle(
+    _bot: unknown,
+    actor: BotActor,
+    phase: BotTaskLifecyclePhase,
+  ): void {
+    const bindingId = routing.get(targetKey(actor)) ?? resolveBindingId(actor);
+    if (phase === "started") {
+      taskRunning.add(bindingId);
+      return;
+    }
+    taskRunning.delete(bindingId);
+    endTurn(bindingId, toBridgeState(phase));
+  }
+
+  return {
+    async test() {
+      return {
+        ok: transport !== null,
+        message: transport ? "AstrBot bridge connected." : "AstrBot bridge transport not attached.",
+      };
+    },
+
+    async send(_bot, message: BotOutboundMessage): Promise<void> {
+      const bindingId = routing.get(message.providerUserId);
+      if (!bindingId) {
+        logger.warn(undefined, `astrbot delivery without binding target=${message.providerUserId}`);
+        return;
+      }
+      const streamId = ensureStream(bindingId);
+      const currentCursor = cursors.get(bindingId) ?? 0;
+      const frame = deliveryLog.append({
+        bindingId,
+        streamId,
+        currentCursor,
+        payload: { type: "text", text: message.text },
+      });
+      cursors.set(bindingId, frame.seq);
+      latestFrames.set(bindingId, frame);
+      emit(frame);
+    },
+
+    parseCallback(payload: unknown): BotInboundMessage[] {
+      const parsed = inboundFrameSchema.safeParse(payload);
+      if (!parsed.success) {
+        return [];
+      }
+      const frame = parsed.data;
+      const actor: BotActor = {
+        provider: "astrbot",
+        botId: frame.zcodeBotId,
+        providerUserId: frame.actor.externalUserId.trim(),
+        chatType: frame.actor.chatType,
+        ...(frame.actor.chatId ? { chatId: frame.actor.chatId } : {}),
+        ...(frame.actor.displayName ? { displayName: frame.actor.displayName } : {}),
+        providerMessageId: frame.id,
+      };
+      routing.set(targetKey(actor), resolveBindingId(actor));
+      const base = { botId: frame.zcodeBotId, actor, receivedAt: clock() };
+      switch (frame.command.type) {
+        case "prompt":
+          return [{ ...base, text: frame.command.text }];
+        case "bind":
+          return [{ ...base, text: `/bind ${frame.command.code}` }];
+        case "new":
+          return [{ ...base, text: "/new" }];
+        case "stop":
+          return [{ ...base, text: "/stop" }];
+        case "cancel":
+          return [{ ...base, text: "/cancel" }];
+        case "status":
+          return [{ ...base, text: "/status" }];
+        case "help":
+          return [{ ...base, text: "/help" }];
+        case "unbind":
+          return [{ ...base, text: "/unbind" }];
+        case "workspace.set":
+          return [{ ...base, text: `/workspace ${frame.command.value}` }];
+        case "permission.respond":
+          return [
+            { ...base, text: `/approve ${frame.command.requestId} ${frame.command.optionId}` },
+          ];
+        case "elicitation.respond":
+          return [
+            {
+              ...base,
+              text: "",
+              elicitationResponse: {
+                requestId: frame.command.requestId,
+                action: frame.command.action,
+                ...(frame.command.content ? { content: frame.command.content } : {}),
+              },
+            },
+          ];
+        default:
+          return [];
+      }
+    },
+
+    notifyTaskLifecycle,
+
+    attachTransport(next: AstrBotBridgeTransport) {
+      transport = next;
+      return {
+        dispose: () => {
+          if (transport === next) {
+            transport = null;
+          }
+        },
+      };
+    },
+
+    beginTurn,
+
+    settleTurn,
+
+    resolveResume(cursorsIn: readonly BotsBridgeResumeCursor[]): Map<string, BotsDeliveryReplay> {
+      return deliveryLog.resolveResume(cursorsIn);
+    },
+
+    async buildSnapshot(bindingId: string): Promise<BotsBridgeDeliveryFrame | null> {
+      return latestFrames.get(bindingId) ?? null;
+    },
+
+    ackDeliveryByFrameId(deliveryId: string): void {
+      deliveryLog.ackById(deliveryId);
+    },
+
+    dispose(): void {
+      transport = null;
+      routing.clear();
+      streams.clear();
+      cursors.clear();
+      latestFrames.clear();
+      taskRunning.clear();
+    },
+  };
+}
