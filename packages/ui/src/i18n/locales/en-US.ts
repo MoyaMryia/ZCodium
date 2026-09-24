@@ -561,6 +561,10 @@ const enUS: Record<string, string> = {
   "bots.astrbot.step.install": "Install the astrbot-zcodium-plugin.",
   "bots.astrbot.step.configure": "Fill the url, port, and token from that file into the plugin.",
   "bots.astrbot.step.bind": "Send /bind <code> in chat to finish binding.",
+  "bots.astrbot.boundDescription":
+    "AstrBot bridge is bound; messages go through the official Bots pipeline.",
+  "bots.astrbot.unboundDescription":
+    "Install and configure astrbot-zcodium-plugin, then generate a bind code.",
   "bots.addBot": "New bot",
   "bots.addBinding": "Add binding",
   "bots.setup.chooseBot": "Choose bot",
