@@ -166,7 +166,6 @@ function createWebPlatform(): IPlatformService {
     openExternalFile: () => Promise.resolve({ success: false, error: "Not supported in web mode" }),
     registerOAuthState: (_payload) => {},
     onOAuthCallback: () => () => {},
-    onPaymentCallback: () => () => {},
     notifyRendererReady: () => {},
     showTaskNotification: (payload) => {
       if (document.hasFocus()) {

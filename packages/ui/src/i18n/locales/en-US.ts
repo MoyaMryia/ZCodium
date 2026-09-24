@@ -2786,17 +2786,10 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.startPlan.compatibility":
     "Supports BYOK and BYOA. Base URL, API format, and API Key are maintained by ZCodium automatically.",
   "settings.modelProvider.codingPlan.title": "{provider} - Coding Plan",
-  "settings.modelProvider.codingPlan.webview.title": "Upgrade Plan",
-  "settings.modelProvider.codingPlan.webview.authInjectFailed":
-    "Couldn't sign you into the plan page. Please retry.",
-  "settings.modelProvider.codingPlan.webview.retry": "Retry",
-  "settings.modelProvider.codingPlan.webview.loadFailed": "The plan page failed to load.",
-  "settings.modelProvider.codingPlan.webview.openWebsite": "Buy on the official website",
   "settings.modelProvider.codingPlan.status.loginRequired": "Not signed in",
   "settings.modelProvider.codingPlan.status.disconnected": "Not connected",
   "settings.modelProvider.codingPlan.status.checking": "Checking",
-  "settings.modelProvider.codingPlan.status.notPurchased":
-    "Not subscribed, enabled after subscription",
+  "settings.modelProvider.codingPlan.status.notPurchased": "No active plan for this connection",
   "settings.modelProvider.codingPlan.status.purchased": "Subscribed",
   "settings.modelProvider.codingPlan.status.unavailable": "Fetch failed",
   "settings.modelProvider.codingPlan.status.teamExpired":
@@ -5726,10 +5719,10 @@ const enUS: Record<string, string> = {
   "chat.error.expandDetails": "Show details",
   "chat.error.collapseDetails": "Hide details",
   "chat.error.feedback": "Report issue",
-  "chat.error.noAvailableModel": "No model available. Set a custom model.",
+  "chat.error.noAvailableModel": "Configure a model to start a conversation.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
   "chat.error.modelSettings": "Model settings",
-  "chat.error.setModels": "Set",
+  "chat.error.setModels": "Configure model",
 
   // Start Plan per-bucket quota reminders
   "chat.quota.startPlan.bucketDailyLow":
@@ -5739,21 +5732,20 @@ const enUS: Record<string, string> = {
   "chat.quota.startPlan.modelVeryLow":
     "{model} has {percent} of its plan quota remaining ({remaining} tokens).",
   "chat.quota.startPlan.modelExhausted":
-    "All available quota for {model} has been used up. Switch models or upgrade your plan.",
+    "All available quota for {model} has been used up. Switch models or wait for the quota to reset.",
   "chat.quota.startPlan.dailyExhausted":
-    "Your Start Plan quota has been used up. Upgrade your plan or wait for the quota to reset.",
-  "chat.quota.startPlan.concurrentLimit":
-    "The system is busy. Please switch models, upgrade your account, or try again later.",
+    "Your available quota has been used up. Switch models or wait for the quota to reset.",
+  "chat.quota.startPlan.concurrentLimit": "The system is busy. Switch models or try again later.",
   "chat.quota.startPlan.concurrentLimit.retryExhausted":
-    "The system is busy, and automatic retries have reached the maximum count. Please try again later or upgrade your account.",
+    "The system is busy, and automatic retries have reached the maximum count. Switch models or try again later.",
   "chat.quota.startPlan.concurrentLimit.switchModel":
     "The current model request concurrency limit has been reached. Switch models to continue your current task.",
   "chat.quota.mcp.quotaExhausted":
     'ZCodium MCP "{server}" has used up today\'s quota. It resets tomorrow.',
   "chat.quota.mcp.codingPlanRequired":
-    'No ZCodium MCP "{server}" quota. Sign in or get a Coding Plan to use it.',
+    'This connection has no quota for MCP "{server}". Check your MCP configuration or choose another available tool.',
   "chat.quota.providerLimited":
-    "The current account quota or plan limit has been reached. Upgrade or adjust the plan to continue.",
+    "This connection has reached its usage limit. Switch models or wait for the quota to reset.",
   "chat.quota.action.upgrade": "Upgrade",
   "chat.quota.action.renew": "Renew",
   "chat.quota.action.switchModel": "Switch model",
@@ -5913,7 +5905,7 @@ const enUS: Record<string, string> = {
     "The current model is unavailable. Check whether the current account has been added to the project member list.",
   "zcode.error.providerBusiness.1006": "Your login session has expired. Please sign in again.",
   "zcode.error.providerBusiness.1005":
-    "Today's free plan quota has been used up. Upgrade to continue now, or wait for the quota to reset.",
+    "Today's available quota has been used up. Switch models or wait for the quota to reset.",
   "zcode.error.providerBusiness.3006":
     "The current model is not included in this plan. Switch to an allowed model and try again.",
   "zcode.error.providerBusiness.3002":
@@ -5922,12 +5914,9 @@ const enUS: Record<string, string> = {
     "The request parameters are invalid. Check the input and try again.",
   "zcode.error.providerBusiness.3007":
     "The request was rejected by the gateway security check. Please try again later or contact support.",
-  "zcode.error.providerBusiness.3008":
-    "The system is busy. Please switch models, upgrade your account, or try again later.",
-  "zcode.error.providerBusiness.3009":
-    "The system is busy. Please switch models, upgrade your account, or try again later.",
-  "zcode.error.providerBusiness.3010":
-    "The system is busy. Please switch models, upgrade your account, or try again later.",
+  "zcode.error.providerBusiness.3008": "The system is busy. Switch models or try again later.",
+  "zcode.error.providerBusiness.3009": "The system is busy. Switch models or try again later.",
+  "zcode.error.providerBusiness.3010": "The system is busy. Switch models or try again later.",
   "zcode.error.providerBusiness.3102":
     "This run exceeded the maximum single-run time. Create a new off-peak task to continue.",
   "zcode.error.modelSuspiciousEmpty":
@@ -6067,6 +6056,8 @@ const enUS: Record<string, string> = {
   "offPeak.error.unavailable":
     "Idle-time task service is temporarily unavailable. Try again later.",
   "offPeak.error.generic": "Idle-time task operation failed.",
+  "offPeak.create.connectionUnavailable":
+    "Idle tasks are unavailable for this connection. You can schedule an automation instead.",
   "offPeak.create.title": "New Idle-time task",
   "offPeak.create.subtitle": "Configure the instructions and how this task runs during idle time.",
   "offPeak.create.defaultTitle": "Untitled",

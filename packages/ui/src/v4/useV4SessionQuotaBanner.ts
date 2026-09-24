@@ -12,14 +12,8 @@ import {
   resolveStartPlanQuotaExhaustedBusinessCode,
 } from "@/lib/providerBusinessError.js";
 import {
-  isMaxCodingPlanSnapshot,
-  isTerminalCodingPlanSnapshot,
-} from "@/lib/sidebarCodingPlanUpgrade.js";
-import {
   buildSessionQuotaBannerDismissKey,
   buildSessionQuotaBannerState,
-  resolveQuotaBannerUpgradeProviderId,
-  shouldOfferQuotaBannerUpgrade,
 } from "@/v4/sessionQuotaBannerState.js";
 import type { McpUnavailableNotice } from "@/v4/mcpUnavailableBannerNotice.js";
 import { logger } from "@/logger.js";
@@ -172,32 +166,6 @@ export function useV4SessionQuotaBanner(params: {
     });
   }, [dismissKey, dismissed, params.sessionId]);
 
-  const upgradeProviderId = resolveQuotaBannerUpgradeProviderId(activeProviderId);
-  const shouldCheckTerminalPlan =
-    state.visible &&
-    upgradeProviderId !== null &&
-    // 不提供升级入口的提示（如 MCP 今日额度用完）无需判断是否已是顶配套餐，
-    // 省掉一次 refreshOnMount 的 entitlement 请求。
-    shouldOfferQuotaBannerUpgrade(state.kind) &&
-    !isStartPlanModelProviderId(upgradeProviderId);
-  const upgradeEntitlement = useUsageEntitlementWithService(params.usageStatsService, {
-    enabled: shouldCheckTerminalPlan,
-    includeSubscription: true,
-    preferredProviderId: upgradeProviderId ?? undefined,
-    allowDisabledPreferredProvider: true,
-    requirePreferredProvider: true,
-    allowEnvApiKey: false,
-    refreshOnMount: true,
-  });
-  const terminalSnapshot =
-    entitlement.snapshot?.provider?.id === upgradeProviderId
-      ? entitlement.snapshot
-      : upgradeEntitlement.snapshot?.provider?.id === upgradeProviderId
-        ? upgradeEntitlement.snapshot
-        : null;
-  const terminalPlan = terminalSnapshot !== null && isTerminalCodingPlanSnapshot(terminalSnapshot);
-  const maxPlan = terminalSnapshot !== null && isMaxCodingPlanSnapshot(terminalSnapshot);
-
   const previousPhaseRef = useRef<SessionPhase | null>(params.phase);
   useEffect(() => {
     const previousPhase = previousPhaseRef.current;
@@ -271,8 +239,5 @@ export function useV4SessionQuotaBanner(params: {
     dismiss,
     markShown,
     takesOverError,
-    upgradeProviderId:
-      terminalPlan || !shouldOfferQuotaBannerUpgrade(state.kind) ? null : upgradeProviderId,
-    upgradeActionLabelId: maxPlan ? "chat.quota.action.renew" : "chat.quota.action.upgrade",
   } as const;
 }

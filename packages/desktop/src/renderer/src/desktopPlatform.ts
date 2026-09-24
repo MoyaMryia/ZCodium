@@ -56,7 +56,6 @@ export function createDesktopPlatform(options: {
       : undefined,
     registerOAuthState: (payload) => window.zcode.registerOAuthState(payload),
     onOAuthCallback: (callback) => window.zcode.onOAuthCallback(callback),
-    onPaymentCallback: (callback) => window.zcode.onPaymentCallback(callback),
     notifyRendererReady: () => window.zcode.notifyRendererReady(),
     reportDiagnostic: (record) => window.zcode.reportDiagnostic(record),
     reportRendererHeapSample: (sample) => window.zcode.reportRendererHeapSample(sample),

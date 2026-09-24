@@ -1,53 +1,16 @@
-/* eslint-disable max-lines -- Coding Plan provider 需要集中维护 BigModel 支付宝与 Z.ai Stripe/PayPal 接口映射，拆分会让共享鉴权和响应解包更难追踪。 */
+/* eslint-disable max-lines -- 团队权益查询与客户端配置共用鉴权、请求合并和响应解包，集中维护避免状态漂移。 */
 import type {
   ApiClient,
   ApiRequestInit,
   ForceUpdateConfig,
-  CodingPlanAgreementResponse,
-  CodingPlanBatchPreviewRequest,
-  CodingPlanBatchPreviewResponse,
-  CodingPlanCreateSignRequest,
-  CodingPlanPaymentCheckRequest,
-  CodingPlanPaymentCheckResponse,
-  CodingPlanPendingOrderCheckResponse,
-  CodingPlanPaypalSetupTokenRequest,
-  CodingPlanPaypalSetupTokenResponse,
-  CodingPlanPaypalSubscribeRequest,
-  CodingPlanPaypalSubscribeResponse,
-  CodingPlanPaypalSupportRequest,
-  CodingPlanPaypalSupportResponse,
-  CodingPlanProductInfo,
-  CodingPlanProductInfoRequest,
   CodingPlanStaticTeamProduct,
-  CodingPlanStaticProductsConfig,
   CodingPlanStaticTeamProductsConfig,
   CodingPlanSubscriptionProviderId,
-  CodingPlanPreviewRequest,
-  CodingPlanPreviewResponse,
-  CodingPlanStripeBindRequest,
-  CodingPlanStripeBindResponse,
-  CodingPlanStripeCard,
-  CodingPlanStripePayRequest,
-  CodingPlanStripePayResponse,
-  CodingPlanStripeUnbindRequest,
-  CodingPlanUpdateSignRequest,
-  EnterpriseCodingPlanCancelOrderRequest,
-  EnterpriseCodingPlanCancelOrderResponse,
-  EnterpriseCodingPlanCreateOrderRequest,
-  EnterpriseCodingPlanCreateOrderResponse,
-  EnterpriseCodingPlanBalanceResponse,
-  EnterpriseCodingPlanContinuePayRequest,
-  EnterpriseCodingPlanOrderCalculateRequest,
-  EnterpriseCodingPlanOrderCalculateResponse,
-  EnterpriseCodingPlanPendingOrder,
-  EnterpriseCodingPlanOrderStatusRequest,
-  EnterpriseCodingPlanOrderStatusResponse,
   EnterpriseCodingPlanPricingRequest,
   EnterpriseCodingPlanPricingResponse,
   EnterpriseCodingPlanPricingProduct,
   EnterpriseCodingPlanProjectApiKeyUnavailableReason,
   EnterpriseCodingPlanProjectContext,
-  StartPlanPreviewConfig,
   ZCodeModelContextBudgetStrategy,
   DynamicWorkflowClientConfig,
 } from "@zcode/shared";
@@ -80,11 +43,9 @@ import {
 } from "#src/bigmodel/teamPlanApiKey.js";
 
 const BIGMODEL_CODING_PLAN_API_PREFIX = "/api/biz";
-const ZAI_CODING_PLAN_PAY_API_PREFIX = "/api/pay";
 const ZCODE_CLIENT_CONFIG_API_PREFIX = "/api/v1/client/configs";
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLIENT_CONFIG_CACHE_TTL_MS = 60 * 60 * 1000;
-const CODING_PLAN_ZAI_OVERSEAS_PAYMENT_REQUIRED = "coding_plan_zai_overseas_payment_required";
 const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
 const log = createServiceLogger("codingPlanSubscription");
 
@@ -102,9 +63,7 @@ interface ZCodeClientConfigEnvelope {
   data?: {
     configs?: {
       forceUpdate?: ForceUpdateConfig | null;
-      codingPlanStaticProducts?: CodingPlanStaticProductsConfig;
       codingPlanStaticTeamProducts?: CodingPlanStaticTeamProductsConfig;
-      startPlanPreview?: StartPlanPreviewConfig | null;
       // 闲时任务灰度（服务端）：内层字段服务端为 snake_case，与外层 camelCase 混排。
       offPeak?: {
         enable_offpeak_task?: boolean;
@@ -191,27 +150,9 @@ export class BigModelCodingPlanSubscriptionProvider {
     return createBigModelLoginAuthHeaders(token);
   }
 
-  async batchPreview(
-    request: CodingPlanBatchPreviewRequest = {},
-  ): Promise<CodingPlanBatchPreviewResponse> {
-    return this.post<CodingPlanBatchPreviewResponse>(request.providerId, "/pay/batch-preview", {
-      invitationCode: request.invitationCode,
-    });
-  }
-
-  async getStaticProducts(): Promise<CodingPlanStaticProductsConfig> {
-    const payload = await this.getClientConfigs();
-    return unwrapClientConfigProducts(payload);
-  }
-
   async getStaticTeamProducts(): Promise<CodingPlanStaticTeamProductsConfig> {
     const payload = await this.getClientConfigs();
     return unwrapClientConfigTeamProducts(payload);
-  }
-
-  async getStartPlanPreview(): Promise<StartPlanPreviewConfig | null> {
-    const payload = await this.getClientConfigs();
-    return unwrapClientConfigStartPlanPreview(payload);
   }
 
   /**
@@ -278,157 +219,6 @@ export class BigModelCodingPlanSubscriptionProvider {
     return unwrapClientConfigForceUpdate(payload);
   }
 
-  async preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse> {
-    return this.post<CodingPlanPreviewResponse>(
-      request.providerId,
-      resolvePreviewPath(request.providerId),
-      {
-        productId: request.productId,
-        invitationCode: request.invitationCode,
-        imRef: request.imRef ?? null,
-        ticket: request.ticket ?? null,
-        randstr: request.randstr ?? null,
-        // Coding Plan 试算接口默认按 Maas 渠道处理，不显式标记会丢失 zcode 来源归因。
-        salesChannel: request.salesChannel ?? "zcode",
-      },
-    );
-  }
-
-  async productInfo(request: CodingPlanProductInfoRequest): Promise<CodingPlanProductInfo> {
-    const url = new URL(
-      `${resolveCodingPlanHost(request.providerId)}${BIGMODEL_CODING_PLAN_API_PREFIX}/product/info`,
-    );
-    url.searchParams.set("productId", request.productId);
-    return this.get<CodingPlanProductInfo>(request.providerId, url);
-  }
-
-  async createSign(request: CodingPlanCreateSignRequest): Promise<CodingPlanAgreementResponse> {
-    if (request.providerId && isZaiCodingPlanProviderId(request.providerId)) {
-      throw new Error(CODING_PLAN_ZAI_OVERSEAS_PAYMENT_REQUIRED);
-    }
-
-    return this.post<CodingPlanAgreementResponse>(request.providerId, "/pay/create-sign", {
-      bizId: request.bizId,
-      payType: request.payType ?? "ALI",
-      invitationCode: request.invitationCode,
-      renew: request.renew ?? null,
-      isDelay: request.isDelay ?? 0,
-      effectiveTime: request.effectiveTime ?? null,
-    });
-  }
-
-  async updateSign(request: CodingPlanUpdateSignRequest): Promise<CodingPlanAgreementResponse> {
-    if (request.providerId && isZaiCodingPlanProviderId(request.providerId)) {
-      throw new Error(CODING_PLAN_ZAI_OVERSEAS_PAYMENT_REQUIRED);
-    }
-
-    return this.post<CodingPlanAgreementResponse>(request.providerId, "/pay/product/update/sign", {
-      bizId: request.bizId,
-      payType: request.payType ?? "ALI",
-    });
-  }
-
-  async checkPayment(
-    request: CodingPlanPaymentCheckRequest,
-  ): Promise<CodingPlanPaymentCheckResponse> {
-    const url = new URL(
-      `${resolveCodingPlanHost(request.providerId)}${BIGMODEL_CODING_PLAN_API_PREFIX}/pay/check`,
-    );
-    url.searchParams.set("bizId", request.bizId);
-    const status = await this.get<string>(request.providerId, url);
-    return { status };
-  }
-
-  async checkPendingOrders(
-    request: {
-      providerId?: CodingPlanSubscriptionProviderId;
-    } = {},
-  ): Promise<CodingPlanPendingOrderCheckResponse> {
-    return this.get<CodingPlanPendingOrderCheckResponse>(
-      request.providerId,
-      new URL(
-        `${resolveCodingPlanHost(request.providerId)}${BIGMODEL_CODING_PLAN_API_PREFIX}/pay/check-pending-orders`,
-      ),
-    );
-  }
-
-  async queryStripeCards(
-    request: {
-      providerId?: CodingPlanSubscriptionProviderId;
-    } = {},
-  ): Promise<CodingPlanStripeCard[]> {
-    return this.getZaiPay<CodingPlanStripeCard[]>(request.providerId, "/stripe/query");
-  }
-
-  async bindStripeCard(
-    request: CodingPlanStripeBindRequest,
-  ): Promise<CodingPlanStripeBindResponse> {
-    return this.postZaiPay<CodingPlanStripeBindResponse>(request.providerId, "/stripe/bind", {
-      paymentMethodId: request.paymentMethodId,
-      returnUrl: request.returnUrl,
-      trackingContext: request.trackingContext,
-    });
-  }
-
-  async unbindStripeCard(request: CodingPlanStripeUnbindRequest): Promise<string> {
-    return this.postZaiPay<string>(request.providerId, "/stripe/unbind", {
-      paymentMethodId: request.paymentMethodId,
-    });
-  }
-
-  async payStripe(request: CodingPlanStripePayRequest): Promise<CodingPlanStripePayResponse> {
-    return this.postZaiPay<CodingPlanStripePayResponse>(request.providerId, "/stripe/pay", {
-      productId: request.productId,
-      paymentMethodId: request.paymentMethodId,
-      isSubscribe: request.isSubscribe ?? true,
-      returnUrl: request.returnUrl,
-      channelCode: request.channelCode,
-      estimatePayAmount: request.estimatePayAmount,
-      invitationCode: request.invitationCode,
-      bizId: request.bizId,
-      renew: request.renew ?? false,
-    });
-  }
-
-  async checkPaypalSupport(
-    request: CodingPlanPaypalSupportRequest = {},
-  ): Promise<CodingPlanPaypalSupportResponse> {
-    return this.getZaiPay<CodingPlanPaypalSupportResponse>(request.providerId, "/paypal/isSupport");
-  }
-
-  async createPaypalSetupToken(
-    request: CodingPlanPaypalSetupTokenRequest,
-  ): Promise<CodingPlanPaypalSetupTokenResponse> {
-    return this.postZaiPay<CodingPlanPaypalSetupTokenResponse>(
-      request.providerId,
-      "/paypal/setupToken",
-      {
-        returnUrl: request.returnUrl,
-        cancelUrl: request.cancelUrl,
-      },
-    );
-  }
-
-  async subscribePaypal(
-    request: CodingPlanPaypalSubscribeRequest,
-  ): Promise<CodingPlanPaypalSubscribeResponse> {
-    return this.postZaiPay<CodingPlanPaypalSubscribeResponse>(
-      request.providerId,
-      "/paypal/subscribe",
-      {
-        productId: request.productId,
-        productDesc: request.productDesc,
-        setupTokenId: request.setupTokenId,
-        amount: request.amount,
-        isSubscribe: request.isSubscribe ?? true,
-        estimatePayAmount: request.estimatePayAmount,
-        invitationCode: request.invitationCode,
-        bizId: request.bizId,
-        channelCode: request.channelCode,
-      },
-    );
-  }
-
   async getEnterprisePricing(
     request: EnterpriseCodingPlanPricingRequest = {},
   ): Promise<EnterpriseCodingPlanPricingResponse> {
@@ -455,96 +245,6 @@ export class BigModelCodingPlanSubscriptionProvider {
     return this.enrichEnterprisePricingTeamProjects(response);
   }
 
-  async getEnterpriseBalance(): Promise<EnterpriseCodingPlanBalanceResponse> {
-    return this.get<EnterpriseCodingPlanBalanceResponse>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      new URL(
-        `${resolveBigModelEnterpriseHost()}${BIGMODEL_CODING_PLAN_API_PREFIX}/subscription/enterprise/v2/balance`,
-      ),
-    );
-  }
-
-  async calculateEnterpriseOrder(
-    request: EnterpriseCodingPlanOrderCalculateRequest,
-  ): Promise<EnterpriseCodingPlanOrderCalculateResponse> {
-    return this.post<EnterpriseCodingPlanOrderCalculateResponse>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      "/subscription/enterprise/v2/order/calculate",
-      { ...request },
-    );
-  }
-
-  async createEnterpriseOrder(
-    request: EnterpriseCodingPlanCreateOrderRequest,
-  ): Promise<EnterpriseCodingPlanCreateOrderResponse> {
-    return this.post<EnterpriseCodingPlanCreateOrderResponse>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      "/subscription/enterprise/v2/order",
-      { ...request },
-    );
-  }
-
-  async getEnterprisePendingOrders(): Promise<EnterpriseCodingPlanPendingOrder[]> {
-    const url = new URL(
-      `${resolveBigModelEnterpriseHost()}${BIGMODEL_CODING_PLAN_API_PREFIX}/subscription/enterprise/v2/orders/pending`,
-    );
-    return this.get<EnterpriseCodingPlanPendingOrder[]>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      url,
-    );
-  }
-
-  async cancelEnterpriseOrder(
-    request: EnterpriseCodingPlanCancelOrderRequest,
-  ): Promise<EnterpriseCodingPlanCancelOrderResponse> {
-    return this.post<EnterpriseCodingPlanCancelOrderResponse>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      `/subscription/enterprise/v2/order/${encodeURIComponent(request.orderNo)}/cancel`,
-      {},
-    );
-  }
-
-  async continueEnterpriseOrderPayment(
-    request: EnterpriseCodingPlanContinuePayRequest,
-  ): Promise<EnterpriseCodingPlanCreateOrderResponse> {
-    return this.post<EnterpriseCodingPlanCreateOrderResponse>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      `/subscription/enterprise/v2/order/${encodeURIComponent(request.orderNo)}/pay`,
-      {},
-    );
-  }
-
-  async checkEnterpriseOrderStatus(
-    request: EnterpriseCodingPlanOrderStatusRequest,
-  ): Promise<EnterpriseCodingPlanOrderStatusResponse> {
-    const url = new URL(
-      `${resolveBigModelEnterpriseHost()}${BIGMODEL_CODING_PLAN_API_PREFIX}/subscription/enterprise/v2/order/${encodeURIComponent(request.orderNo)}/status`,
-    );
-    return this.get<EnterpriseCodingPlanOrderStatusResponse>(
-      BUILTIN_MODEL_PROVIDER_IDS.bigmodelIndividualCodingPlan,
-      url,
-    );
-  }
-
-  private async post<T>(
-    providerId: CodingPlanSubscriptionProviderId | undefined,
-    path: string,
-    body: Record<string, unknown>,
-  ): Promise<T> {
-    const endpoint = await this.resolveEndpointConfig(providerId);
-    const payload = await readCodingPlanApiJson<RemoteEnvelope<T>>(
-      this.apiClient,
-      `${endpoint.host}${BIGMODEL_CODING_PLAN_API_PREFIX}${path}`,
-      {
-        method: "POST",
-        timeoutMs: REQUEST_TIMEOUT_MS,
-        headers: endpoint.headers,
-        body: JSON.stringify(dropUndefined(body)),
-      },
-    );
-    return unwrapEnvelope(payload, endpoint.providerId);
-  }
-
   private async get<T>(
     providerId: CodingPlanSubscriptionProviderId | undefined,
     url: URL,
@@ -555,44 +255,6 @@ export class BigModelCodingPlanSubscriptionProvider {
       timeoutMs: REQUEST_TIMEOUT_MS,
       headers: endpoint.headers,
     });
-    return unwrapEnvelope(payload, endpoint.providerId);
-  }
-
-  private async postZaiPay<T>(
-    providerId: CodingPlanSubscriptionProviderId | undefined,
-    path: string,
-    body: Record<string, unknown>,
-  ): Promise<T> {
-    const endpoint = await this.resolveEndpointConfig(providerId);
-    assertZaiPaymentProvider(endpoint.providerId);
-    const payload = await readCodingPlanApiJson<RemoteEnvelope<T>>(
-      this.apiClient,
-      `${endpoint.host}${ZAI_CODING_PLAN_PAY_API_PREFIX}${path}`,
-      {
-        method: "POST",
-        timeoutMs: REQUEST_TIMEOUT_MS,
-        headers: endpoint.headers,
-        body: JSON.stringify(dropUndefined(body)),
-      },
-    );
-    return unwrapEnvelope(payload, endpoint.providerId);
-  }
-
-  private async getZaiPay<T>(
-    providerId: CodingPlanSubscriptionProviderId | undefined,
-    path: string,
-  ): Promise<T> {
-    const endpoint = await this.resolveEndpointConfig(providerId);
-    assertZaiPaymentProvider(endpoint.providerId);
-    const payload = await readCodingPlanApiJson<RemoteEnvelope<T>>(
-      this.apiClient,
-      `${endpoint.host}${ZAI_CODING_PLAN_PAY_API_PREFIX}${path}`,
-      {
-        method: "GET",
-        timeoutMs: REQUEST_TIMEOUT_MS,
-        headers: endpoint.headers,
-      },
-    );
     return unwrapEnvelope(payload, endpoint.providerId);
   }
 
@@ -609,8 +271,7 @@ export class BigModelCodingPlanSubscriptionProvider {
     const url = resolveCodingPlanClientConfigUrl(process.env);
     url.searchParams.set("app_version", ZCODE_VERSION);
     url.searchParams.set("platform", resolveClientPlatformKey());
-    // StartPlanCard 和套餐列表都来自同一个 client/configs。
-    // 同屏分别读取 preview/products 时必须合并请求，避免未登录设置页重复打远端配置。
+    // 同屏读取多份客户端配置时合并请求，避免重复访问同一接口。
     this.clientConfigRequest = readCodingPlanApiJson<ZCodeClientConfigEnvelope>(
       this.apiClient,
       url,
@@ -1053,32 +714,10 @@ export function createZaiLoginAuthHeaders(token: string): Record<string, string>
   };
 }
 
-function resolveCodingPlanHost(providerId: CodingPlanSubscriptionProviderId | undefined): string {
-  return providerId && isZaiCodingPlanProviderId(providerId)
-    ? resolveZaiCodingPlanHost()
-    : resolveBigModelApiOrigin(process.env);
-}
-
 function resolveZaiCodingPlanHost(): string {
-  // Z.ai Coding Plan 的 /api/biz 与 /api/pay 业务接口必须跟随产品环境。
+  // Z.ai Coding Plan 的 /api/biz 业务接口必须跟随产品环境。
   // 业务 token 必须发送到 .env 配置的 ZAI Business origin；未覆盖时默认 api.z.ai。
   return resolveZaiBusinessBaseUrl(process.env);
-}
-
-function resolveBigModelEnterpriseHost(): string {
-  // 企业套餐 token 必须发送到 .env 配置的 BigModel origin；未覆盖时默认 bigmodel.cn，
-  // 服务端返回空响应后被归一成系统繁忙。
-  return resolveBigModelApiOrigin(process.env);
-}
-
-function resolvePreviewPath(providerId: CodingPlanSubscriptionProviderId | undefined): string {
-  return providerId && isZaiCodingPlanProviderId(providerId) ? "/pay/zai-preview" : "/pay/preview";
-}
-
-function assertZaiPaymentProvider(providerId: CodingPlanSubscriptionProviderId): void {
-  if (!isZaiCodingPlanProviderId(providerId)) {
-    throw new Error(CODING_PLAN_ZAI_OVERSEAS_PAYMENT_REQUIRED);
-  }
 }
 
 function unwrapEnvelope<T>(
@@ -1113,19 +752,6 @@ function normalizeStaticProductProviderIds<T>(
     delete (normalized as Record<string, T[]>)[legacyId];
   }
   return normalized;
-}
-
-function unwrapClientConfigProducts(
-  payload: ZCodeClientConfigEnvelope,
-): CodingPlanStaticProductsConfig {
-  if (payload.code !== undefined && payload.code !== 0) {
-    throw new Error(payload.msg?.trim() || "ZCode client config request failed");
-  }
-  const products = payload.data?.configs?.codingPlanStaticProducts;
-  if (!products || typeof products !== "object") {
-    throw new Error("ZCode client config missing Coding Plan products");
-  }
-  return normalizeStaticProductProviderIds(products);
 }
 
 function unwrapClientConfigTeamProducts(
@@ -1192,30 +818,6 @@ function isValidCardCopyConfigItem(value: unknown): boolean {
   );
 }
 
-function unwrapClientConfigStartPlanPreview(
-  payload: ZCodeClientConfigEnvelope,
-): StartPlanPreviewConfig | null {
-  if (payload.code !== undefined && payload.code !== 0) {
-    throw new Error(payload.msg?.trim() || "ZCode client config request failed");
-  }
-  const preview = payload.data?.configs?.startPlanPreview;
-  if (!preview) {
-    return null;
-  }
-  if (
-    typeof preview.planId !== "string" ||
-    typeof preview.name !== "string" ||
-    !Array.isArray(preview.entitlements)
-  ) {
-    throw new Error("ZCode client config invalid Start Plan preview");
-  }
-  return {
-    planId: preview.planId,
-    name: preview.name,
-    entitlements: preview.entitlements.filter(isValidStartPlanPreviewEntitlement),
-  };
-}
-
 function unwrapClientConfigForceUpdate(
   payload: ZCodeClientConfigEnvelope,
 ): ForceUpdateConfig | null {
@@ -1234,18 +836,6 @@ function unwrapClientConfigForceUpdate(
   }
 
   return { minimalVersion: minimalVersion.trim() };
-}
-
-function isValidStartPlanPreviewEntitlement(
-  entitlement: StartPlanPreviewConfig["entitlements"][number],
-): boolean {
-  return (
-    typeof entitlement?.grantUnits === "number" &&
-    typeof entitlement.meter === "string" &&
-    typeof entitlement.period === "string" &&
-    typeof entitlement.showName === "string" &&
-    typeof entitlement.unitType === "string"
-  );
 }
 
 function resolveClientPlatformKey(): string {
@@ -1314,10 +904,6 @@ function isUnrenderableRemoteErrorMessage(message: string): boolean {
 
 function resolveCodingPlanProviderName(providerId: CodingPlanSubscriptionProviderId): string {
   return isZaiCodingPlanProviderId(providerId) ? "Z.ai" : "BigModel";
-}
-
-function dropUndefined(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
 /**

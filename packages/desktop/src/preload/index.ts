@@ -5,7 +5,6 @@ import {
 } from "@zcode/shared";
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
-
 import type {
   AppSettings,
   ApplicationIconRequest,
@@ -549,11 +548,7 @@ contextBridge.exposeInMainWorld("zcode", {
     return () => ipcRenderer.removeListener(PlatformChannels.OAuthCallback, handler);
   },
   /** 注册支付 deep link 回调，返回 disposer */
-  onPaymentCallback: (callback: (url: string) => void): (() => void) => {
-    const handler = (_event: unknown, url: string) => callback(url);
-    ipcRenderer.on(PlatformChannels.PaymentCallback, handler);
-    return () => ipcRenderer.removeListener(PlatformChannels.PaymentCallback, handler);
-  },
+
   /** 通知 main process renderer 已就绪 */
   notifyRendererReady: () => ipcRenderer.send(PlatformChannels.RendererReady),
   /** 发送已结束 Span；使用 send 避免遥测往返阻塞业务。 */

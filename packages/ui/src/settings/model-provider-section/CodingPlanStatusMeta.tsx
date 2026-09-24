@@ -9,20 +9,16 @@ export function CodingPlanStatusMeta({
   expireTime,
   extraAction,
   statusLabel,
-  manageLabel,
   unlinkLabel,
   unlinkLoading,
-  onManage,
   onUnlink,
 }: {
   extraAction?: ReactNode;
   statusLabel?: ReactNode;
   renewTime?: string | null;
   expireTime?: string | null;
-  manageLabel?: string | null;
   unlinkLabel?: string | null;
   unlinkLoading?: boolean;
-  onManage?: () => void;
   onUnlink?: () => void;
 }) {
   const { intl, locale } = useZCodeIntl();
@@ -44,11 +40,7 @@ export function CodingPlanStatusMeta({
       )
     : null;
   const hasMetaContent = Boolean(
-    statusLabel ||
-    subscriptionTimeLabel ||
-    extraAction ||
-    (manageLabel && onManage) ||
-    (unlinkLabel && onUnlink),
+    statusLabel || subscriptionTimeLabel || extraAction || (unlinkLabel && onUnlink),
   );
   const fallbackStatusLabel =
     statusLabel ??
@@ -65,15 +57,8 @@ export function CodingPlanStatusMeta({
       <CodingPlanMetaSeparator visible={Boolean(subscriptionTimeLabel && extraAction)} />
       {extraAction}
       <CodingPlanMetaSeparator
-        visible={Boolean((subscriptionTimeLabel || extraAction) && manageLabel)}
-      />
-      {manageLabel && onManage ? (
-        <CodingPlanMetaAction label={manageLabel} onClick={onManage} />
-      ) : null}
-      <CodingPlanMetaSeparator
         visible={Boolean(
-          (subscriptionTimeLabel || extraAction || manageLabel || fallbackStatusLabel) &&
-          unlinkLabel,
+          (subscriptionTimeLabel || extraAction || fallbackStatusLabel) && unlinkLabel,
         )}
       />
       {unlinkLabel && onUnlink ? (

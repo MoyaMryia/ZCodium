@@ -332,19 +332,7 @@ export function ChatContextUsage({
       // 本次 hover 触发的 promise（contextAccessRefreshing），语义对齐 Coding Plan 段的 refreshing。
       refreshing: contextAccessRefreshing || startPlanBalance.refreshing === true,
     };
-    if (!startPlanBalance.onUpgradeClick) {
-      return base;
-    }
-
-    return {
-      ...base,
-      onUpgradeClick: () => {
-        // HoverCard 内按钮点击不会像外部 hover leave 一样自动关闭面板。
-        // 升级入口会切到设置页，必须先收起 context 面板，避免旧浮层残留在新页面上。
-        setContextOpen(false);
-        startPlanBalance.onUpgradeClick?.();
-      },
-    };
+    return base;
   }, [startPlanBalance, contextAccessRefreshing]);
   const hasCodingPlanUsageRemaining = codingPlanUsageRemainingWithClose
     ? hasChatCodingPlanUsageRemaining(codingPlanUsageRemainingWithClose)

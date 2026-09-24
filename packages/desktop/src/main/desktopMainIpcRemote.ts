@@ -4,8 +4,6 @@ import {
   formatZodError,
   normalizeUnknownError,
   InternalChannels,
-  isTrustedCodingPlanWebviewOrigin,
-  resolveZaiBusinessBaseUrl,
   PlatformChannels,
   remoteTargetSchema,
   type RemoteTarget,
@@ -29,7 +27,6 @@ function isAllowedExternalOpenUrl(value: string): boolean {
 }
 
 interface OpenExternalRequest {
-  sourceUrl?: string;
   url: string;
 }
 
@@ -45,83 +42,8 @@ function parseOpenExternalRequest(payload: unknown): OpenExternalRequest | null 
     return null;
   }
   return {
-    sourceUrl: typeof record.sourceUrl === "string" ? record.sourceUrl : undefined,
     url: record.url,
   };
-}
-
-function isPaypalHostname(hostname: string): boolean {
-  return hostname === "paypal.com" || hostname.endsWith(".paypal.com");
-}
-
-function isCodingPlanPaypalNavigationUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") return false;
-    if (isPaypalHostname(parsed.hostname)) return true;
-    return (
-      ["https://api.z.ai", resolveZaiBusinessBaseUrl()].includes(parsed.origin) &&
-      parsed.pathname.startsWith("/api/pay/paypal/")
-    );
-  } catch {
-    return false;
-  }
-}
-
-function isCodingPlanWebviewUrl(src: string | undefined): boolean {
-  if (!src) return false;
-  try {
-    const url = new URL(src);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    if (
-      !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
-      })
-    ) {
-      return false;
-    }
-    if (!url.pathname.includes("coding-plan")) return false;
-    return url.searchParams.get("embedded") === "app";
-  } catch {
-    return false;
-  }
-}
-
-function isCodingPlanPaymentCallbackUrl(src: string | undefined): boolean {
-  if (!src) return false;
-  try {
-    const url = new URL(src);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    if (
-      !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
-      })
-    ) {
-      return false;
-    }
-    if (!url.pathname.endsWith("/coding-plan/payment/callback")) return false;
-    const returnTo = url.searchParams.get("returnTo");
-    if (!returnTo) return false;
-    const target = new URL(returnTo, url.origin);
-    return target.origin === url.origin && isCodingPlanWebviewUrl(target.toString());
-  } catch {
-    return false;
-  }
-}
-
-function isAllowedCodingPlanEmbeddedNavigationUrl(url: string): boolean {
-  return (
-    isCodingPlanWebviewUrl(url) ||
-    isCodingPlanPaypalNavigationUrl(url) ||
-    isCodingPlanPaymentCallbackUrl(url)
-  );
-}
-
-function shouldKeepCodingPlanOpenExternalInWebview(currentUrl: string, targetUrl: string): boolean {
-  return (
-    (isCodingPlanWebviewUrl(currentUrl) || isCodingPlanPaypalNavigationUrl(currentUrl)) &&
-    isAllowedCodingPlanEmbeddedNavigationUrl(targetUrl)
-  );
 }
 
 export function registerRemoteIpcHandlers(options: {
@@ -189,25 +111,6 @@ export function registerRemoteIpcHandlers(options: {
     const { url } = request;
     if (!isAllowedExternalOpenUrl(url)) {
       options.logger.warn("[open-external] blocked unsupported url", url);
-      return;
-    }
-    const sender = event.sender;
-    const senderUrl = typeof sender?.getURL === "function" ? sender.getURL() : "";
-    const senderFrameUrl =
-      typeof event.senderFrame?.url === "string" ? event.senderFrame.url : undefined;
-    const sourceUrl = senderFrameUrl ?? request.sourceUrl ?? senderUrl;
-    if (
-      typeof sender?.loadURL === "function" &&
-      shouldKeepCodingPlanOpenExternalInWebview(sourceUrl, url)
-    ) {
-      // 官网 embedded bridge 的 openExternal 会绕过 webview 导航守卫；
-      // PayPal 授权完成后的可信回调仍需回到当前 webview，不能拉起系统默认浏览器。
-      void sender.loadURL(url).catch((error: unknown) => {
-        options.logger.warn("[open-external] failed to load coding-plan callback in webview", {
-          error: error instanceof Error ? error.message : String(error),
-          url,
-        });
-      });
       return;
     }
     void Promise.resolve(shell.openExternal(url)).catch((error: unknown) => {

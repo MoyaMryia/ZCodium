@@ -290,17 +290,3 @@ export function buildSessionQuotaBannerDismissKey(
     serverErrorKey ?? "",
   ].join(":");
 }
-
-export function resolveQuotaBannerUpgradeProviderId(providerId: string | null): string | null {
-  return providerId;
-}
-
-/**
- * 该提示是否应该带升级入口。
- *
- * `mcp-quota-exhausted` 明确不带：今日额度用完只能等自然日重置，升级按钮会让用户以为
- * 花钱就能立刻继续，是误导。权益缺失（`mcp-plan-required`）才是升级能解决的问题。
- */
-export function shouldOfferQuotaBannerUpgrade(kind: SessionQuotaBannerKind | null): boolean {
-  return kind !== "mcp-quota-exhausted";
-}
