@@ -44,14 +44,16 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm architecture:check
       - name: Build Agent test dependencies
-        run: pnpm --dir apps/zcode-cli build
+        id: agent-build
+        # 根安装采用 hoisted 布局；从子 workspace 启动会丢失根目录的工具路径。
+        run: pnpm -r --filter './apps/zcode-cli/packages/*' build
       - name: Release tests
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.agent-build.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
       - name: Computer Use runtime and SDK checks
         run: |
           node --test --test-isolation=none packages/zcode-cua/test/*.test.mjs
-          pnpm --dir apps/zcode-cli --filter @zcode/zcode-cua-plugin check:sdk
+          pnpm --filter @zcode/zcode-cua-plugin check:sdk
       - name: Standalone CLI and TUI model setup checks
         run: |
           node scripts/ci/cli-local-entrypoints-smoke.mjs
