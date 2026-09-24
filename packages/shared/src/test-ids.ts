@@ -7,30 +7,6 @@
 /** 侧栏底部的本地偏好菜单入口 */
 export const TID_SIDEBAR_PREFERENCES_TRIGGER = "sidebar-preferences-trigger";
 
-// Login entry
-/** 登录页切换到 API Key 登录方式按钮 */
-export const TID_LOGIN_USE_API_KEY_BUTTON = "login-use-api-key-button";
-/** API Key 登录 provider 选择触发器 */
-export const TID_LOGIN_API_KEY_PROVIDER_TRIGGER = "login-api-key-provider-trigger";
-/** API Key 登录 provider 选择项（动态后缀为 provider choice） */
-export const TID_LOGIN_API_KEY_PROVIDER_ITEM = "login-api-key-provider-item";
-/** API Key 登录密钥输入框 */
-export const TID_LOGIN_API_KEY_INPUT = "login-api-key-input";
-/** API Key 登录继续按钮 */
-export const TID_LOGIN_API_KEY_CONTINUE_BUTTON = "login-api-key-continue-button";
-/** API Key 登录取消按钮 */
-export const TID_LOGIN_API_KEY_CANCEL_BUTTON = "login-api-key-cancel-button";
-/** API Key 登录暂时跳过按钮 */
-export const TID_LOGIN_API_KEY_SKIP_BUTTON = "login-api-key-skip-button";
-/** API Key 登录错误提示 */
-export const TID_LOGIN_API_KEY_ERROR = "login-api-key-error";
-/** OAuth 弹窗内的登录按钮 */
-export const TID_OAUTH_LOGIN_BUTTON = "oauth-login-button";
-/** OAuth 弹窗取消按钮 */
-export const TID_OAUTH_CANCEL = "oauth-cancel";
-/** OAuth 错误提示文本 */
-export const TID_OAUTH_ERROR = "oauth-error";
-
 // App
 /** 顶部导航栏 */
 export const TID_APP_HEADER = "app-header";

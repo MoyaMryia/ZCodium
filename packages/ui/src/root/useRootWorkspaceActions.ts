@@ -352,7 +352,7 @@ export function useRootWorkspaceActions({
       logger.info("[Root] 当前模式不支持打开其他工作区，已忽略请求");
       return;
     }
-    setWorkspaceActionError(null);
+    // 选择目录前清空错误会让取消操作丢失启动失败的恢复入口；成功打开后由 handleSelectProject 清理。
 
     if (preferDirectoryBrowser) {
       void openFolderFromWorkspaceEntry({

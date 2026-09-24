@@ -6,7 +6,7 @@
  */
 import { create } from "zustand";
 import type { IBroadcastService, BroadcastMessage } from "@zcode/services";
-import type { OAuthProviderId, UserInfo } from "@zcode/shared";
+import type { UserInfo } from "@zcode/shared";
 import type { CodingPlanResetType } from "@zcode/shared";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type {
@@ -46,26 +46,10 @@ import {
 } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
 
-export type LoginEntryPurpose = "app-login";
-
 // v4 重构：类型与默认值下沉到 @/lib/codePreviewSettings.ts，
 // 让纯展示组件不依赖 store；这里保留 re-export 兼容既有 import 路径。
 export type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 export { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
-
-export type LoginEntryAttemptStatus =
-  | "requested"
-  | "waiting"
-  | "succeeded"
-  | "cancelled"
-  | "failed";
-
-export interface LoginEntryAttempt {
-  id: number;
-  providerId?: OAuthProviderId;
-  purpose?: LoginEntryPurpose;
-  status: LoginEntryAttemptStatus;
-}
 
 const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
 const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
@@ -138,36 +122,6 @@ export interface ZCodeState {
   authSessionSeq: number;
   setUser: (user: UserInfo | null) => void;
 
-  /** 启动阶段是否仍在恢复 OAuth 登录态 */
-  isRestoringOAuthSession: boolean;
-  setIsRestoringOAuthSession: (restoring: boolean) => void;
-
-  /** OAuth 回调错误（Root 层写入，统一登录入口读取） */
-  oauthError: string | null;
-  setOAuthError: (error: string | null) => void;
-  oauthPollingActive: boolean;
-  setOAuthPollingActive: (active: boolean) => void;
-  oauthSuccessSeq: number;
-  lastOAuthSuccessProvider: OAuthProviderId | null;
-  markOAuthSuccess: (provider?: OAuthProviderId) => void;
-  apiKeyLoginSuccessSeq: number;
-  lastApiKeyLoginModel: string | null;
-  markApiKeyLoginSuccess: (preferredModel?: string | null) => void;
-  /** 请求打开统一登录入口，可携带需要自动发起登录/连接的 provider */
-  loginEntryRequest: {
-    id: number;
-    providerId?: OAuthProviderId;
-    purpose?: LoginEntryPurpose;
-  } | null;
-  /** 当前统一登录尝试；购买等后续动作通过 id 只续接自己发起的 OAuth。 */
-  loginEntryAttempt: LoginEntryAttempt | null;
-  requestLoginEntry: (providerId?: OAuthProviderId, purpose?: LoginEntryPurpose) => number;
-  clearLoginEntryRequest: (requestId?: number) => void;
-  markLoginEntryAttemptStatus: (
-    requestId: number,
-    status: Exclude<LoginEntryAttemptStatus, "requested">,
-  ) => void;
-
   /** Coding Plan 额度重置 UI 状态；entry/观察记录只在当前窗口内共享，不持久化。 */
   codingPlanQuotaResetUiBySource: Record<string, CodingPlanQuotaResetUiEntries>;
   /** 自动/运营完成首次被观察时所属的鉴权会话，用于区分同会话后挂载和重新登录。 */
@@ -227,15 +181,9 @@ const STATE_CHANNEL_PREFIX = "state:";
  *
  * @param broadcastService - 广播服务。Desktop 走 RPC，Web 可传 no-op 实现
  */
-export function createZCodeStore(
-  broadcastService: IBroadcastService,
-  options: {
-    initialIsRestoringOAuthSession?: boolean;
-  } = {},
-) {
+export function createZCodeStore(broadcastService: IBroadcastService) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
   let applyingBroadcast = false;
-  let loginEntryRequestSeq = 0;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
 
@@ -319,67 +267,6 @@ export function createZCodeStore(
         authSessionSeq:
           state.user === null && user !== null ? state.authSessionSeq + 1 : state.authSessionSeq,
       })),
-
-    isRestoringOAuthSession: options.initialIsRestoringOAuthSession ?? false,
-    setIsRestoringOAuthSession: (restoring: boolean) => set({ isRestoringOAuthSession: restoring }),
-
-    oauthError: null,
-    setOAuthError: (error: string | null) => set({ oauthError: error }),
-    oauthPollingActive: false,
-    setOAuthPollingActive: (active: boolean) => set({ oauthPollingActive: active }),
-    oauthSuccessSeq: 0,
-    lastOAuthSuccessProvider: null,
-    markOAuthSuccess: (provider?: OAuthProviderId) =>
-      set((state) => ({
-        oauthSuccessSeq: state.oauthSuccessSeq + 1,
-        lastOAuthSuccessProvider: provider ?? state.lastOAuthSuccessProvider,
-      })),
-    apiKeyLoginSuccessSeq: 0,
-    lastApiKeyLoginModel: null,
-    markApiKeyLoginSuccess: (preferredModel?: string | null) =>
-      set((state) => ({
-        apiKeyLoginSuccessSeq: state.apiKeyLoginSuccessSeq + 1,
-        lastApiKeyLoginModel: preferredModel?.trim() || null,
-      })),
-    loginEntryRequest: null,
-    loginEntryAttempt: null,
-    requestLoginEntry: (providerId?: OAuthProviderId, purpose?: LoginEntryPurpose) => {
-      const id = ++loginEntryRequestSeq;
-      const attempt: LoginEntryAttempt = {
-        id,
-        providerId,
-        purpose,
-        status: "requested",
-      };
-      set({
-        loginEntryRequest: {
-          id,
-          providerId,
-          purpose,
-        },
-        loginEntryAttempt: attempt,
-      });
-      return id;
-    },
-    clearLoginEntryRequest: (requestId?: number) =>
-      set((state) => {
-        if (requestId !== undefined && state.loginEntryRequest?.id !== requestId) {
-          return {};
-        }
-        return { loginEntryRequest: null };
-      }),
-    markLoginEntryAttemptStatus: (requestId, status) =>
-      set((state) => {
-        if (state.loginEntryAttempt?.id !== requestId) {
-          return {};
-        }
-        return {
-          loginEntryAttempt: {
-            ...state.loginEntryAttempt,
-            status,
-          },
-        };
-      }),
 
     codingPlanQuotaResetUiBySource: {},
     codingPlanQuotaResetAutomaticObservationsBySource: {},

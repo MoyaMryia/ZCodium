@@ -155,7 +155,7 @@ createRoot(document.getElementById("root")).render(
   <ServiceProvider services={services}>
     <PlatformProvider platform={platform}>
       <ZCodeIntlProvider initialLocale={params.get("locale") || "en-US"}>
-        <StoreProvider broadcastService={broadcastService} initialIsRestoringOAuthSession>
+        <StoreProvider broadcastService={broadcastService}>
           <TooltipProvider>
             <Fixture />
           </TooltipProvider>

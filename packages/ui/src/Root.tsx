@@ -27,19 +27,14 @@ import { ServiceProvider } from "@/hooks/useServices.js";
 import { useDynamicWorkflowAvailabilityLoader } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { useTabPersistence } from "@/hooks/useTabPersistence.js";
-import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/SettingsPage.js";
-import { WelcomeScreen, type LoginCompleteReason } from "@/WelcomeScreen.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
 
 import { countAllUnreadTasks } from "@/lib/unreadTaskCount.js";
 import {
-  isProviderStartupSyncPending,
-  shouldEnableProviderAvailabilityLoginEntryGuard,
-  shouldResolveProviderStartupState,
   shouldBlockRootRender,
   shouldShowRootStartupLoading,
   shouldOpenFallbackWorkspaceAfterCreate,
@@ -57,11 +52,8 @@ import { OccupationOnboarding } from "@/onboarding/OccupationOnboarding.js";
 import { OnboardingDialog } from "@/onboarding/OnboardingDialog.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
 import { useRemoteWorkspaceTabLifecycle } from "@/root/useRemoteWorkspaceTabLifecycle.js";
-import { useRootProviderStateRefresh } from "@/root/useRootProviderStateRefresh.js";
 import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useRootProviderSettingsSnapshot } from "@/root/useRootProviderSettingsSnapshot.js";
-import { useRootOAuthEffects } from "@/root/useRootOAuthEffects.js";
-import { consumeZcodeJwtInvalidRestartMarker } from "@/root/zcodeJwtInvalidRestartMarker.js";
 import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
 import { useRootPlatformEffects } from "@/root/useRootPlatformEffects.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
@@ -80,9 +72,6 @@ import {
 } from "@/lib/codeCommentContext.js";
 import { useCodeCommentPreviewStore } from "@/store/codeCommentPreviewStore.js";
 import { RootStartupLoading } from "@/root/RootStartupLoading.js";
-import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailability.js";
-import { useProviderAvailabilityLoginEntryGuard } from "@/root/useProviderAvailabilityLoginEntryGuard.js";
-import { ensureProviderFamilyDomainMigration } from "@/lib/providerFamilyDomainMigration.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT } from "@/lib/closeActiveContext.js";
 import { AssistantCodeCommentFeatureProvider } from "@/AssistantCodeCommentFeatureProvider.js";
@@ -93,12 +82,10 @@ interface RemoteConnectionOpenPreference {
   preferredWslDistro?: string;
 }
 
-type WelcomeScreenOpenReason = "startup-provider-required" | "provider-request" | "session-expired";
-
 /**
  * Root —— 应用根组件
  *
- * 外层挂载 StoreProvider（连接广播服务）+ TabStoreProvider，内层处理认证和路由。
+ * 外层挂载 StoreProvider（连接广播服务）+ TabStoreProvider，内层处理启动和路由。
  */
 export function Root(props: RootProps) {
   return (
@@ -116,10 +103,7 @@ export function Root(props: RootProps) {
          */}
         <ServiceProvider services={props.services}>
           <PlatformProvider platform={props.platform}>
-            <StoreProvider
-              broadcastService={props.services.broadcastService}
-              initialIsRestoringOAuthSession
-            >
+            <StoreProvider broadcastService={props.services.broadcastService}>
               <TabStoreProvider>
                 <DiffsWorkerPoolProvider>
                   <AssistantCodeCommentFeatureProvider
@@ -175,28 +159,14 @@ function RootInner({
 
   const { intl, locale } = useZCodeIntl();
   const theme = useZCodeStore((state) => state.theme);
-  const user = useZCodeStore((state) => state.user);
-  const isRestoringOAuthSession = useZCodeStore((state) => state.isRestoringOAuthSession);
-  const setUser = useZCodeStore((state) => state.setUser);
-  const setIsRestoringOAuthSession = useZCodeStore((state) => state.setIsRestoringOAuthSession);
-  const setOAuthError = useZCodeStore((state) => state.setOAuthError);
-  const oauthPollingActive = useZCodeStore((state) => state.oauthPollingActive);
-  const setOAuthPollingActive = useZCodeStore((state) => state.setOAuthPollingActive);
-  const markOAuthSuccess = useZCodeStore((state) => state.markOAuthSuccess);
   const { settings: appSettings, refresh: refreshAppSettings } = useSettings();
-  const [welcomeScreenOpenReason, setWelcomeScreenOpenReason] =
-    useState<WelcomeScreenOpenReason | null>(() =>
-      consumeZcodeJwtInvalidRestartMarker() ? "session-expired" : null,
-    );
-  const [providerFamilyDomainMigrationComplete, setProviderFamilyDomainMigrationComplete] =
-    useState(false);
-  const loginEntryRequest = useZCodeStore((state) => state.loginEntryRequest);
   const rootModelSelectionRead = useModelSelectionServiceView(services.modelSelectionService);
-  const rootModelSelectionView =
-    rootModelSelectionRead.state.status === "ready" ? rootModelSelectionRead.state.view : null;
   const rootModelSelectionErrorNode =
     rootModelSelectionRead.state.status === "error" ? (
-      <div className="fixed right-4 bottom-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-destructive/30 bg-surface-raised px-3 py-2 text-ui-base text-foreground shadow-lg">
+      <div
+        role="alert"
+        className="fixed right-4 bottom-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-destructive/30 bg-surface-raised px-3 py-2 text-ui-base text-foreground shadow-lg"
+      >
         <span className="min-w-0 flex-1">
           {intl.formatMessage({ id: "root.modelSelection.loadFailed" })}
         </span>
@@ -206,10 +176,6 @@ function RootInner({
         </Button>
       </div>
     ) : null;
-  const readRootModelSelectionView = useCallback(
-    () => services.modelSelectionService.getView(),
-    [services.modelSelectionService],
-  );
   const [remoteConnectionDialogOpen, setRemoteConnectionDialogOpen] = useState(false);
   const [remoteConnectionOpenPreference, setRemoteConnectionOpenPreference] =
     useState<RemoteConnectionOpenPreference | null>(null);
@@ -224,7 +190,7 @@ function RootInner({
   );
   const acknowledgingReleaseNotesVersionRef = useRef<string | null>(null);
   const previousRemoteConnectionInProgressRef = useRef(false);
-  const didRequestFallbackWorkspaceRef = useRef(false);
+  const [hasRequestedFallbackWorkspace, setHasRequestedFallbackWorkspace] = useState(false);
   const rootInnerMountedRef = useRef(true);
   const [hasEnteredNativeThemeSyncSurface, setHasEnteredNativeThemeSyncSurface] = useState(false);
 
@@ -344,88 +310,10 @@ function RootInner({
   const addTab = useTabStore((state) => state.addTab);
   const activateTabByPath = useTabStore((state) => state.activateTabByPath);
   const tabStoreApi = useTabStoreApi();
-  const refreshProviderState = useRootProviderStateRefresh(services);
   useRootProviderSettingsSnapshot(services);
-  useEffect(() => {
-    let disposed = false;
-
-    void (async () => {
-      try {
-        await ensureProviderFamilyDomainMigration(services);
-      } catch (error) {
-        logger.warn("[Root] provider family domain 迁移失败，继续启动", {
-          error,
-        });
-      } finally {
-        if (!disposed) {
-          setProviderFamilyDomainMigrationComplete(true);
-          try {
-            await refreshAppSettings();
-            await refreshProviderState();
-          } catch (refreshError) {
-            logger.warn("[Root] provider family domain 迁移后刷新状态失败", {
-              error: refreshError,
-            });
-          }
-        }
-      }
-    })();
-
-    return () => {
-      disposed = true;
-    };
-  }, [refreshAppSettings, refreshProviderState, services]);
 
   const shouldPreferDirectoryBrowser = Boolean(preferDirectoryBrowser);
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
-  const isResolvingStartupAuthState = isRestoringOAuthSession;
-  const rootProviderAvailability = resolveProviderAvailabilityState({
-    modelSelectionView: rootModelSelectionView,
-  });
-  const providerStartupSyncPending = isProviderStartupSyncPending({
-    providerFamilyDomainMigrationComplete,
-    modelSelectionViewHydrated:
-      rootProviderAvailability.hydrated || rootModelSelectionRead.state.status === "error",
-  });
-  const providerAvailabilityLoginEntryGuardEnabled =
-    shouldEnableProviderAvailabilityLoginEntryGuard();
-  const { startupCheckCompleted: providerAvailabilityStartupCheckCompleted } =
-    useProviderAvailabilityLoginEntryGuard({
-      enabled: providerAvailabilityLoginEntryGuardEnabled,
-      user,
-      isRestoringOAuthSession: isResolvingStartupAuthState || providerStartupSyncPending,
-      providerFamilyDomain: appSettings?.providerFamilyDomain,
-      modelSelectionView: rootModelSelectionView,
-      modelSelectionError:
-        rootModelSelectionRead.state.status === "error"
-          ? rootModelSelectionRead.state.error
-          : undefined,
-      refreshProviderState,
-      readModelSelectionView: readRootModelSelectionView,
-      setLoginEntryOpen: (open) => {
-        setWelcomeScreenOpenReason((currentReason) => {
-          if (open) {
-            return "startup-provider-required";
-          }
-          // JWT 过期提示确认后会先写入 session-expired，随后 provider
-          // 启动门禁以 open=false 收尾。这里若无条件清空，会覆盖重新登录页并回到工作区。
-          // 门禁只能关闭自己拥有的启动登录态，不能清理其它交互来源的 reason。
-          return currentReason === "startup-provider-required" ? null : currentReason;
-        });
-      },
-    });
-  const isResolvingProviderStartupState = shouldResolveProviderStartupState({
-    providerStartupSyncPending,
-    providerAvailabilityStartupCheckCompleted,
-  });
-  const isStartupProviderLoginEntryOpen = welcomeScreenOpenReason === "startup-provider-required";
-  // 首次安装时 provider 登录入口判定晚于 workspace 注入，ChatView 会先 mount 并触发草稿预热。
-  // 这里把 provider 启动检查纳入 workspace 恢复门禁，避免未连接账号前启动 ZCode session。
-  const canRestoreWorkspaceSession =
-    !isResolvingStartupAuthState &&
-    !isResolvingProviderStartupState &&
-    !isStartupProviderLoginEntryOpen;
-
   useEffect(() => {
     // 跨 workspace 任务列表需要一个稳定的“本地/root services”入口。
     // 桌面端 renderer 启动时会注册一次，但 Web 和测试入口也会直接挂 Root；
@@ -440,17 +328,14 @@ function RootInner({
   const handleOpenDirectoryBrowser = useCallback(() => {
     setDirectoryBrowserOpen(true);
   }, []);
-  const handleReauthenticationRequired = useCallback(() => {
-    setWelcomeScreenOpenReason("session-expired");
-  }, []);
   const {
+    workspaceActionError,
     setWorkspaceActionError,
     startDraftInWorkspace,
     startNewTaskFromActiveWorkspace,
     handleSelectProject,
     handleSelectConversationWorkspace,
     handleResolveConversationWorkspace,
-    handleEnsureConversationWorkspace,
     handleCreateConversationTask,
     handleOpenWorkspace,
     handleOpenFolderFromWorkspaceMenu,
@@ -530,10 +415,9 @@ function RootInner({
 
   const { isRestoring, hasCompletedInitialRestore, hasCompletedFullRestore } = useTabPersistence({
     settingService: supportsSettings ? services.settingService : undefined,
-    // 首次安装未连接账号时，provider 登录入口判定会晚于 workspace 恢复。
-    // 如果这里先恢复 workspace，ChatView mount 会触发草稿 session 预热并在登录页背后报错。
-    restoreSession: restoreSession && canRestoreWorkspaceSession,
-    persistSession: restoreSession && canRestoreWorkspaceSession,
+    // 工作区恢复独立于模型配置读取；否则配置请求挂起时连设置页也无法打开。
+    restoreSession,
+    persistSession: restoreSession,
     restorePersistedSession,
     buildPersistPatch: buildPersistedTabPatch,
   });
@@ -551,18 +435,15 @@ function RootInner({
     );
   }, [hasCompletedFullRestore, isDesktop, windowWorkspaceTabs]);
 
-  const { tryRefresh, clearCredentials } = useTokenRefresh();
-  void tryRefresh;
-  void clearCredentials;
   // 启动阻塞是桌面窗口保护期，手机 Web 远控在进入 Root 前已有配对/加载页。
   // Web 端继续使用该 gate 会在 workspace tab 注入前渲染空 RootShell，露出浏览器白底。
   const isStartupRenderBlocked = shouldShowRootStartupLoading({
     isDesktop,
-    welcomeScreenOpen: Boolean(welcomeScreenOpenReason),
-    isResolvingStartupAuthState,
-    isResolvingProviderStartupState,
     isRestoring,
-    isBootstrappingInitialWorkspace: isBootstrappingInitialWorkspace || isCreatingFallbackWorkspace,
+    // 默认目录请求可能晚于用户打开项目返回；已有可用界面时不能继续用后台请求遮挡窗口。
+    isBootstrappingInitialWorkspace:
+      isBootstrappingInitialWorkspace ||
+      (isCreatingFallbackWorkspace && !workspaceShellPath && !isSettingsTabActive),
   });
 
   useEffect(() => () => disposeConversationDiagnostics(), []);
@@ -574,7 +455,6 @@ function RootInner({
     if (
       !shouldReportLaunchToInput({
         isStartupRenderBlocked,
-        welcomeScreenOpen: Boolean(welcomeScreenOpenReason),
         alreadyReported: launchReportedRef.current,
       })
     ) {
@@ -592,7 +472,7 @@ function RootInner({
       inputReady: Date.now(), // T6
       sessionId: `launch-${timings.marks.createdAt}`,
     });
-  }, [isStartupRenderBlocked, welcomeScreenOpenReason]);
+  }, [isStartupRenderBlocked]);
 
   const conversationImport = useConversationArchiveImport({
     platform,
@@ -613,7 +493,7 @@ function RootInner({
     // 系统右键/Service 冷启动传入 initialWorkspacePath 时，必须先恢复历史 tabs，
     // 再把目标 workspace 合并并激活。否则先 addTab 会被 restoreTabs 整体替换掉；
     // 直接禁用 restoreSession 又会让其他 workspace 全部消失。
-    canBootstrapInitialWorkspace: canRestoreWorkspaceSession && hasCompletedInitialRestore,
+    canBootstrapInitialWorkspace: hasCompletedInitialRestore,
     addTab,
     setIsBootstrappingInitialWorkspace,
     platform,
@@ -656,25 +536,6 @@ function RootInner({
     });
   }, [platform]);
 
-  useRootOAuthEffects({
-    accountIntentKey: JSON.stringify([
-      user?.id,
-      appSettings?.providerFamilyDomain,
-      appSettings?.providerFamilyConnectionSelections,
-    ]),
-    platform,
-    services,
-    refreshProviderState,
-    refreshAppSettings,
-    setUser,
-    setIsRestoringOAuthSession,
-    setOAuthError,
-    oauthPollingActive,
-    setOAuthPollingActive,
-    markOAuthSuccess,
-    onReauthenticationRequired: handleReauthenticationRequired,
-  });
-
   useEffect(
     () =>
       platform.onPostUpdateReleaseNotes((payload) => {
@@ -714,9 +575,7 @@ function RootInner({
   );
 
   const canEnterNativeThemeSyncSurface = Boolean(
-    !isStartupRenderBlocked &&
-    !welcomeScreenOpenReason &&
-    (workspaceShellPath || isSettingsTabActive),
+    !isStartupRenderBlocked && (workspaceShellPath || isSettingsTabActive),
   );
 
   useEffect(() => {
@@ -746,21 +605,18 @@ function RootInner({
   useEffect(() => {
     if (
       shouldBlockRootRender({
-        isResolvingStartupAuthState,
-        isResolvingProviderStartupState,
         isRestoring,
         isBootstrappingInitialWorkspace,
       }) ||
-      isStartupProviderLoginEntryOpen ||
       workspaceShellPath ||
       isSettingsTabActive ||
       !allowOpenWorkspace ||
-      didRequestFallbackWorkspaceRef.current
+      hasRequestedFallbackWorkspace
     ) {
       return;
     }
 
-    didRequestFallbackWorkspaceRef.current = true;
+    setHasRequestedFallbackWorkspace(true);
     setIsCreatingFallbackWorkspace(true);
     // 以前 tab store 的默认空态会把 Root 带到打开工作区中间页。
     // 删除整页流程后，启动恢复为空或入口没有传 initialWorkspacePath 时必须在 Root
@@ -797,13 +653,11 @@ function RootInner({
       });
   }, [
     allowOpenWorkspace,
+    hasRequestedFallbackWorkspace,
     handleSelectConversationWorkspace,
     isBootstrappingInitialWorkspace,
-    isResolvingProviderStartupState,
-    isResolvingStartupAuthState,
     isRestoring,
     isSettingsTabActive,
-    isStartupProviderLoginEntryOpen,
     services.fileService,
     setWorkspaceActionError,
     tabStoreApi,
@@ -820,46 +674,6 @@ function RootInner({
     );
   }, [isSettingsTabActive, workspaceShellPath]);
 
-  useEffect(() => {
-    if (!loginEntryRequest) {
-      return;
-    }
-    // 登录入口已从模态弹窗收敛为 WelcomeScreen。
-    // provider 连接请求仍要先退出首次启动引导语义，避免连接完成后误创建默认 workspace。
-    setWelcomeScreenOpenReason("provider-request");
-  }, [loginEntryRequest]);
-
-  const handleWelcomeScreenComplete = useCallback(
-    async (reason: LoginCompleteReason) => {
-      await refreshAppSettings();
-      if (
-        welcomeScreenOpenReason !== "startup-provider-required" ||
-        workspaceShellPath ||
-        !allowOpenWorkspace
-      ) {
-        setWelcomeScreenOpenReason(null);
-        return;
-      }
-
-      try {
-        await handleEnsureConversationWorkspace();
-      } catch (error) {
-        logger.error("[Root] 登录后创建默认 workspace 失败", {
-          error,
-          reason,
-        });
-      } finally {
-        setWelcomeScreenOpenReason(null);
-      }
-    },
-    [
-      allowOpenWorkspace,
-      handleEnsureConversationWorkspace,
-      refreshAppSettings,
-      welcomeScreenOpenReason,
-      workspaceShellPath,
-    ],
-  );
   const handleRemoteConnectionDialogOpenChange = useCallback((open: boolean) => {
     setRemoteConnectionDialogOpen(open);
     if (!open) {
@@ -933,13 +747,33 @@ function RootInner({
     );
   }
 
-  if (welcomeScreenOpenReason) {
+  // 默认目录创建失败曾只记录未渲染的错误，用户会停在空白页；保留原错误 owner 并提供显式恢复入口。
+  if (!workspaceShellPath && !isSettingsTabActive && workspaceActionError) {
+    const errorLabel = intl.formatMessage({ id: "root.workspace.createFailed" });
     return (
       <RootShell>
         {rootModelSelectionErrorNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
-        <WelcomeScreen onComplete={handleWelcomeScreenComplete} />
+        <RootStartupLoading label={errorLabel} busy={false}>
+          <p role="alert" className="max-w-sm px-4 text-center text-ui-base">
+            {errorLabel}
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              onClick={() => {
+                setWorkspaceActionError(null);
+                setIsCreatingFallbackWorkspace(true);
+                setHasRequestedFallbackWorkspace(false);
+              }}
+            >
+              {intl.formatMessage({ id: "common.retry" })}
+            </Button>
+            <Button variant="outline" onClick={handleOpenWorkspace}>
+              {intl.formatMessage({ id: "workspace.openFolder" })}
+            </Button>
+          </div>
+        </RootStartupLoading>
       </RootShell>
     );
   }

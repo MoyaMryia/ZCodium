@@ -1010,6 +1010,8 @@ const enUS: Record<string, string> = {
   "chat.toolbar.model.targetMissing": "No model target",
   "settings.subagents.modelLoadFailed": "The model list failed to load.",
   "root.modelSelection.loadFailed": "Model configuration failed to load.",
+  "root.workspace.createFailed":
+    "Could not create the default workspace. Try again or open another folder.",
   "modelTrajectory.openSourceDirectory": "Open source folder",
   "modelTrajectory.refresh": "Refresh",
   "modelTrajectory.close": "Close",
