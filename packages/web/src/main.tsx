@@ -1,5 +1,5 @@
+import { selectBrowserFileData } from "@zcode/ui";
 import { saveBrowserFile } from "./saveBrowserFile.js";
-import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
 import { createRoot } from "react-dom/client";
 import {
@@ -13,21 +13,8 @@ import "@zcode/ui/styles.css";
 import { connectViaWebSocket } from "@zcode/client";
 import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
-import { WEB_ZAI_OAUTH_CONFIG, resolveWebAuthDevReturnTo } from "./auth/webZaiOAuthConfig.js";
 import { parseOAuthState, resolveSafeAppReturnTo } from "./auth/oauthStateCodec.js";
 import { resolveWebCommunityUrl, resolveWebHelpConfig } from "./communityUrl.js";
-import {
-  ConversationShareLandingLoader,
-  ConversationShareLandingStatus,
-} from "./share/ConversationShareLandingPage.js";
-import {
-  ConversationSharePreviewClient,
-  resolveConversationShareRouteLocale,
-} from "./share/conversationSharePreviewClient.js";
-import {
-  isConversationSharePath,
-  resolveConversationShareCodeFromPath,
-} from "./share/conversationShareRoute.js";
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
@@ -39,10 +26,7 @@ function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): The
 // 初始化主题：默认 Zai dark，后续由 useTheme hook 接管
 // system 模式下需要查询系统偏好；非 system 模式直接用存储值
 {
-  // 分享页没有本地主题配置时使用浅色，已有配置仍然沿用；其他 Web 页面继续默认深色。
-  const saved = resolveWebThemePreference(
-    isConversationSharePath(window.location.pathname) ? "zai-light" : undefined,
-  );
+  const saved = resolveWebThemePreference();
   const resolved =
     saved === "system"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -109,84 +93,9 @@ function renderWebAuthCallbackPage(): void {
   );
 }
 
-async function renderConversationSharePage(): Promise<void> {
-  // 页面语言跟随路径前缀：/cn/share 中文，裸 /share 英文。
-  const routeLocale = resolveConversationShareRouteLocale(window.location.pathname);
-  // index.html 固定 lang="en"；不同步会让中文分享页对无障碍与浏览器翻译都报错语言。
-  document.documentElement.lang = routeLocale;
-  // 分享页必须设置 title：否则浏览器标签只显示 index.html 的通用标题。
-  // 会话标题要等 preview 加载完，先给一个语言正确的兜底。
-  document.title = routeLocale === "zh-CN" ? "ZCode 会话分享" : "ZCode Conversation Share";
-  const shareCode = resolveConversationShareCodeFromPath(window.location.pathname);
-  if (!shareCode) {
-    root.render(
-      <ConversationShareLandingStatus
-        state={{ kind: "error", error: "invalid_contract" }}
-        locale={routeLocale}
-      />,
-    );
-    return;
-  }
-
-  const endpointOrigin =
-    import.meta.env.VITE_ZCODE_BASE_URL?.trim().replace(/\/+$/u, "") || window.location.origin;
-  const mockMode =
-    import.meta.env.DEV && import.meta.env.VITE_CONVERSATION_SHARE_PREVIEW_MOCK === "true";
-  // 本地诊断保留初始化阶段，不收集页面来源或服务端地址。
-  console.info(
-    ...safeLogArgs([
-      "[conversation-share-web]",
-      "preview_runtime_initialized",
-      {
-        stage: "start",
-        transport: "http",
-      },
-    ]),
-  );
-  const client = mockMode
-    ? new (
-        await import("./share/mockConversationSharePreviewClient.js")
-      ).MockConversationSharePreviewClient()
-    : new ConversationSharePreviewClient({ baseUrl: `${endpointOrigin}/api/v1` });
-  const getMockToken = () =>
-    mockMode && window.sessionStorage.getItem("zcode:share:mock-auth") === "owner"
-      ? "mock-owner-token"
-      : null;
-  const onLogout = () => {
-    if (mockMode) {
-      window.sessionStorage.removeItem("zcode:share:mock-auth");
-      window.location.reload();
-      return;
-    }
-    void webAuthService.logout();
-  };
-  root.render(
-    <ConversationShareLandingLoader
-      shareCode={shareCode}
-      client={client}
-      getAccessToken={() => getMockToken() ?? webAuthService.getZCodeJwtToken()}
-      onLogin={(provider) => {
-        if (mockMode) {
-          window.sessionStorage.setItem("zcode:share:mock-auth", "owner");
-          window.location.reload();
-          return;
-        }
-        webAuthService.startLogin({
-          provider,
-          appReturnTo: window.location.href,
-          redirectUri: WEB_ZAI_OAUTH_CONFIG.shareRedirectUri,
-          devReturnTo: resolveWebAuthDevReturnTo(WEB_ZAI_OAUTH_CONFIG),
-        });
-      }}
-      onLogout={onLogout}
-      locale={routeLocale}
-      theme={resolveWebThemePreference("zai-light")}
-    />,
-  );
-}
-
 function createWebPlatform(): IPlatformService {
   return {
+    selectFileData: selectBrowserFileData,
     canSelectFilePath: false,
     saveFile: saveBrowserFile,
     // Web 端无法打开系统目录选择框
@@ -258,7 +167,6 @@ function createWebPlatform(): IPlatformService {
     registerOAuthState: (_payload) => {},
     onOAuthCallback: () => () => {},
     onPaymentCallback: () => () => {},
-    onShareImport: () => () => {},
     notifyRendererReady: () => {},
     showTaskNotification: (payload) => {
       if (document.hasFocus()) {
@@ -409,11 +317,6 @@ async function bootstrapWebApp() {
   const params = new URLSearchParams(window.location.search);
   if (isWebOAuthCallback(params)) {
     renderWebAuthCallbackPage();
-    return;
-  }
-
-  if (isConversationSharePath(window.location.pathname)) {
-    await renderConversationSharePage();
     return;
   }
 

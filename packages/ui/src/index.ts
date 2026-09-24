@@ -90,3 +90,5 @@ export {
 export { GlobalDatabaseStartupLoading } from "./root/GlobalDatabaseStartupLoading.js";
 
 export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
+
+export { selectBrowserFileData } from "./lib/browserFilePicker.js";

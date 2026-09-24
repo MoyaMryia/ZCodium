@@ -14,20 +14,14 @@ interface ConversationShareErrorDetails {
 }
 
 const PUBLISH_ERROR_MESSAGE_BY_KIND: Readonly<Record<string, string>> = {
-  authentication_required: "conversationShare.error.authenticationRequired",
   feature_disabled: "conversationShare.error.featureDisabled",
   artifact_not_allowed: "conversationShare.error.artifactNotAllowed",
   limit_exceeded: "conversationShare.error.limitExceeded",
-  rate_limited: "conversationShare.error.rateLimited",
-  network: "conversationShare.error.network",
-  safety_check_timeout: "conversationShare.error.safetyCheckTimeout",
   invalid_selection: "conversationShare.error.invalidSelection",
   invalid_conversation: "conversationShare.error.invalidConversation",
   unsafe_structure: "conversationShare.error.invalidConversation",
   artifact_protocol_not_ready: "conversationShare.error.invalidConversation",
   invalid_contract: "conversationShare.error.invalidConversation",
-  disclosure_required: "conversationShare.error.disclosureRequired",
-  upload_incomplete: "conversationShare.error.uploadFailed",
   connection_unavailable: "conversationShare.error.connectionUnavailable",
 } as const;
 
@@ -255,7 +249,6 @@ const ISSUE_MESSAGE_IDS: Readonly<Record<ConversationShareFailureIssue["code"], 
   payload_size_limit: "conversationShare.issue.payloadSizeLimit",
   artifact_manifest: "conversationShare.issue.artifactManifest",
   no_shareable_content: "conversationShare.issue.noShareableContent",
-  upload_incomplete: "conversationShare.issue.uploadIncomplete",
   unknown: "conversationShare.issue.unknown",
 };
 
@@ -352,7 +345,6 @@ export function resolveConversationShareFallbackIssueCode(
   if (details.kind === "invalid_conversation") return "invalid_conversation";
   if (details.kind === "artifact_not_allowed") return "artifact_type_not_allowed";
   if (details.kind === "limit_exceeded") return "payload_limit";
-  if (details.kind === "upload_incomplete") return "upload_incomplete";
   return "unknown";
 }
 

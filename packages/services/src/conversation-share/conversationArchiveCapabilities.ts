@@ -4,8 +4,6 @@ import { CONVERSATION_ARCHIVE_LIMITS, type ConversationShareCapabilities } from 
 export function conversationArchiveCapabilities(): ConversationShareCapabilities {
   return {
     schema_version: 1,
-    ttl_ms: 1,
-    access_modes: [],
     max_rows: CONVERSATION_ARCHIVE_LIMITS.rows,
     max_payload_bytes: CONVERSATION_ARCHIVE_LIMITS.manifestBytes,
     max_artifact_count: CONVERSATION_ARCHIVE_LIMITS.artifacts,

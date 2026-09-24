@@ -38,7 +38,6 @@ import {
   type IServiceAccessor,
 } from "@zcode/services";
 import {
-  ConversationShareHttpClient,
   ConversationShareService,
   createSettingService,
   createCredentialService,
@@ -68,7 +67,6 @@ import {
 } from "@zcode/services/node";
 import {
   BIGMODEL_PROVIDER_ID,
-  buildRuntimeZCodeApiUrl,
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   type ProviderFamilyDomain,
   type ZCodeSessionRuntimePreferencesResult,
@@ -81,7 +79,6 @@ import {
 } from "./remoteProviderProvisioningService.js";
 
 const runtimePreferencesLogger = createServiceLogger("remote-runtime-preferences");
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
 
 export function createRemoteWorkspaceServiceCollection(params: {
   clientConfigService: IClientConfigService;
@@ -179,16 +176,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
   handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
     accountProviderCredentialStore: localAccountProviderCredentialStore,
   });
-  const conversationShareClient = new ConversationShareHttpClient({
-    // 远端 workspace 的分享也必须使用真实 API；本地 Mock 仅用于单测，不生成无法跨进程访问的链接。
-    apiClient: localApiClient,
-    baseUrl: buildRuntimeZCodeApiUrl(process.env, "/api/v1"),
-    tokenProvider: async () =>
-      (await localCredentialService.load(ZCODE_JWT_TOKEN_KEY))?.trim() || null,
-  });
   const conversationShareService = new ConversationShareService({
     zcodeAgentService: params.connectionServices.zcodeAgentService,
-    client: conversationShareClient,
     artifactSource: createRemoteConversationShareArtifactSource(
       params.connectionServices.fileService,
     ),

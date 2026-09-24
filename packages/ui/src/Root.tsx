@@ -1,3 +1,5 @@
+import { useConversationArchiveImport } from "@/root/useConversationArchiveImport.js";
+import { ConversationImportProvider } from "@/hooks/useConversationImport.js";
 import { setUiDiagnosticReporter } from "@/lib/diagnostics/recorder.js";
 import { observeLongTasks } from "@/lib/diagnostics/longTasks.js";
 import {
@@ -613,6 +615,17 @@ function RootInner({
     });
   }, [isStartupRenderBlocked, welcomeScreenOpenReason]);
 
+  const conversationImport = useConversationArchiveImport({
+    platform,
+    intl,
+    locale,
+    tabs,
+    activeWorkspacePath,
+    activeWorkspaceIdentity,
+    activateTabByPath,
+    addTab,
+  });
+
   useRootPlatformEffects({
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
@@ -644,7 +657,6 @@ function RootInner({
     totalUnreadTaskCount,
     hasCompletedFullTabRestore: hasCompletedFullRestore,
     intl,
-    isRestoringOAuthSession: isResolvingStartupAuthState || providerStartupSyncPending,
   });
 
   useEffect(() => {
@@ -977,81 +989,83 @@ function RootInner({
   }
 
   return (
-    <RootShell>
-      {rootModelSelectionErrorNode}
-      {remoteConnectionDialog}
-      {directoryBrowserDialog}
-      <OccupationOnboarding
-        showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
-        showChildrenWhileLoading={!workspaceShellPath && isSettingsTabActive}
-        isMacDesktop={isMacDesktop}
-        isWindowsDesktop={isWindowsDesktop}
-      >
-        {/* 新引导属于应用级偏好；无项目时也要挂载，才能响应设置页的手动打开请求。 */}
-        {!workspaceShellPath ? (
-          isSettingsTabActive ? (
-            <ScopedErrorBoundary
-              scope="settings-page"
-              resetKeys={["settings-root"]}
-              variant="panel"
-              className="h-full"
-            >
-              <SettingsPage {...settingsLayerProps} />
-            </ScopedErrorBoundary>
-          ) : null
-        ) : (
-          <RootWorkspaceContent
-            workspaceScopedServices={workspaceScopedServices}
-            workspaceShellPath={workspaceShellPath}
-            workspaceIdentity={workspaceShellIdentity}
-            workspaceRemoteSessionId={workspaceShellRemoteSessionId}
-            activeWorkspacePath={activeWorkspacePath}
-            isSettingsTabActive={isSettingsTabActive}
-            handleConnectRemote={handleConnectRemote}
-            handleSelectRemoteProject={handleSelectRemoteProject}
-            handleCancelRemoteProject={handleCancelRemoteProject}
-            handleReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
-            handleCreateTask={handleCreateTask}
-            handleCreateConversationTask={handleCreateConversationTask}
-            handleResolveConversationWorkspace={handleResolveConversationWorkspace}
-            handleOpenWorkspace={handleOpenWorkspace}
-            handleOpenFolderFromWorkspaceMenu={handleOpenFolderFromWorkspaceMenu}
-            handleOpenRemoteWorkspace={
-              allowRemoteWorkspace ? handleOpenRemoteConnection : undefined
-            }
-            handleCreateScratchWorkspace={handleCreateScratchWorkspace}
-            remoteConnectionInProgress={remoteConnectionInProgress}
-            remoteWorkspaceSessions={remoteWorkspaceSessions}
-            allowRemoteWorkspace={allowRemoteWorkspace}
-            handleBackFromSettings={handleBackFromSettings}
-            handleLogout={user ? handleLogout : undefined}
-            onLogin={!user ? handleOpenLoginEntry : undefined}
-            user={user}
-            reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-            remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
-            reconnectingRemoteWorkspaceLogsByWorkspaceKey={
-              reconnectingRemoteWorkspaceLogsByWorkspaceKey
-            }
-            remoteConnectionLogs={remoteConnectionLogs}
-            allowOpenWorkspace={allowOpenWorkspace}
-            isDesktop={isDesktop}
-            isMacDesktop={isMacDesktop}
-            isWindowsDesktop={isWindowsDesktop}
-            supportsEmbeddedBrowser={supportsEmbeddedBrowser}
-          />
-        )}
-        <ScopedErrorBoundary
-          scope="onboarding-dialog"
-          resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
-          variant="silent"
+    <ConversationImportProvider value={conversationImport}>
+      <RootShell>
+        {rootModelSelectionErrorNode}
+        {remoteConnectionDialog}
+        {directoryBrowserDialog}
+        <OccupationOnboarding
+          showWindowControls={Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop))}
+          showChildrenWhileLoading={!workspaceShellPath && isSettingsTabActive}
+          isMacDesktop={isMacDesktop}
+          isWindowsDesktop={isWindowsDesktop}
         >
-          <OnboardingDialog
-            workspacePath={workspaceShellPath || undefined}
-            workspaceIdentity={workspaceShellIdentity}
-            isDesktop={isDesktop}
-          />
-        </ScopedErrorBoundary>
-      </OccupationOnboarding>
-    </RootShell>
+          {/* 新引导属于应用级偏好；无项目时也要挂载，才能响应设置页的手动打开请求。 */}
+          {!workspaceShellPath ? (
+            isSettingsTabActive ? (
+              <ScopedErrorBoundary
+                scope="settings-page"
+                resetKeys={["settings-root"]}
+                variant="panel"
+                className="h-full"
+              >
+                <SettingsPage {...settingsLayerProps} />
+              </ScopedErrorBoundary>
+            ) : null
+          ) : (
+            <RootWorkspaceContent
+              workspaceScopedServices={workspaceScopedServices}
+              workspaceShellPath={workspaceShellPath}
+              workspaceIdentity={workspaceShellIdentity}
+              workspaceRemoteSessionId={workspaceShellRemoteSessionId}
+              activeWorkspacePath={activeWorkspacePath}
+              isSettingsTabActive={isSettingsTabActive}
+              handleConnectRemote={handleConnectRemote}
+              handleSelectRemoteProject={handleSelectRemoteProject}
+              handleCancelRemoteProject={handleCancelRemoteProject}
+              handleReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
+              handleCreateTask={handleCreateTask}
+              handleCreateConversationTask={handleCreateConversationTask}
+              handleResolveConversationWorkspace={handleResolveConversationWorkspace}
+              handleOpenWorkspace={handleOpenWorkspace}
+              handleOpenFolderFromWorkspaceMenu={handleOpenFolderFromWorkspaceMenu}
+              handleOpenRemoteWorkspace={
+                allowRemoteWorkspace ? handleOpenRemoteConnection : undefined
+              }
+              handleCreateScratchWorkspace={handleCreateScratchWorkspace}
+              remoteConnectionInProgress={remoteConnectionInProgress}
+              remoteWorkspaceSessions={remoteWorkspaceSessions}
+              allowRemoteWorkspace={allowRemoteWorkspace}
+              handleBackFromSettings={handleBackFromSettings}
+              handleLogout={user ? handleLogout : undefined}
+              onLogin={!user ? handleOpenLoginEntry : undefined}
+              user={user}
+              reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
+              remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
+              reconnectingRemoteWorkspaceLogsByWorkspaceKey={
+                reconnectingRemoteWorkspaceLogsByWorkspaceKey
+              }
+              remoteConnectionLogs={remoteConnectionLogs}
+              allowOpenWorkspace={allowOpenWorkspace}
+              isDesktop={isDesktop}
+              isMacDesktop={isMacDesktop}
+              isWindowsDesktop={isWindowsDesktop}
+              supportsEmbeddedBrowser={supportsEmbeddedBrowser}
+            />
+          )}
+          <ScopedErrorBoundary
+            scope="onboarding-dialog"
+            resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
+            variant="silent"
+          >
+            <OnboardingDialog
+              workspacePath={workspaceShellPath || undefined}
+              workspaceIdentity={workspaceShellIdentity}
+              isDesktop={isDesktop}
+            />
+          </ScopedErrorBoundary>
+        </OccupationOnboarding>
+      </RootShell>
+    </ConversationImportProvider>
   );
 }

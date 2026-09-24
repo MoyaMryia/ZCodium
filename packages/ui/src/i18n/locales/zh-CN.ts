@@ -196,15 +196,12 @@ const zhCN: Record<string, string> = {
   "conversationShare.publishSucceededWithSkips": "已导出，有 {count} 个文件未包含在内",
   "conversationShare.copyFailed": "复制失败",
   "conversationShare.publishFailed": "导出失败，请重试",
-  "conversationShare.error.authenticationRequired":
-    "分享功能仅对已登录用户开放。登录状态已失效，请重新登录后再试。",
+
   "conversationShare.error.featureDisabled": "当前工作区或连接类型暂不支持分享。",
   "conversationShare.error.artifactNotAllowed":
     "某个预览文件的类型暂不支持分享，请取消选择对应对话后重试。",
   "conversationShare.error.limitExceeded": "所选对话或文件超过分享限制，请减少选择的对话数量。",
-  "conversationShare.error.rateLimited": "分享操作过于频繁，请稍后再试。",
-  "conversationShare.error.network": "读取会话或文件失败，请检查连接后重试。",
-  "conversationShare.error.safetyCheckTimeout": "分享安全检查超时，请稍后重试。",
+
   "conversationShare.error.invalidSelection": "所选对话已发生变化，请重新打开分享面板并选择。",
   "conversationShare.error.invalidConversation":
     "所选内容包含当前版本暂不支持的结构。请取消仍在运行或包含内嵌图片的轮次，确认预览文件已完成后重试。",
@@ -238,8 +235,7 @@ const zhCN: Record<string, string> = {
   "conversationShare.error.artifactManifest":
     "预览文件清单不完整，请重新生成文件并刷新分享面板后重试。",
   "conversationShare.error.payloadLimit": "所选对话或文件超过分享限制，请减少选择后重试。",
-  "conversationShare.error.disclosureRequired": "请先检查并确认分享内容，再生成链接。",
-  "conversationShare.error.uploadFailed": "文件未能完整上传，请确认文件仍然存在后重试。",
+
   "conversationShare.error.connectionUnavailable": "桌面连接尚未就绪，请重新打开分享面板后重试。",
   "conversationShare.error.noShareableContent":
     "当前选择没有可分享内容，请重新选择需要分享的轮次。",
@@ -285,8 +281,7 @@ const zhCN: Record<string, string> = {
     "分享请求大小为 {actual}，超过上限 {limit}，请减少选择的轮次或产物。",
   "conversationShare.issue.artifactManifest":
     "预览文件清单存在重复或缺失，请重新生成文件并刷新分享面板。",
-  "conversationShare.issue.uploadIncomplete":
-    "{artifactDisplayName} 上传回执与文件不一致，请确认文件未变化后重试。",
+
   "conversationShare.issue.unknown":
     "分享在 {phase} 阶段失败，服务端未返回可定位详情，请稍后重试。",
   "conversationShare.issue.details": "错误详情",
@@ -351,25 +346,24 @@ const zhCN: Record<string, string> = {
   "conversationShare.phase.savingPending": "等待文件准备完成",
   "conversationShare.phase.failed": "失败",
   "conversationShare.publicWarning": "公开前请检查对话、工具输入输出和产物中的敏感信息。",
-  "conversationShare.import.source": "已从分享导入：{title}",
+  "conversationShare.import.menu": "对话选项",
+  "conversationShare.import.fromFile": "从文件导入…",
+  "conversationShare.import.validating": "正在读取并检查对话文件…",
+  "conversationShare.import.fileTooLarge": "请选择不超过 72 MiB 的对话文件。",
+  "conversationShare.import.unsupportedVersion": "此文件由更新版本创建，请升级后导入。",
+  "conversationShare.import.reopened": "已打开之前导入的对话：{title}",
+  "conversationShare.import.source": "已导入对话：{title}",
   "conversationShare.import.dividerLabel": "导入的对话",
   "conversationShare.import.fallbackRemoteWorkspace":
-    "已从分享导入：{title}。当前工作区是远程的，暂不支持导入，会话已创建在本地工作区 {workspacePath}。",
-  "conversationShare.import.fallbackDefaultWorkspace":
-    "已从分享导入：{title}。没有可用的目标工作区，会话已创建在默认工作区 {workspacePath}。",
-  "conversationShare.import.downloading": "正在下载分享文件：{completed}/{total}",
-  "conversationShare.import.installing": "正在安装分享文件",
-  "conversationShare.import.committing": "正在创建分享会话",
-  "conversationShare.import.complete": "分享导入完成",
-  "conversationShare.import.loginRequired": "该分享暂不支持匿名导入，请登录 ZCodium 后重试",
-  "conversationShare.import.notFound": "分享不存在或当前账号无权访问",
-  "conversationShare.import.expired": "分享已过期，请让分享者重新生成",
-  "conversationShare.import.integrityFailed": "分享文件校验失败，已停止导入",
-  "conversationShare.import.failed": "分享导入失败，请检查网络后重试",
-  "conversationShare.import.integrityFailedWithArtifact":
-    "分享文件 {artifactDisplayName} 校验失败，已停止导入，请让分享者重新生成链接。",
-  "conversationShare.import.failedWithArtifact":
-    "分享文件 {artifactDisplayName} 在下载阶段失败，请检查网络后重试。",
+    "已在本地打开「{title}」。当前远程工作区暂不支持文件导入。",
+
+  "conversationShare.import.installing": "正在保存附件…",
+  "conversationShare.import.committing": "正在创建对话…",
+
+  "conversationShare.import.integrityFailed":
+    "文件或导入副本不完整，已停止导入。请重新获取完整文件。",
+  "conversationShare.import.failed": "对话导入未完成，请重试。",
+
   "conversationShare.import.retry": "重试",
   "settings.resourceGroup.item.one": "{count} 项",
   "settings.resourceGroup.item.other": "{count} 项",

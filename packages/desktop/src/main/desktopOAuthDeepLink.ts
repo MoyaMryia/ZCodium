@@ -13,11 +13,9 @@ import {
 import { desktopProductIdentities } from "../../scripts/desktop-product-identity.mjs";
 import {
   extractWorkspaceOpenPath,
-  extractShareImportCode,
   isOAuthCallbackUrl,
   isPaymentCallbackUrl,
   isWorkspaceOpenUrl,
-  isShareImportUrl,
 } from "./desktopDeepLinkUrl.js";
 import { registerLinuxDeepLinkProtocol } from "./desktopLinuxDeepLinkRegistration.js";
 
@@ -49,29 +47,6 @@ let pendingOpenWorkspaceRequest: {
   path: string;
   targetWebContentsId?: number;
 } | null = null;
-const pendingShareImports: { shareCode: string; targetWebContentsId?: number }[] = [];
-const MAX_PENDING_SHARE_IMPORTS = 8;
-
-function enqueuePendingShareImport(
-  payload: { shareCode: string },
-  targetWebContentsId?: number,
-): void {
-  if (
-    pendingShareImports.some(
-      (item) =>
-        item.shareCode === payload.shareCode && item.targetWebContentsId === targetWebContentsId,
-    )
-  ) {
-    return;
-  }
-  pendingShareImports.push(
-    targetWebContentsId === undefined ? { ...payload } : { ...payload, targetWebContentsId },
-  );
-  if (pendingShareImports.length > MAX_PENDING_SHARE_IMPORTS) {
-    pendingShareImports.shift();
-  }
-}
-
 export function parseOAuthStateRegistration(payload: unknown): OAuthStateRegistration | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -317,43 +292,6 @@ export function handleDeepLink(
     return false;
   }
 
-  if (isShareImportUrl(parsedUrl)) {
-    const shareCode = extractShareImportCode(parsedUrl);
-    if (!shareCode) {
-      logger.warn("[deep-link] share import code 无效，已忽略", {
-        host: parsedUrl.hostname,
-        path: parsedUrl.pathname,
-      });
-      return false;
-    }
-    const payload = { shareCode };
-    // share 分支也必须走 resolveApplicationWindow——聚焦兜底
-    // getAllWindows()[0] 会命中 CUA indicator 等辅助窗口；且 pending 队列必须绑定目标窗口，
-    // 否则多窗口时导入会投递给先 ready 的 renderer，写入错误 workspace 的 .zcodium-share。
-    const targetWindow = options.resolveApplicationWindow
-      ? options.resolveApplicationWindow()
-      : (BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null);
-    if (targetWindow) {
-      if (!rendererReadyWebContentsIds.has(targetWindow.webContents.id)) {
-        enqueuePendingShareImport(payload, targetWindow.webContents.id);
-        focusDeepLinkTargetWindow(targetWindow);
-        logger.info("[deep-link] share import 等待 renderer ready", {
-          windowId: targetWindow.webContents.id,
-        });
-        return true;
-      }
-      targetWindow.webContents.send(PlatformChannels.ShareImport, payload);
-      focusDeepLinkTargetWindow(targetWindow);
-      logger.info("[deep-link] share import 路由成功", {
-        windowId: targetWindow.webContents.id,
-      });
-      return true;
-    }
-    enqueuePendingShareImport(payload);
-    logger.info("[deep-link] share import 等待主窗口");
-    return false;
-  }
-
   if (!isOAuthCallbackUrl(parsedUrl)) {
     return false;
   }
@@ -465,17 +403,6 @@ export function deliverPendingDeepLink(webContents: WebContents): boolean {
   rendererReadyWebContentsIds.add(webContents.id);
 
   const hasPendingOAuthCallback = pendingDeepLinkUrl != null;
-  // pending share import 绑定目标窗口后，只投递给目标窗口（或冷启动时未绑定目标的
-  // 条目）；非目标窗口 ready 时保留条目，否则导入会写进错误窗口的 workspace。
-  const undeliveredShareImports: typeof pendingShareImports = [];
-  for (const pending of pendingShareImports.splice(0)) {
-    if (pending.targetWebContentsId == null || pending.targetWebContentsId === webContents.id) {
-      webContents.send(PlatformChannels.ShareImport, { shareCode: pending.shareCode });
-    } else {
-      undeliveredShareImports.push(pending);
-    }
-  }
-  pendingShareImports.push(...undeliveredShareImports);
   if (hasPendingOAuthCallback) {
     webContents.send(PlatformChannels.OAuthCallback, pendingDeepLinkUrl);
     pendingDeepLinkUrl = null;
@@ -500,14 +427,6 @@ export function clearOAuthRoutesForWindow(windowId: number): void {
   if (pendingOpenWorkspaceRequest?.targetWebContentsId === windowId) {
     pendingOpenWorkspaceRequest = null;
   }
-  // pending share import 绑定目标窗口后，目标窗口关闭必须同步清理，
-  // 否则队列条目永不过期，可能投递给后续 ready 的其他窗口（错误 workspace）。
-  for (let index = pendingShareImports.length - 1; index >= 0; index -= 1) {
-    if (pendingShareImports[index]!.targetWebContentsId === windowId) {
-      pendingShareImports.splice(index, 1);
-    }
-  }
-
   for (const [state, routeTarget] of oauthStateToWindow) {
     if (routeTarget.windowId === windowId) {
       oauthStateToWindow.delete(state);

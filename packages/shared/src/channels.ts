@@ -292,7 +292,6 @@ export const PlatformChannels = {
   /** Main → Renderer：转发支付 deep link URL */
   PaymentCallback: "zcode:payment-callback",
   /** Main → Renderer：外部分享页请求导入 share code。 */
-  ShareImport: "zcode:share-import",
   /** Renderer → Main：OAuth 回调已处理完成，可继续后置启动流程 */
   /** Renderer → Main：renderer 已就绪，可接收缓存的 deep link */
   RendererReady: "zcode:renderer-ready",
@@ -864,10 +863,6 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.PaymentCallback]: {
     request: string;
-    response: void;
-  };
-  [PlatformChannels.ShareImport]: {
-    request: { shareCode: string };
     response: void;
   };
   [PlatformChannels.RendererReady]: {

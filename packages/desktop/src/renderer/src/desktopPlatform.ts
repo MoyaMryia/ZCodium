@@ -1,3 +1,4 @@
+import { selectBrowserFileData } from "@zcode/ui";
 import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@zcode/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
@@ -6,6 +7,7 @@ export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
+    selectFileData: selectBrowserFileData,
     canSelectFilePath: true,
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
@@ -55,7 +57,6 @@ export function createDesktopPlatform(options: {
     registerOAuthState: (payload) => window.zcode.registerOAuthState(payload),
     onOAuthCallback: (callback) => window.zcode.onOAuthCallback(callback),
     onPaymentCallback: (callback) => window.zcode.onPaymentCallback(callback),
-    onShareImport: (callback) => window.zcode.onShareImport?.(callback) ?? (() => {}),
     notifyRendererReady: () => window.zcode.notifyRendererReady(),
     reportDiagnostic: (record) => window.zcode.reportDiagnostic(record),
     reportRendererHeapSample: (sample) => window.zcode.reportRendererHeapSample(sample),

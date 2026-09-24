@@ -170,7 +170,6 @@ test("real service exports selected turns and files offline with scoped handles"
     const file = Buffer.from("selected binary attachment\0\xff");
     await writeFile(join(directory, "report.pdf"), file);
     const host = new ConversationShareService({
-      client: new Proxy({}, { get: () => forbidden }),
       zcodeAgentService: { conversationRowsRangeV4: forbidden },
       artifactSource: createLocalConversationShareArtifactSource(),
       conversationWorkspaceRoot: directory,

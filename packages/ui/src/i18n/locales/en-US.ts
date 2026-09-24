@@ -207,19 +207,14 @@ const enUS: Record<string, string> = {
   "conversationShare.publishSucceededWithSkips": "Exported with {count} files omitted",
   "conversationShare.copyFailed": "Copy failed",
   "conversationShare.publishFailed": "Export failed. Please try again.",
-  "conversationShare.error.authenticationRequired":
-    "Sharing is available only when you are signed in. Your sign-in has expired; sign in again, then retry.",
+
   "conversationShare.error.featureDisabled":
     "Sharing is not available for this workspace or connection type.",
   "conversationShare.error.artifactNotAllowed":
     "A previewed file type is not supported for sharing. Deselect that conversation and retry.",
   "conversationShare.error.limitExceeded":
     "The selected conversation or its files exceed the sharing limit. Select fewer conversations.",
-  "conversationShare.error.rateLimited": "Too many share attempts. Wait a moment, then try again.",
-  "conversationShare.error.network":
-    "Could not read the conversation or files. Check the connection and try again.",
-  "conversationShare.error.safetyCheckTimeout":
-    "The share safety check took too long. Try again later.",
+
   "conversationShare.error.invalidSelection":
     "The selected conversation changed. Reopen the share panel and select it again.",
   "conversationShare.error.invalidConversation":
@@ -258,10 +253,7 @@ const enUS: Record<string, string> = {
     "The preview file manifest is incomplete. Regenerate the file and refresh the share panel.",
   "conversationShare.error.payloadLimit":
     "The selected conversation or files exceed the sharing limit. Select less and retry.",
-  "conversationShare.error.disclosureRequired":
-    "Review and confirm the shared content before creating the link.",
-  "conversationShare.error.uploadFailed":
-    "A file could not be uploaded completely. Check that it still exists, then retry.",
+
   "conversationShare.error.connectionUnavailable":
     "Desktop connection is not ready. Reopen the share panel and try again.",
   "conversationShare.error.noShareableContent":
@@ -318,8 +310,7 @@ const enUS: Record<string, string> = {
     "The share request is {actual}, above the limit of {limit}. Reduce the selected turns or artifacts.",
   "conversationShare.issue.artifactManifest":
     "The preview artifact manifest is duplicated or incomplete. Regenerate files and refresh the share panel.",
-  "conversationShare.issue.uploadIncomplete":
-    "The upload acknowledgement for {artifactDisplayName} does not match the file. Ensure it did not change and try again.",
+
   "conversationShare.issue.unknown":
     "Share failed during {phase}; the server returned no actionable details. Try again later.",
   "conversationShare.issue.details": "Error details",
@@ -389,26 +380,25 @@ const enUS: Record<string, string> = {
   "conversationShare.phase.failed": "Failed",
   "conversationShare.publicWarning":
     "Check conversations, tool inputs and outputs, and artifacts for sensitive information.",
-  "conversationShare.import.source": "Imported from share: {title}",
+  "conversationShare.import.menu": "Conversation options",
+  "conversationShare.import.fromFile": "Import from file…",
+  "conversationShare.import.validating": "Reading and checking the conversation file…",
+  "conversationShare.import.fileTooLarge": "Choose a conversation file no larger than 72 MiB.",
+  "conversationShare.import.unsupportedVersion":
+    "This file requires a newer version. Update the app to import it.",
+  "conversationShare.import.reopened": "Opened the previously imported conversation: {title}",
+  "conversationShare.import.source": "Imported conversation: {title}",
   "conversationShare.import.dividerLabel": "Imported conversation",
   "conversationShare.import.fallbackRemoteWorkspace":
-    "Imported from share: {title}. The current workspace is remote, which import does not support yet, so the session was created in the local workspace {workspacePath}.",
-  "conversationShare.import.fallbackDefaultWorkspace":
-    "Imported from share: {title}. No target workspace was available, so the session was created in the default workspace {workspacePath}.",
-  "conversationShare.import.downloading": "Downloading shared files: {completed}/{total}",
-  "conversationShare.import.installing": "Installing shared files",
-  "conversationShare.import.committing": "Creating the shared conversation",
-  "conversationShare.import.complete": "Share import complete",
-  "conversationShare.import.loginRequired":
-    "This share cannot be imported anonymously. Sign in to ZCodium and try again",
-  "conversationShare.import.notFound": "The share is unavailable for this account",
-  "conversationShare.import.expired": "The share expired. Ask the author to create a new one",
-  "conversationShare.import.integrityFailed": "Share file verification failed; import stopped",
-  "conversationShare.import.failed": "Share import failed. Check your network and retry",
-  "conversationShare.import.integrityFailedWithArtifact":
-    "Verification failed for shared file {artifactDisplayName}; import stopped. Ask the author to create a new link.",
-  "conversationShare.import.failedWithArtifact":
-    "Downloading shared file {artifactDisplayName} failed. Check your network and retry.",
+    "Opened “{title}” locally. File import is not yet available for the current remote workspace.",
+
+  "conversationShare.import.installing": "Saving attachments…",
+  "conversationShare.import.committing": "Creating the conversation…",
+
+  "conversationShare.import.integrityFailed":
+    "The file or imported copy is incomplete. Import stopped. Please obtain a complete file.",
+  "conversationShare.import.failed": "The conversation could not be imported. Please try again.",
+
   "conversationShare.import.retry": "Retry",
   "settings.resourceGroup.item.one": "{count} item",
   "settings.resourceGroup.item.other": "{count} items",

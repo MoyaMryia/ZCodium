@@ -166,6 +166,7 @@ export type {
   ConnectRemoteRequest,
   CreateTempTextAttachmentRequest,
   CreateTempTextAttachmentResult,
+  SelectedFileData,
   SaveFileRequest,
   SaveFileResult,
   PrintPageToPdfResult,

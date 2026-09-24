@@ -255,6 +255,11 @@ export type SaveFileRequest =
       suggestedName: string;
     };
 
+export interface SelectedFileData {
+  name: string;
+  data: ArrayBuffer;
+}
+
 export interface SaveFileResult {
   /** 实际保存的文件名，不含目录。 */
   name?: string;
@@ -535,6 +540,9 @@ export interface IPlatformService {
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile(): Promise<string | null>;
 
+  /** 用户显式选文件；读取前验证大小，取消返回 null。 */
+  selectFileData?(options: { accept: string; maxBytes: number }): Promise<SelectedFileData | null>;
+
   /** 打开系统多文件选择框，返回选中的文件路径；取消时返回空数组 */
   selectFiles?(): Promise<string[]>;
 
@@ -679,9 +687,6 @@ export interface IPlatformService {
    * @returns disposer 函数，调用后只移除当前回调
    */
   onPaymentCallback(callback: (url: string) => void): () => void;
-
-  /** 注册 `zcode://share/import?code=...` 导入意图。 */
-  onShareImport?(callback: (payload: { shareCode: string }) => void): () => void;
 
   /** 通知 main process renderer 已就绪，触发缓存的冷启动 deep link 转发 */
   notifyRendererReady(): void;
