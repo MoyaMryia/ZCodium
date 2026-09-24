@@ -701,6 +701,7 @@ const enUS: Record<string, string> = {
   "bots.channel.discord": "Discord",
   "bots.channel.wecom": "WeCom",
   "bots.channel.webhook": "Webhook",
+  "bots.channel.astrbot": "AstrBot",
   "bots.newBot.title": "New bot",
   "bots.newBot.chooseChannel": "Choose channel",
   "bots.newBot.description":
@@ -717,6 +718,8 @@ const enUS: Record<string, string> = {
     "Receive callbacks from your own system and optionally push replies back.",
   "bots.newBot.providerDescription.discord": "Discord bot integration is planned.",
   "bots.newBot.providerDescription.wecom": "WeCom bot integration is planned.",
+  "bots.newBot.providerDescription.astrbot":
+    "Connect through the AstrBot bridge plugin; AstrBot owns the platform adapters.",
   "bots.empty": "No bots configured.",
   "bots.name": "Bot name",
   "bots.provider": "Channel",
@@ -1755,6 +1758,9 @@ const enUS: Record<string, string> = {
   "webRemoteControl.botChannel.lark.description": "Open this workspace from Lark.",
   "webRemoteControl.botChannel.telegram.title": "Telegram",
   "webRemoteControl.botChannel.telegram.description": "Open this workspace from Telegram.",
+  "webRemoteControl.botChannel.astrbot.title": "AstrBot",
+  "webRemoteControl.botChannel.astrbot.description":
+    "Open this workspace through a chat platform connected via AstrBot.",
   "webRemoteControl.botChannel.configure": "Configure in bot channels",
   "webRemoteControl.botChannel.manageBots": "Manage bots",
   "remote.title": "Connect remote environment",
