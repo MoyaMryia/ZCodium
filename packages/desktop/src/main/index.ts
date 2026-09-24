@@ -29,7 +29,6 @@ import {
   onLocalDatabaseStartupReady,
   configureDatabaseStartupQuit,
 } from "./databaseStartupRelay.js";
-import { ensureDesktopDeviceMidSync } from "./desktopDeviceMid.js";
 import { buildBrowserViewCloseTabNotification } from "./browserView/browserCloseTabNotification.js";
 import { BrowserGuestManager } from "./browserView/browserGuestManager.js";
 import { createElectronBrowserWebmRecorder } from "./browserView/electronBrowserWebmRecorder.js";
@@ -655,8 +654,6 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
   resolveRemoteAssetDirs,
   resolveWslTarget: resolveCanonicalWslTarget,
 });
-
-const deviceMid = ensureDesktopDeviceMidSync();
 
 ipcMain.on(PlatformChannels.ReportDiagnostic, (_event, input: unknown) => {
   const parsed = DiagnosticRecordSchema.safeParse(input);
@@ -1655,7 +1652,6 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
     // startupBootstrap 只标记 active workspace 是否不可用，但 local Host 会为所有
     // 已恢复 workspace 建立后台索引。始终注入 canonical fallback，才能覆盖非 active 历史目录已删除的情况。
     agentSpawnFallbackCwd: getConversationWorkspaceDir(),
-    deviceMid,
     runtimeProcessEnvPatchPromise: runtimeProcessEnvPreparation.patchPromise,
     runtimeProcessEnvFallbackPatch: runtimeProcessEnvPreparation.fallbackPatch,
     initialDesktopZoomLevel: currentDesktopZoomLevel,

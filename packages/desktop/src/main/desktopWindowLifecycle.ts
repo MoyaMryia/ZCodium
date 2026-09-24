@@ -45,7 +45,6 @@ export function createWindow(options: {
   bootstrap?: WindowBootstrapOptions;
   agentWarmupTargets?: readonly StartupWorkspaceWarmupTarget[];
   agentSpawnFallbackCwd: string;
-  deviceMid: string;
   initialDesktopZoomLevel?: number;
   initialWindowSize?: DesktopWindowSize;
   currentApplicationLocale?: () => Locale;
@@ -173,7 +172,6 @@ export function createWindow(options: {
       const primaryWarmupTarget = options.agentWarmupTargets?.[0];
       const child = options.spawnHostProcess(win, label, {
         type: HostMessageTypes.InitLocal,
-        deviceMid: options.deviceMid,
         workspacePath: primaryWarmupTarget?.workspacePath,
         workspaceIdentity: primaryWarmupTarget?.workspaceIdentity,
         ...(options.agentWarmupTargets && options.agentWarmupTargets.length > 0

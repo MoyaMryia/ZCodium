@@ -469,16 +469,6 @@ contextBridge.exposeInMainWorld("zcode", {
     }
     return () => openWorkspacePathCallbacks.delete(callback);
   },
-  onOpenFeedbackDialog: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on(PlatformChannels.OpenFeedbackDialog, handler);
-    return () => ipcRenderer.removeListener(PlatformChannels.OpenFeedbackDialog, handler);
-  },
-  onOpenTicketsPanel: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on(PlatformChannels.OpenTicketsPanel, handler);
-    return () => ipcRenderer.removeListener(PlatformChannels.OpenTicketsPanel, handler);
-  },
   /** 注册窗口全屏状态变化回调，返回 disposer */
   onWindowFullscreenChanged: (callback: (isFullscreen: boolean) => void): (() => void) => {
     const handler = (_event: unknown, isFullscreen: boolean) => callback(isFullscreen);

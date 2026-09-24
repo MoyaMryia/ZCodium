@@ -34,7 +34,7 @@ export type {
 
 export interface TaskNotificationPayload {
   taskId: string;
-  status: "completed" | "failed" | "permission_request" | "elicitation_request" | "feedback_update";
+  status: "completed" | "failed" | "permission_request" | "elicitation_request";
   requestId?: string;
   title: string;
   body: string;
@@ -633,12 +633,6 @@ export interface IPlatformService {
 
   /** 打开反馈入口，由平台自行解析最终地址 */
   openFeedback(): Promise<void>;
-
-  /** 订阅 main 进程打开内置反馈对话框事件（Desktop） */
-  onOpenFeedbackDialog?(handler: () => void): () => void;
-
-  /** 订阅 main 进程打开我的工单面板事件（Desktop） */
-  onOpenTicketsPanel?(handler: () => void): () => void;
 
   /** 打开用户社群入口，由平台自行解析当前语言对应渠道 */
   openCommunity(): Promise<void>;

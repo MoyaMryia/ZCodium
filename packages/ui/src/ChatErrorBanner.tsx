@@ -26,9 +26,8 @@ import {
 } from "./components/ui/dialog.js";
 import { cn } from "./components/lib/utils.js";
 import { toast } from "./components/ui/toast.js";
-import { useFeedbackStore } from "@/feedback/feedbackStore.js";
+import { usePlatform } from "@/hooks/usePlatform.js";
 import { getProviderBusinessErrorMessageId } from "@/lib/providerBusinessError.js";
-import { buildErrorFeedbackDescription } from "@/lib/errorFeedbackDraft.js";
 import {
   isSuspiciousEmptyModelResultMessage,
   resolveOffPeakTicketExpiredBusinessCode,
@@ -121,7 +120,7 @@ export function ChatErrorBanner({
   onOpenUpgrade?: () => void;
 }) {
   const { intl } = useZCodeIntl();
-  const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
+  const platform = usePlatform();
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const actionButtonClassName = "shrink-0";
   const iconButtonClassName = "shrink-0";
@@ -132,24 +131,7 @@ export function ChatErrorBanner({
     return null;
   }
 
-  const handleOpenFeedback = async () => {
-    openFeedbackSubmit({
-      title: localizedErrorMessage.slice(0, 80),
-      type: "bug",
-      module: "模型调用报错",
-      severity: "P2-中",
-      includeLogs: false,
-      description: buildErrorFeedbackDescription({
-        message: localizedErrorMessage,
-        detail: error.detail,
-        traceId: error.traceId,
-        formatMessage: (id: string, values?: Record<string, string>) =>
-          intl.formatMessage({ id }, values),
-      }),
-      screenshots: [],
-    });
-    toast(intl.formatMessage({ id: "chat.error.feedbackOpened" }));
-  };
+  const handleOpenFeedback = () => platform.openFeedback();
 
   const handleCopyError = async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
@@ -342,15 +324,13 @@ function buildErrorCopyText({
   formatMessage: (id: string, values?: Record<string, string>) => string;
 }) {
   return [
-    formatMessage("feedback.submit.template.section.copyErrorHeading"),
+    formatMessage("chat.error.copy.heading"),
     "",
-    formatMessage("feedback.submit.template.section.errorSummary"),
+    formatMessage("chat.error.copy.summary"),
     message,
     "",
-    traceId ? formatMessage("feedback.submit.template.section.errorTraceId", { traceId }) : null,
-    detail
-      ? ["", formatMessage("feedback.submit.template.section.errorDetail"), detail].join("\n")
-      : null,
+    traceId ? formatMessage("chat.error.copy.traceId", { traceId }) : null,
+    detail ? ["", formatMessage("chat.error.copy.detail"), detail].join("\n") : null,
   ]
     .filter((line): line is string => line != null)
     .join("\n");

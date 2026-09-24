@@ -234,17 +234,7 @@ export function createQuickPickCommands({
     sectionId: "app",
     titleId: "quickPick.command.feedback",
     icon: "feedback",
-    keywords: [
-      "feedback",
-      "issue",
-      "support",
-      "tickets",
-      "问题上报",
-      "问题反馈",
-      "反馈",
-      "我的反馈",
-      "工单",
-    ],
+    keywords: ["feedback", "issue", "support", "问题上报", "问题反馈", "反馈"],
     run: handlers.openFeedback,
   });
 
