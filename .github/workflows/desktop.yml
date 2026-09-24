@@ -43,9 +43,15 @@ jobs:
       - name: Architecture
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm architecture:check
+      - name: Build Agent test dependencies
+        run: pnpm --dir apps/zcode-cli build
       - name: Release tests
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
+      - name: Standalone CLI and TUI model setup checks
+        run: |
+          node scripts/ci/cli-local-entrypoints-smoke.mjs
+          node scripts/ci/tui-model-setup-smoke.mjs
       - name: Install browser for remote form checks
         run: pnpm exec playwright-core install --with-deps chromium
       - name: Remote form browser checks

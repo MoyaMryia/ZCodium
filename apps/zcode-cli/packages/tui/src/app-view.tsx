@@ -4,7 +4,7 @@ import { ApprovalPanel } from "./app-approval-panel.js";
 import {
   actionPanelContentWidthForTerminal,
   AppShell,
-  LoginRequiredPanel,
+  ModelSetupRequiredPanel,
   SlashSuggestionPanel,
 } from "./app-components.js";
 import { SelectionPanel } from "./app-selection-panel.js";
@@ -67,7 +67,7 @@ export function AppView(props: {
   inputCursorToEndVersion: number;
   lastError?: string;
   lastEvent: string;
-  loginRequired: boolean;
+  modelSetupRequired: boolean;
   liveModelText: string;
   mode: string;
   modeOptions: readonly TuiModeOption[];
@@ -108,7 +108,7 @@ export function AppView(props: {
     props.sidebarLayout.reservedWidth,
   );
   const mcpStatus = useMcpSidebarStatus(
-    props.loginRequired ? undefined : props.options.listMcpServers,
+    props.modelSetupRequired ? undefined : props.options.listMcpServers,
   );
   const transcriptMessages = props.liveModelText
     ? [
@@ -212,7 +212,7 @@ export function AppView(props: {
               effortSelection: props.effortSelection,
               fileMention: props.fileMention,
               inputCursorToEndVersion: props.inputCursorToEndVersion,
-              loginRequired: props.loginRequired,
+              modelSetupRequired: props.modelSetupRequired,
               mode: props.mode,
               modeOptions: props.modeOptions,
               modeSelection: props.modeSelection,
@@ -243,7 +243,7 @@ function ComposerInputArea(props: {
   effortSelection?: EffortCommandSelectionState;
   fileMention?: FileMentionState;
   inputCursorToEndVersion: number;
-  loginRequired: boolean;
+  modelSetupRequired: boolean;
   mode: string;
   modeOptions: readonly TuiModeOption[];
   modeSelection?: ModeCommandSelectionState;
@@ -261,7 +261,7 @@ function ComposerInputArea(props: {
   return h(
     React.Fragment,
     null,
-    props.loginRequired ? h(LoginRequiredPanel, { copy: props.copy }) : null,
+    props.modelSetupRequired ? h(ModelSetupRequiredPanel, { copy: props.copy }) : null,
     props.fileMention
       ? h(FileMentionPanel, {
           contentWidth: props.contentWidth,

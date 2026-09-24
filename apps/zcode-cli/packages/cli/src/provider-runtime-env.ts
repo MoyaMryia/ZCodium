@@ -82,13 +82,7 @@ function requiresProviderRuntime(argv: readonly string[]): boolean {
 
   const command = argv[0];
   if (command === undefined || command.startsWith("-")) return true;
-  return (
-    command === "tui" ||
-    command === "app-server" ||
-    command === "agent-server" ||
-    command === "login" ||
-    command === "logout"
-  );
+  return command === "tui" || command === "app-server" || command === "agent-server";
 }
 
 async function resolveBundledZCodeBuiltinProviderConfig(input: {

@@ -19,7 +19,10 @@ import { loadBootstrapModule } from "./bootstrap-loader.js";
 import { runEmbeddedSearchCli } from "./internal-search/embedded-search-cli.js";
 import { runCommandsCommand } from "./commands-command.js";
 import { resolveCliCwd } from "./cwd.js";
-import { runLoginCommand, runLogoutCommand } from "./login-command.js";
+import {
+  isRetiredAccountCommand,
+  retiredAccountCommandResponse,
+} from "./retired-account-command.js";
 import { CLI_COMMAND_NAME, CLI_PROCESS_NAME } from "./process-name.js";
 import { isPluginHostInvocation, runPluginHostCommand } from "./plugin-host-command.js";
 import { isDwfChildInvocation, runDwfChildCommand } from "./dwf-child-command.js";
@@ -335,6 +338,11 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
     return 1;
   }
 
+  if (isRetiredAccountCommand(commandName(parsed.positionals))) {
+    ctx.stderr.write(`${retiredAccountCommandResponse(locale)}\n`);
+    return 1;
+  }
+
   let mode: CliPermissionMode | undefined;
   let browserUse: GlobalOptions["browserUse"];
   let presentationSurface: PresentationSurface;
@@ -554,16 +562,6 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
         );
       case "doctor":
         return runDoctor(ctx, options, workingDirectory);
-      case "login":
-        return await runLoginCommand(
-          ctx,
-          options,
-          commandDeps,
-          parsed.values["no-browser"] === true,
-          parsed.positionals.slice(1),
-        );
-      case "logout":
-        return await runLogoutCommand(ctx, options, commandDeps);
       case "commands":
         return await runCommandsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
       case "plugin":

@@ -1,3 +1,7 @@
+import {
+  isRetiredAccountCommand,
+  retiredAccountCommandResponse,
+} from "../retired-account-command.js";
 import type { TuiSubmitPrompt } from "@zcode/tui";
 import {
   formatAvailableCommandNames,
@@ -24,33 +28,31 @@ import {
   formatSlashCommandHelp,
   parseSlashCommand,
 } from "./slash-commands.js";
-import {
-  buildLoginSelection,
-  emitLoginAuthorizeMessage,
-  formatLoginResult,
-  formatProviderSetupResult,
-  loginSetupResponse,
-  parseApiKeyLoginArgs,
-} from "./login-flow.js";
-import { loginRequiredResponse } from "../tui-login-state.js";
+import { modelSetupRequiredResponse } from "../tui-model-availability.js";
 import type { CommandCenterDeps } from "./types.js";
 
 export function createCommandCenter(deps: CommandCenterDeps): TuiSubmitPrompt {
   return async (input, options) => {
     const promptInput = normalizeTuiPromptInput(input);
     const command = parseSlashCommand(promptInput.text);
+    if (command && isRetiredAccountCommand(command.rawName)) {
+      return { response: retiredAccountCommandResponse(deps.getLocale?.()) };
+    }
     const hasAttachments = (promptInput.attachments?.length ?? 0) > 0;
 
     if (!command) {
-      if (await isLoginRequired(deps)) {
+      if (await isModelSetupRequired(deps)) {
         return {
-          loginRequired: true,
+          modelSetupRequired: true,
           mode: deps.getMode?.(),
-          response: loginRequiredResponse(deps.getLocale?.()),
+          response: modelSetupRequiredResponse(deps.getLocale?.()),
         };
       }
       const app = await deps.getApp();
-      return attachCurrentSessionMetadata(await app.submitPrompt(input, options), deps, app);
+      return {
+        ...attachCurrentSessionMetadata(await app.submitPrompt(input, options), deps, app),
+        modelSetupRequired: false,
+      };
     }
 
     if (hasAttachments) {
@@ -79,123 +81,6 @@ export function createCommandCenter(deps: CommandCenterDeps): TuiSubmitPrompt {
         return {
           mode: deps.getMode?.(),
           response: formatSlashCommandHelp(command.args, customCommands),
-        };
-      }
-
-      if (command.name === "login") {
-        if (command.args.length === 0) {
-          return {
-            loginRequired: await isLoginRequired(deps),
-            mode: deps.getMode?.(),
-            response: loginSetupResponse(deps.getLocale?.()),
-            selection: buildLoginSelection(deps.getLocale?.()),
-          };
-        }
-        if (command.args === "zai-coding-plan") {
-          if (!deps.login) {
-            return {
-              mode: deps.getMode?.(),
-              response: "Z.AI Coding Plan login is not available in this client.",
-            };
-          }
-
-          return {
-            loginRequired: false,
-            mode: deps.getMode?.(),
-            response: formatLoginResult(
-              await deps.login({
-                abortSignal: options.abortSignal,
-                onAuthorizeUrl: async (data) => {
-                  await emitLoginAuthorizeMessage(
-                    options,
-                    data.authorize_url,
-                    "Z.AI",
-                    await deps.getApp(),
-                  );
-                },
-              }),
-            ),
-          };
-        }
-        if (command.args === "bigmodel-coding-plan") {
-          if (!deps.loginBigmodel) {
-            return {
-              mode: deps.getMode?.(),
-              response: "BigModel Coding Plan login is not available in this client.",
-            };
-          }
-
-          return {
-            loginRequired: false,
-            mode: deps.getMode?.(),
-            response: formatProviderSetupResult(
-              await deps.loginBigmodel({
-                abortSignal: options.abortSignal,
-                onAuthorizeUrl: async (data) => {
-                  await emitLoginAuthorizeMessage(
-                    options,
-                    data.authorize_url,
-                    "BigModel",
-                    await deps.getApp(),
-                  );
-                },
-              }),
-            ),
-          };
-        }
-
-        const apiKeyCommand = parseApiKeyLoginArgs(command.args);
-        if (apiKeyCommand) {
-          if (!deps.configureApiKey) {
-            return {
-              mode: deps.getMode?.(),
-              response: "Manual API key setup is not available in this client.",
-            };
-          }
-          if (!apiKeyCommand.apiKey) {
-            return {
-              loginRequired: await isLoginRequired(deps),
-              mode: deps.getMode?.(),
-              response: `Usage: /login ${apiKeyCommand.kind} <api-key>`,
-            };
-          }
-          return {
-            loginRequired: false,
-            mode: deps.getMode?.(),
-            response: formatProviderSetupResult(
-              await deps.configureApiKey({
-                apiKey: apiKeyCommand.apiKey,
-                providerId: apiKeyCommand.providerId,
-              }),
-            ),
-          };
-        }
-
-        return {
-          mode: deps.getMode?.(),
-          response:
-            "Usage: /login [zai-coding-plan|bigmodel-coding-plan|zai-coding-plan-api-key <api-key>|bigmodel-coding-plan-api-key <api-key>]",
-        };
-      }
-
-      if (command.name === "logout") {
-        if (command.args.length > 0) {
-          return {
-            mode: deps.getMode?.(),
-            response: "Usage: /logout",
-          };
-        }
-        if (!deps.logout) {
-          return {
-            mode: deps.getMode?.(),
-            response: "Logout is not available in this client.",
-          };
-        }
-
-        const result = await deps.logout();
-        return {
-          mode: deps.getMode?.(),
-          response: `Logged out from Coding Plan accounts. Credentials: ${result.credentialsPath}`,
         };
       }
 
@@ -386,7 +271,7 @@ function parseForkTarget(args: string): string | undefined {
   return trimmed;
 }
 
-async function isLoginRequired(deps: CommandCenterDeps): Promise<boolean> {
+async function isModelSetupRequired(deps: CommandCenterDeps): Promise<boolean> {
   if (!deps.hasSelectableModels) return false;
   try {
     return !(await deps.hasSelectableModels());
