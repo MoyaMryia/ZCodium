@@ -7,7 +7,7 @@
 //
 // binding 路由与 seq/ack/replay 只属于传输层；provider 不持 sessionId/pending/任务状态。
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   BOTS_BRIDGE_PROTOCOL_VERSION,
@@ -24,8 +24,16 @@ import {
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { AstrBotBridgeTransport, IAstrBotBridgeService } from "../astrbotBridgePort.js";
 import { BotsDeliveryLog, type BotsDeliveryReplay } from "../botsDeliveryLog.js";
-import { buildBindingId, computeActorKey } from "../domain.js";
 import type { BotProviderAdapter, BotTaskLifecyclePhase } from "./types.js";
+
+/** actorKey 用平台稳定用户 id 派生，不落明文 id（原桥接 domain 逻辑，现为 provider 私有）。 */
+function computeActorKey(channel: string, externalUserId: string): string {
+  return createHash("sha256").update(`${channel}\u0000${externalUserId.trim()}`).digest("hex");
+}
+
+function buildBindingId(channel: string, actorKey: string): string {
+  return `${channel}:${actorKey.slice(0, 16)}`;
+}
 
 /** 官方 inbound 处理入口会注入 botId（wire 上没有该字段）。 */
 const inboundFrameSchema = botsBridgeCommandFrameSchema.extend({

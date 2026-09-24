@@ -5,7 +5,7 @@ import { logger } from "@/logger.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 
 /**
- * AstrBot 走独立桥接服务（`astrbotBridgeService` + `botsBridgeServer`），
+ * AstrBot 是官方 BotsService 的桥接 provider（loopback WS + `botsBridgeServer`），
  * 没有平台凭据/二维码，因此不复用 `ProviderSettingsCard` 的凭据流程，
  * 只引导用户用桥接插件连接本机桥接运行时文件。
  */

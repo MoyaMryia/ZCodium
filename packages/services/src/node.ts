@@ -2722,18 +2722,7 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     .catch(() => {});
 }
 
-// 机器人（AstrBot 桥接）实现依赖 node:crypto / node:fs，只能从 @zcode/services/node 引入。
-// 官方 bots 服务（createBotsService）见上方；AstrBot 桥接作为独立 provider 并存。
-export { AstrBotBridgeService } from "./bots/astrbotBridgeService.js";
-export type {
-  AstrBotBridgeServiceOptions,
-  BotsBindCode,
-} from "./bots/astrbotBridgeService.js";
-export type { BotsRuntimePort, BotsWorkspaceRef } from "./bots/botsRuntimePort.js";
-export { projectTaskStreamEvent } from "./bots/botsEventProjector.js";
-export type { BotsProjectedEvent, BotsStreamTerminal } from "./bots/botsEventProjector.js";
-export { BotsRepo } from "./bots/botsRepo.js";
-export type { BotsRepoOptions } from "./bots/botsRepo.js";
+// AstrBot 桥接传输的 provider 与投递日志依赖 node:crypto，只能从 @zcode/services/node 引入。
+// 官方 bots 服务（createBotsService）见上方；AstrBot 已作为其 astrbot provider 接入。
 export { BotsDeliveryLog, BOTS_DELIVERY_WINDOW } from "./bots/botsDeliveryLog.js";
 export type { BotsDeliveryRecord, BotsDeliveryReplay } from "./bots/botsDeliveryLog.js";
-export * from "./bots/domain.js";
