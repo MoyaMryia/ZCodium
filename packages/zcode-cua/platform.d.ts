@@ -1,4 +1,5 @@
 import type { ComputerUseCompatExecutor, ComputerUseRuntime, CuaDriverClient } from "./index.js";
+import type { ICuaPermissionService } from "./permissions.js";
 
 export interface PlatformPath {
   platform: string;
@@ -55,3 +56,10 @@ export declare function assembleComputerUseRuntime(
 export declare function assembleComputerUseRuntimeAsync(
   options?: Omit<AssembleComputerUseRuntimeOptions, "client" | "connectDriver"> & { driverModule?: unknown },
 ): Promise<AssembledComputerUseRuntime>;
+
+export declare function assembleCuaPermissionServiceAsync(options?: {
+  platform?: string;
+  env?: Record<string, string | undefined>;
+  socketPath?: string;
+  driverModule?: unknown;
+}): Promise<ICuaPermissionService>;

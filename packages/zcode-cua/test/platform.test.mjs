@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { assembleComputerUseRuntime, createCompatRuntimeOptions, describeCompatReadiness } from "../platform.js";
+import { assembleCuaPermissionServiceAsync } from "../platform.js";
 
 function makeClient() {
   return {
@@ -140,4 +141,50 @@ test("已显式设置的驱动后端变量不被覆盖", () => {
   const env = { XDG_SESSION_TYPE: "wayland", CUA_DRIVER_RS_ENABLE_WAYLAND: "0" };
   assembleComputerUseRuntime({ platform: "linux", env, client: makeClient() });
   assert.equal(env.CUA_DRIVER_RS_ENABLE_WAYLAND, "0");
+});
+
+test("assembleCuaPermissionServiceAsync 用注入 driver 提供 check_permissions", async () => {
+  const calls = [];
+  const fakeDriver = {
+    create: () => ({
+      callTool: async (name) => {
+        calls.push(name);
+        return { structuredJson: JSON.stringify({ accessibility: true, screen_recording: false }) };
+      },
+    }),
+  };
+  const service = await assembleCuaPermissionServiceAsync({
+    platform: "darwin",
+    env: {},
+    driverModule: fakeDriver,
+  });
+  const status = await service.getStatus("/w", "w");
+  assert.equal(status.available, true);
+  assert.equal(status.accessibility, "granted");
+  assert.equal(status.screenRecording, "denied");
+  assert.equal(calls[0], "check_permissions");
+});
+
+test("assembleCuaPermissionServiceAsync 有 socket 时优先 connect", async () => {
+  let connected;
+  const fakeDriver = {
+    connect: (socketPath) => {
+      connected = socketPath;
+      return { callTool: async () => ({ structuredJson: "{}" }) };
+    },
+  };
+  await assembleCuaPermissionServiceAsync({
+    platform: "darwin",
+    socketPath: "/tmp/cua.sock",
+    driverModule: fakeDriver,
+    env: {},
+  });
+  assert.equal(connected, "/tmp/cua.sock");
+});
+
+test("assembleCuaPermissionServiceAsync 在 Wayland 会话设置窗口后端开关", async () => {
+  const env = { XDG_SESSION_TYPE: "wayland" };
+  const fakeDriver = { create: () => ({ callTool: async () => ({ structuredJson: "{}" }) }) };
+  await assembleCuaPermissionServiceAsync({ platform: "linux", env, driverModule: fakeDriver });
+  assert.equal(env.CUA_DRIVER_RS_ENABLE_WAYLAND, "1");
 });

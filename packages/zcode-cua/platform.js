@@ -17,6 +17,7 @@ import { createWaylandInputBackend } from "./compatible/backend.js";
 import { createCompatExecutor } from "./compatible/executor.js";
 import { createHelperClient } from "./compatible/helper-client.js";
 import { resolvePlatformPath } from "./compatible/detect.js";
+import { createCuaDriverPermissionService } from "./permissions.js";
 import { createComputerUseRuntime, createUnavailableRuntime } from "./runtime.js";
 
 /**
@@ -183,4 +184,34 @@ export async function assembleComputerUseRuntimeAsync({
         path && typeof CuaDriver.connect === "function" ? CuaDriver.connect(path) : CuaDriver.create?.(undefined)
     : undefined;
   return assembleComputerUseRuntime({ platform, env, probes, socketPath, compat, connectDriver });
+}
+
+/**
+ * 异步装配权限服务（`ICuaPermissionService`）。
+ *
+ * - Linux / dev：同进程 SDK `CuaDriver.create()`（`check_permissions` 直接可用）。
+ * - macOS：宿主应传入嵌入宿主的 `socketPath`（`ZCODE_CUA_DRIVER_SOCKET`）走 `connect()`，
+ *   TCC 归 ZCode.app，不在这里另起 driver。
+ * - 没有 driver 时保持 fail-closed，返回的 `getStatus()` 会给出原因而不是伪造授权。
+ */
+export async function assembleCuaPermissionServiceAsync({
+  platform = process.platform,
+  env = process.env,
+  socketPath,
+  driverModule,
+} = {}) {
+  ensureDriverWindowBackend({ platform, env });
+  const CuaDriver = driverModule ?? (await loadCuaDriver());
+  let client;
+  if (CuaDriver) {
+    try {
+      client =
+        socketPath && typeof CuaDriver.connect === "function"
+          ? CuaDriver.connect(socketPath)
+          : CuaDriver.create?.(undefined);
+    } catch {
+      client = undefined;
+    }
+  }
+  return createCuaDriverPermissionService({ client, platform });
 }
