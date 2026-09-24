@@ -80,23 +80,32 @@ const FOREGROUND_FALLBACK_TOOLS = new Set([
 
 function isBackgroundUnavailable(value) {
   const code = value?.errorCode ?? value?.code;
-  if (code === "background_unavailable") return true;
-  return /background[_ ]?unavailable/i.test(String(value?.message ?? value?.text ?? ""));
+  return code === "background_unavailable";
 }
 
 /** cua-driver / daemon 冷启动未就绪（§3.4）。 */
-const NOT_READY = /cua_not_ready|not[ _-]?ready/i;
 function isNotReady(value) {
   const code = value?.errorCode ?? value?.code;
-  if (typeof code === "string" && NOT_READY.test(code)) return true;
-  return NOT_READY.test(String(value?.message ?? value?.text ?? ""));
+  return typeof code === "string" && ["cua_not_ready", "not_ready"].includes(code.toLowerCase());
+}
+
+function dispatchEvidence(value) {
+  const structured = parseJson(value?.structuredJson, null);
+  const raw = parseJson(value?.rawJson, null);
+  return [value, value?.action, structured, structured?.action, raw, raw?.action].filter(Boolean);
+}
+
+function hasSentEvidence(value) {
+  return isPossiblySent(value) || dispatchEvidence(value).some((entry) =>
+    entry.action_sent === true || entry.actionSent === true ||
+    ["accepted", "possibly_sent"].includes(entry.dispatch_status ?? entry.dispatchStatus));
 }
 
 /** 投递可能已发生但无法确认（§3.3）→ 禁止盲重试。 */
 function isPossiblySent(value) {
   if (!value) return false;
-  const status = value.dispatch_status ?? value.dispatchStatus;
-  if (typeof status === "string" && /possibly_sent/i.test(status)) return true;
+  if (dispatchEvidence(value).some((entry) =>
+    (entry.dispatch_status ?? entry.dispatchStatus) === "possibly_sent")) return true;
   const haystack = [value.message, value.text, value.rawJson, value.structuredJson]
     .filter((part) => typeof part === "string")
     .join(" ");
@@ -182,8 +191,20 @@ export function createSurfaceLayer({
   }
 
   function lookupElement(pid, windowId, index) {
-    const entry = observations.get(keyFor(pid, windowId)) ?? observations.get(keyFor(pid, undefined));
-    return entry?.byIndex.get(index);
+    // Windows 同一进程可有多个窗口；不能用窗口 A 的 token 操作显式指定的 B。
+    const entry = observations.get(keyFor(pid, windowId));
+    const element = entry?.byIndex.get(index);
+    return typeof element?.element_token === "string" && element.element_token.length > 0 ? element : undefined;
+  }
+
+  function forget(pid, windowId) {
+    const key = keyFor(pid, windowId);
+    const entry = observations.get(key);
+    if (entry && observations.get(keyFor(pid, undefined)) === entry) {
+      observations.delete(keyFor(pid, undefined));
+    }
+    observations.delete(key);
+    baselines.delete(key);
   }
 
   function stale() {
@@ -238,10 +259,12 @@ export function createSurfaceLayer({
 
   async function callDriverWithColdStart(tool, args, signal) {
     for (let attempt = 0; ; attempt += 1) {
+      signal?.throwIfAborted();
       try {
         return await callDriver(tool, args, signal);
       } catch (error) {
-        if (!isNotReady(error) || attempt >= COLD_START_DELAYS.length) throw error;
+        // 官方 Windows 将不确定投递与“未执行”分开；已投递时重试可能重复点击或输入。
+        if (signal?.aborted || hasSentEvidence(error) || !isNotReady(error) || attempt >= COLD_START_DELAYS.length) throw error;
         await sleep(COLD_START_DELAYS[attempt]);
       }
     }
@@ -251,10 +274,10 @@ export function createSurfaceLayer({
   function decorateAction(result, raw) {
     const meta = { ...result?._meta };
     const errored = result?.isError === true || raw?.isError === true;
+    const possibly = isPossiblySent(raw);
+    if (possibly) meta.possiblySent = true;
     if (errored) {
-      const possibly = isPossiblySent(raw);
-      meta.actionSent = possibly;
-      if (possibly) meta.possiblySent = true;
+      meta.actionSent = hasSentEvidence(raw);
     } else {
       meta.actionSent = true;
     }
@@ -266,20 +289,19 @@ export function createSurfaceLayer({
     const isAction = ACTION_TOOLS.has(driverTool);
     const invoke = (nextArgs) => callDriverWithColdStart(driverTool, nextArgs, input.signal);
     const finish = (result, raw) => (isAction ? decorateAction(result, raw) : result);
+    let raw;
     try {
-      const raw = await invoke(args);
-      if (canFallback && raw?.isError && isBackgroundUnavailable(raw)) {
-        const retry = await invoke({ ...args, delivery_mode: "foreground" });
-        return finish(markForeground(projectDriverResult(retry), true), retry);
-      }
-      return finish(projectDriverResult(raw), raw);
+      raw = await invoke(args);
     } catch (error) {
-      if (canFallback && isBackgroundUnavailable(error)) {
-        const retry = await invoke({ ...args, delivery_mode: "foreground" });
-        return finish(markForeground(projectDriverResult(retry), true), retry);
-      }
-      throw error;
+      if (!canFallback || input.signal?.aborted || hasSentEvidence(error) || !isBackgroundUnavailable(error)) throw error;
+      raw = { ...error, isError: true, errorCode: "background_unavailable" };
     }
+    // 回退放在首次调用的 catch 外，前台失败不会再被捕获成一次新的后台失败。
+    if (canFallback && !input.signal?.aborted && raw?.isError && !hasSentEvidence(raw) && isBackgroundUnavailable(raw)) {
+      const retry = await invoke({ ...args, delivery_mode: "foreground" });
+      return finish(markForeground(projectDriverResult(retry), true), retry);
+    }
+    return finish(projectDriverResult(raw), raw);
   }
 
   async function dispatch(driverTool, driverArgs, input) {
@@ -313,12 +335,27 @@ export function createSurfaceLayer({
 
   async function getAppState(input, args) {
     const { pid, windowId } = await resolveScope(input, args);
-    const raw = await callDriver(
-      "get_window_state",
-      withoutUndefined({ pid, window_id: windowId, include_screenshot: args.include_screenshot === true, include_accessibility_tree: true }),
-      input.signal,
-    );
+    let raw;
+    try {
+      raw = await callDriver(
+        "get_window_state",
+        withoutUndefined({ pid, window_id: windowId, include_screenshot: args.include_screenshot === true, include_accessibility_tree: true }),
+        input.signal,
+      );
+    } catch (error) {
+      forget(pid, windowId);
+      throw error;
+    }
+    // 观测失败不能伪造空树成功，也不能让下一次输入继续使用旧 token。
+    if (raw?.isError) {
+      forget(pid, windowId);
+      return projectDriverResult(raw);
+    }
     const structured = parseJson(raw?.structuredJson, {}) ?? {};
+    if (windowId !== undefined && structured.window_id !== undefined && structured.window_id !== windowId) {
+      forget(pid, windowId);
+      throw stale();
+    }
     const elements = Array.isArray(structured.elements) ? structured.elements : [];
     const stateId = structured.snapshot_id ?? structured.state_id ?? `s-${Date.now()}`;
     remember(pid, windowId, stateId, elements);
@@ -377,6 +414,8 @@ export function createSurfaceLayer({
     const { pid, windowId } = await resolveScope(input, args);
     const from = pointsFromTarget(args.from_target);
     const to = pointsFromTarget(args.to);
+    if (typeof args.from_target === "number" && !lookupElement(pid, windowId, args.from_target)) throw stale();
+    if (typeof args.to === "number" && !lookupElement(pid, windowId, args.to)) throw stale();
     const fromArgs = from
       ? { from_x: from.x, from_y: from.y }
       : { from_element_token: args.from_target !== undefined ? lookupElement(pid, windowId, args.from_target)?.element_token : undefined };
@@ -399,6 +438,7 @@ export function createSurfaceLayer({
     const { pid, windowId } = await resolveScope(input, args);
     const elementIndex = typeof args.target === "number" ? args.target : undefined;
     const elementToken = elementIndex !== undefined ? lookupElement(pid, windowId, elementIndex)?.element_token : undefined;
+    if (elementIndex !== undefined && !elementToken) throw stale();
     const driverArgs = withoutUndefined({ pid, window_id: windowId, element_index: elementIndex, element_token: elementToken, text: args.text });
     const { result } = await dispatch("type_text", driverArgs, input);
     return result;
@@ -411,8 +451,20 @@ export function createSurfaceLayer({
     const driverArgs = modifiers.length > 0 ? withoutUndefined({ pid, window_id: windowId, keys: [...modifiers, key] }) : withoutUndefined({ pid, window_id: windowId, key });
     const repeat = Number.isFinite(args.repeat) && args.repeat > 1 ? Math.trunc(args.repeat) : 1;
     let result;
+    let anySent = false;
     for (let index = 0; index < repeat; index += 1) {
-      ({ result } = await dispatch(driverTool, driverArgs, input));
+      try {
+        ({ result } = await dispatch(driverTool, driverArgs, input));
+      } catch (error) {
+        if (!anySent) throw error;
+        const projected = projectDriverError(input.toolName, error);
+        return { ...projected, _meta: { ...projected._meta, actionSent: true, ...(isPossiblySent(error) ? { possiblySent: true } : {}) } };
+      }
+      anySent ||= result?._meta?.actionSent === true;
+      // repeat 中途失败立即收口；后一次成功不能覆盖前一次失败或先前的投递事实。
+      if (result?.isError || result?._meta?.possiblySent) {
+        return { ...result, _meta: { ...result._meta, actionSent: anySent } };
+      }
     }
     return result;
   }
@@ -449,12 +501,14 @@ export function createSurfaceLayer({
       switch (toolName) {
         case "list_apps": {
           const raw = await callDriver("list_apps", {}, input.signal);
+          if (raw?.isError) return projectDriverResult(raw);
           const apps = structured(raw)?.apps ?? [];
           return { content: [{ type: "text", text: JSON.stringify(apps) }], isError: false };
         }
         case "list_windows": {
           const pid = await resolvePid(args.app_ref, input.signal);
           const raw = await callDriver("list_windows", withoutUndefined({ pid }), input.signal);
+          if (raw?.isError) return projectDriverResult(raw);
           const data = structured(raw);
           const windows = Array.isArray(data) ? data : (data?.windows ?? []);
           return { content: [{ type: "text", text: JSON.stringify(windows) }], isError: false };
@@ -512,7 +566,7 @@ export function createSurfaceLayer({
       const possibly = isPossiblySent(error);
       return {
         ...projected,
-        _meta: { ...projected._meta, actionSent: possibly, ...(possibly ? { possiblySent: true } : {}) },
+        _meta: { ...projected._meta, actionSent: hasSentEvidence(error), ...(possibly ? { possiblySent: true } : {}) },
       };
     }
   }

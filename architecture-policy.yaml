@@ -52,6 +52,9 @@ modules:
   - id: formal-proof
     roots: [packages/formal-proof/src]
     managed: false
+  - id: zcode-cua
+    roots: [packages/zcode-cua]
+    managed: false
   - id: zcode-cli
     roots: [apps/zcode-cli]
     managed: false
