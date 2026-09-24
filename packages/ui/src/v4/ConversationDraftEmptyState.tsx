@@ -216,13 +216,25 @@ function ZCodeEmptyStateLogo({ className }: { className?: string }) {
   // 白珊瑚的双色设计，整体压到 14% 透明度时白珊瑚会先消失，只剩一块灰方块，
   // 所以水印只用轮廓并跟随主题前景色。viewBox 与原资产同构，contain 由
   // preserveAspectRatio 默认值负责，水印的大小与位置和位图版完全一致。
+  //
+  // 底端渐隐：珊瑚墨迹底边比 composer 卡片顶边低约 5px（标题字号变化时 3~11px），
+  // 而卡片只是 3% 的染色（bg-surface 带 alpha）、阴影还会从卡片顶边往上溢约 3px，
+  // 否则那一小段珊瑚会画进输入框的染色/阴影里。渐隐到 78% 处全透明，比阴影带上沿
+  // 还高约 9px；官方浅色那版 logo 也有同样的底端渐隐，rebrand 成珊瑚时漏掉了。
   return (
     <svg
       aria-hidden="true"
       data-v4-draft-logo="zcodium"
       viewBox="0 0 512 512"
       fill="currentColor"
-      className={cn("opacity-[0.14] dark:opacity-[0.2]", className)}
+      className={cn(
+        "opacity-[0.14] dark:opacity-[0.2]",
+        "[mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_78%)]",
+        "[mask-repeat:no-repeat] [mask-size:100%_100%]",
+        "[-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_78%)]",
+        "[-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]",
+        className,
+      )}
     >
       <path d={ZCODIUM_WATERMARK_PATH} />
     </svg>
