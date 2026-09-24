@@ -1,5 +1,16 @@
 export type CuaPermissionKind = "accessibility" | "screen_recording";
 
+/**
+ * macOS TCC 申请结果。由 cua-driver 的 requestMacOSPermissions 归一化而来；
+ * ok=false 表示拿不到宿主入口（非 macOS / 原生库缺失），此时不得假装已授权。
+ */
+export interface CuaPermissionRequestResult {
+  ok: boolean;
+  accessibility: boolean;
+  screenRecording: boolean;
+  reason?: string;
+}
+
 export interface OpenCuaPermissionOnboardingOptions {
   /** Renderer 为本次调用生成的不透明 id；关闭该权限 surface 时只取消这一 participant。 */
   operationId?: string;

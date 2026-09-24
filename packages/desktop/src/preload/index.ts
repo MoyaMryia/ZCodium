@@ -530,6 +530,11 @@ contextBridge.exposeInMainWorld("zcode", {
     ipcRenderer.send(PlatformChannels.CancelCuaPermissionOnboarding, {
       operationId,
     }),
+  /** 申请 macOS TCC 授权（辅助功能 / 屏幕录制）；由 main 进程触发，授权归属 ZCode.app */
+  requestCuaPermissions: () => ipcRenderer.invoke(PlatformChannels.RequestCuaPermissions),
+  /** 打开 macOS「屏幕录制」系统设置面板 */
+  openCuaPermissionSystemSettings: () =>
+    ipcRenderer.invoke(PlatformChannels.OpenCuaPermissionSystemSettings),
   /** 预热并缓存已验证的 Helper 路径，使 dragstart 能同步 startDrag（避免异步 I/O 错过手势） */
   prepareCuaHelperPermissionDrag: () =>
     ipcRenderer.invoke(PlatformChannels.PrepareCuaHelperPermissionDrag),

@@ -270,6 +270,13 @@ export const PlatformChannels = {
   /** Renderer → Main：取消当前 renderer 发起的一次权限引导 participant */
   CancelCuaPermissionOnboarding: "zcode:cancel-cua-permission-onboarding",
   /**
+   * Renderer → Main：申请 macOS TCC 授权（辅助功能 / 屏幕录制）。
+   * 必须由 Electron main 在 app.whenReady() 之后触发，授权才归属 ZCode.app。
+   */
+  RequestCuaPermissions: "zcode:request-cua-permissions",
+  /** Renderer → Main：打开 macOS「屏幕录制」系统设置面板 */
+  OpenCuaPermissionSystemSettings: "zcode:open-cua-permission-system-settings",
+  /**
    * Renderer → Main：预热并缓存已验证的 Helper 路径 + bundle 指纹。
    * 必须在拖拽浮窗挂载时调用 —— dragstart 链路里不允许任何异步 I/O。
    */

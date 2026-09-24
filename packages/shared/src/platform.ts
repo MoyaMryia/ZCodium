@@ -16,6 +16,7 @@ import type {
 import type { AppSettings, Locale } from "./protocol.js";
 import type {
   CuaAccessibilitySettingsResult,
+  CuaPermissionRequestResult,
   OpenCuaPermissionOnboardingOptions,
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
@@ -663,6 +664,13 @@ export interface IPlatformService {
   ): Promise<CuaAccessibilitySettingsResult>;
   /** 取消本 renderer 以 operationId 发起的 onboarding participant。Desktop only。 */
   cancelCuaPermissionOnboarding?(operationId: string): void;
+  /**
+   * 申请 macOS TCC 授权（辅助功能 / 屏幕录制）。必须由 Electron main 在 app.whenReady()
+   * 之后调用，TCC 弹窗才归属 ZCode.app 而不是 MCP worker。Desktop only。
+   */
+  requestCuaPermissions?(): Promise<CuaPermissionRequestResult>;
+  /** 打开 macOS「屏幕录制」系统设置面板。Desktop only。 */
+  openCuaPermissionSystemSettings?(): Promise<boolean>;
   /**
    * 预热并缓存已验证的 Helper 路径 + 指纹，使随后的 dragstart 能同步 startDrag。
    * 必须在拖拽浮窗挂载时调用：Electron 原生拖拽要求在 dragstart 事件链路里同步调用

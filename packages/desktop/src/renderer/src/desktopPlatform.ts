@@ -51,6 +51,14 @@ export function createDesktopPlatform(options: {
           window.zcode.prepareCuaHelperPermissionDrag?.() ??
           Promise.resolve({ success: false, error: "not_supported" })
       : undefined,
+    requestCuaPermissions: window.zcode.requestCuaPermissions
+      ? () =>
+          window.zcode.requestCuaPermissions?.() ??
+          Promise.resolve({ ok: false, accessibility: false, screenRecording: false })
+      : undefined,
+    openCuaPermissionSystemSettings: window.zcode.openCuaPermissionSystemSettings
+      ? () => window.zcode.openCuaPermissionSystemSettings?.() ?? Promise.resolve(false)
+      : undefined,
     startCuaHelperPermissionDrag: window.zcode.startCuaHelperPermissionDrag
       ? () => window.zcode.startCuaHelperPermissionDrag?.()
       : undefined,

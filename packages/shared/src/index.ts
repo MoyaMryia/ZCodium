@@ -199,6 +199,7 @@ export type {
 export type {
   CuaAccessibilitySettingsResult,
   CuaPermissionKind,
+  CuaPermissionRequestResult,
   OpenCuaPermissionOnboardingOptions,
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
