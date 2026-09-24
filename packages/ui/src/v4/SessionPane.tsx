@@ -2,8 +2,6 @@ import { measureOperation } from "@/lib/diagnostics/operations.js";
 import { useSessionOpenDiagnostics } from "@/v4/diagnostics/useSessionOpenDiagnostics.js";
 import { recordChatError } from "@/lib/diagnostics/chatErrors.js";
 import type { LocalTtftContext } from "@zcode/shared";
-import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
-import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@zcode/shared";
 
 import { getLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
@@ -1228,7 +1226,6 @@ export function SessionPane({
     // 回收并按最新选择事实重建，已显式选择和正式会话仍保持冻结。
     useZCodeSessionStore.getState().invalidateDraftRuntime(workspacePath, workspaceIdentity);
   }, [draftConfigRef, modelSelectionView?.revision, sessionId, workspaceIdentity, workspacePath]);
-  const recommendStartPlan = useStartPlanRecommendation(modelSelectionView);
   const createSubmissionFromComposer = useCallback(
     () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView),
     [draftConfigRef, modelSelectionView],
@@ -1821,20 +1818,14 @@ export function SessionPane({
       if (!sessionId || !selectionSideChatKey || !onOpenSelectionSideChat) {
         throw new Error("selection side chat is unavailable");
       }
-      const inherited = resolveSelectionSideInheritedModel(
-        snapshotRef.current?.config,
-        modelSelectionView,
-      );
-      const chosen = inherited ? await recommendStartPlan(inherited) : undefined;
-      if (chosen === null) return false;
-      const modelSelection = chosen && chosen !== inherited ? chosen : undefined;
+      // 侧聊由 Host 继承父 runtime 的生效模型，不在提交时查询套餐或覆盖为推荐模型。
       // 参数命令每次都是新 child；同一条文本在 ACK 未回时重试仍复用 pending，
       // 不同文本则不能与 bare `/side` 或另一条 prompt 合并。
       const pendingKey = `${selectionSideChatKey}\u0000prompt\u0000${text}`;
       const childSessionId = await createSelectionSideChat(pendingKey, async () => {
         const ack = await dispatchCommand(
           "createSelectionSideSession",
-          { firstInput: { text, ...(modelSelection ? { modelSelection } : {}) } },
+          { firstInput: { text } },
           sessionId,
           undefined,
           undefined,
@@ -1859,8 +1850,6 @@ export function SessionPane({
     },
     [
       dispatchCommand,
-      modelSelectionView,
-      recommendStartPlan,
       onOpenSelectionSideChat,
       remoteSessionId,
       selectionSideChatKey,
@@ -2372,14 +2361,6 @@ export function SessionPane({
       options: ConversationComposerSendOptions | undefined,
       createSourceAtSend: SessionCreateSource,
     ) => {
-      let onAcceptedSelection: (() => void) | undefined;
-      const dispatchSubmissionCommand = async (...args: Parameters<typeof dispatchCommand>) => {
-        const ack = await dispatchCommand(...args);
-        // 在原 accepted 边界写回推荐选择，早于新 Session 的草稿转移；失败不改用户意图。
-        if (ack.status === "accepted" && submissionConfigFromCommand(args[0], args[1]))
-          onAcceptedSelection?.();
-        return ack;
-      };
       // 进入 barrier 前已经冻结；等待配置/附件期间不再回读 Composer 或 Session。
       let submission = options?.submission ?? null;
       const heldQueueDisposition = options?.heldQueueDisposition;
@@ -2464,15 +2445,7 @@ export function SessionPane({
         // resumeGoal 等控制命令也不应被发送消息确认框截获。
         return "confirmationRequired" as const;
       }
-      if (slashCommand === null || slashCommand.kind === "sendGoalCommand") {
-        const original = submission.modelSelection;
-        const chosen = await recommendStartPlan(original);
-        if (!chosen) return "blocked" as const;
-        if (chosen !== original) {
-          onAcceptedSelection = captureAcceptedModelSelection(chosen, original);
-          submission = { ...submission, modelSelection: chosen };
-        }
-      }
+      // 冻结的 Submission 保留用户选择；准入前不再插入官方套餐推荐或额外的选择写入路径。
       const prewarmTargetBeforeSend =
         sessionId === null ? prewarmBindingRef.current?.sessionId : null;
       if (prewarmTargetBeforeSend) {
@@ -2494,7 +2467,6 @@ export function SessionPane({
         );
         if (consumed === "confirmationRequired") return consumed;
         if (consumed) {
-          onAcceptedSelection?.();
           return;
         }
       }
@@ -2533,7 +2505,6 @@ export function SessionPane({
             );
             if (consumed === "confirmationRequired") return consumed;
             if (consumed) {
-              onAcceptedSelection?.();
               prewarm.promote();
               handleDraftSessionCreated(prewarm.sessionId, groupedDraftTaskAtSend);
               return;
@@ -2552,7 +2523,7 @@ export function SessionPane({
           { ...draftConfigRef.current, modelSelection: submission.modelSelection },
           appFollowupMode,
         );
-        const createAck = await dispatchSubmissionCommand(
+        const createAck = await dispatchCommand(
           "createSession",
           { workspaceId: workspaceKey, ...draftConfigPayload },
           null,
@@ -2582,7 +2553,7 @@ export function SessionPane({
         const prewarm = prewarmBindingRef.current;
         if (prewarm?.beginPromotion()) {
           try {
-            const ack = await dispatchSubmissionCommand(
+            const ack = await dispatchCommand(
               "sendText",
               {
                 text: effectiveText,
@@ -2628,7 +2599,7 @@ export function SessionPane({
           appFollowupMode,
         );
         if (readyAttachments.length === 0 && !sharedContextRefs?.length) {
-          const ack = await dispatchSubmissionCommand(
+          const ack = await dispatchCommand(
             "createSession",
             {
               workspaceId: workspaceKey,
@@ -2655,7 +2626,7 @@ export function SessionPane({
         // 本地 desktop localPath 是零拷贝 ready，不依赖 attachment transaction；极短窗口内
         // 预热 session 可能还未返回。此时仍可先创建空 session，再提交现成 ref，发送点击内
         // 不做任何附件上传，也不会让非 ready 附件绕过 composer 门禁。
-        const createAck = await dispatchSubmissionCommand(
+        const createAck = await dispatchCommand(
           "createSession",
           { workspaceId: workspaceKey, ...draftConfigPayload },
           null,
@@ -2668,7 +2639,7 @@ export function SessionPane({
           throw new Error("createSession 缺少 sessionId");
         }
         const newSessionId = createResult.sessionId;
-        const sendAck = await dispatchSubmissionCommand(
+        const sendAck = await dispatchCommand(
           "sendText",
           {
             text: effectiveText,
@@ -2688,7 +2659,7 @@ export function SessionPane({
         return;
       }
       // 附件 ref 已在 composer 预传状态机中收口。
-      const ack = await dispatchSubmissionCommand(
+      const ack = await dispatchCommand(
         "sendText",
         {
           text: effectiveText,
@@ -2723,8 +2694,6 @@ export function SessionPane({
     },
     [
       dispatchCommand,
-      recommendStartPlan,
-      captureAcceptedModelSelection,
       dispatchSlashCommand,
       ensureDraftModelReadyForSend,
       availableSelectionSideSlashCommandNames,

@@ -1,13 +1,5 @@
 /** 中文翻译 */
 const zhCN: Record<string, string> = {
-  "startPlan.recommendation.subagentDescription":
-    "你的体验套餐中，{model} 仍有可用额度，是否将此子智能体的模型切换到体验套餐？",
-  "startPlan.recommendation.preferenceSaveFailed": "未能保存“不再提示”，本次仍按你的选择继续。",
-  "startPlan.recommendation.title": "体验套餐有可用额度",
-  "startPlan.recommendation.description": "你的体验套餐中，{model} 仍有可用额度，是否切换使用？",
-  "startPlan.recommendation.switch": "切换套餐",
-  "startPlan.recommendation.decline": "不了",
-  "startPlan.recommendation.dismiss": "不再提示",
   "occupationOnboarding.stepMode": "UI 模式",
   "occupationOnboarding.modeTitle": "选择适合你的 UI 模式",
   "occupationOnboarding.modeDescription": "你希望 ZCodium 如何呈现工作过程？",

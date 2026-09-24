@@ -233,8 +233,6 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
-  /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
-  startPlanRecommendationDismissed?: boolean;
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
   locale: Locale; // 界面语言
   /**
