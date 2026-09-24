@@ -26,7 +26,6 @@ import {
 import { cn } from "./components/lib/utils.js";
 import { toast } from "./components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { getProviderBusinessErrorMessageId } from "@/lib/providerBusinessError.js";
 import {
   isSuspiciousEmptyModelResultMessage,
   resolveOffPeakTicketExpiredBusinessCode,
@@ -74,11 +73,10 @@ export function resolveChatErrorBannerDisplayMessage(
     return intl.formatMessage({ id: "chat.error.noAvailableModel" });
   }
 
-  const providerBusinessCode =
-    resolveOffPeakTicketExpiredBusinessCode(error.code, error.message) ?? error.code;
-  const providerBusinessMessageId = getProviderBusinessErrorMessageId(providerBusinessCode);
-  if (providerBusinessMessageId) {
-    return intl.formatMessage({ id: providerBusinessMessageId });
+  // 数字错误码由用户选择的模型供应商定义，不能全局套用官方账号/套餐含义。
+  // 闲时票据尚有独立运行时入口，暂保留其既有错误提示。
+  if (resolveOffPeakTicketExpiredBusinessCode(error.code, error.message)) {
+    return intl.formatMessage({ id: "zcode.error.providerBusiness.3102" });
   }
 
   if (isSuspiciousEmptyModelResultMessage(error.message)) {
@@ -172,7 +170,8 @@ export function ChatErrorBanner({
           "w-full flex flex-wrap items-center gap-2 rounded-xl bg-surface backdrop-blur-md border border-border px-3 py-2",
         )}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-ui-base text-foreground">
+        {/* 零 basis 会让窄容器中的操作按钮挤掉错误正文；保留摘要宽度，让按钮自然换行。 */}
+        <div className="flex min-w-0 flex-1 basis-64 items-center gap-2 text-ui-base text-foreground">
           {hookBlocked ? (
             <AnchorIcon
               aria-hidden="true"

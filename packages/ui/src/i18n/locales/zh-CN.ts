@@ -5441,28 +5441,6 @@ const zhCN: Record<string, string> = {
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置模型",
 
-  // Start Plan 单桶额度提醒
-  "chat.quota.startPlan.bucketDailyLow": "{model} 今日额度剩余 {percent}（{remaining} tokens）。",
-  "chat.quota.startPlan.bucketActivityLow":
-    "{model} 活动额度剩余 {percent}（{remaining} tokens）。",
-  "chat.quota.startPlan.modelVeryLow": "{model} 套餐额度剩余 {percent}（{remaining} tokens）。",
-  "chat.quota.startPlan.modelExhausted": "{model} 可用额度已用完，可切换其他模型或等待额度恢复。",
-  "chat.quota.startPlan.dailyExhausted": "当前可用额度已用完，请切换模型或等待额度恢复。",
-  "chat.quota.startPlan.concurrentLimit": "当前系统繁忙，请切换模型或稍后再试。",
-  "chat.quota.startPlan.concurrentLimit.retryExhausted":
-    "当前系统繁忙，自动重试已达到最大次数，请切换模型或稍后再试。",
-  "chat.quota.startPlan.concurrentLimit.switchModel":
-    "当前模型请求已达到并发上限，请切换模型继续当前任务",
-  "chat.quota.mcp.quotaExhausted": "ZCodium MCP「{server}」今日额度已用完，明天自动恢复。",
-  "chat.quota.mcp.codingPlanRequired":
-    "当前连接无 MCP「{server}」使用额度，请检查 MCP 配置或选择其他可用工具。",
-  "chat.quota.providerLimited": "当前连接已达到使用限制，请切换模型或等待额度恢复。",
-  "chat.quota.action.upgrade": "升级",
-  "chat.quota.action.renew": "续期",
-  "chat.quota.action.switchModel": "切换模型",
-  "chat.quota.action.switchProvider": "切换供应商",
-  "chat.quota.action.refresh": "刷新额度",
-
   // 权限请求
   "chat.permission.title": "需要权限",
   "chat.permission.awaitingApproval": "等待确认",
@@ -5620,19 +5598,8 @@ const zhCN: Record<string, string> = {
     "当前使用的模型已不可用，请从当前模型列表中选择一个可用模型后继续。",
   "zcode.error.ZCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "当前模型不可用，请检查是否已将当前账号添加到项目成员列表",
-  "zcode.error.providerBusiness.1006": "登录状态已失效，请重新登录后再试。",
-  "zcode.error.providerBusiness.1005": "今日可用额度已用完，请切换模型或等待额度恢复。",
-  "zcode.error.providerBusiness.3006": "当前模型不在可用范围内，请切换到允许的模型后重试。",
-  "zcode.error.providerBusiness.3002": "请求过于频繁，请稍后重试。",
-  "zcode.error.providerBusiness.3001": "请求参数错误，请检查输入后重试。",
-  "zcode.error.providerBusiness.3007": "请求被网关安全校验拒绝，请稍后重试或联系支持。",
-  "zcode.error.providerBusiness.3008": "当前系统繁忙，请切换模型或稍后再试。",
-  "zcode.error.providerBusiness.3009": "当前系统繁忙，请切换模型或稍后再试。",
-  "zcode.error.providerBusiness.3010": "当前系统繁忙，请切换模型或稍后再试。",
   "zcode.error.providerBusiness.3102": "已超过单次最长运行时间，请创建新的闲时任务继续。",
   "zcode.error.modelSuspiciousEmpty": "模型未返回任何内容。",
-  "zcode.error.providerBusiness.2007": "上游服务暂时不可用，请稍后重试。",
-  "zcode.error.providerBusiness.429": "请求过于频繁，请稍后重试。",
 
   // 调试信息栏
   "debugInfo.taskId": "Task ID",

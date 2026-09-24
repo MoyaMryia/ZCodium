@@ -5683,34 +5683,6 @@ const enUS: Record<string, string> = {
   "chat.error.modelSettings": "Model settings",
   "chat.error.setModels": "Configure model",
 
-  // Start Plan per-bucket quota reminders
-  "chat.quota.startPlan.bucketDailyLow":
-    "{model} has {percent} of its daily quota remaining ({remaining} tokens).",
-  "chat.quota.startPlan.bucketActivityLow":
-    "{model} has {percent} of its promotional quota remaining ({remaining} tokens).",
-  "chat.quota.startPlan.modelVeryLow":
-    "{model} has {percent} of its plan quota remaining ({remaining} tokens).",
-  "chat.quota.startPlan.modelExhausted":
-    "All available quota for {model} has been used up. Switch models or wait for the quota to reset.",
-  "chat.quota.startPlan.dailyExhausted":
-    "Your available quota has been used up. Switch models or wait for the quota to reset.",
-  "chat.quota.startPlan.concurrentLimit": "The system is busy. Switch models or try again later.",
-  "chat.quota.startPlan.concurrentLimit.retryExhausted":
-    "The system is busy, and automatic retries have reached the maximum count. Switch models or try again later.",
-  "chat.quota.startPlan.concurrentLimit.switchModel":
-    "The current model request concurrency limit has been reached. Switch models to continue your current task.",
-  "chat.quota.mcp.quotaExhausted":
-    'ZCodium MCP "{server}" has used up today\'s quota. It resets tomorrow.',
-  "chat.quota.mcp.codingPlanRequired":
-    'This connection has no quota for MCP "{server}". Check your MCP configuration or choose another available tool.',
-  "chat.quota.providerLimited":
-    "This connection has reached its usage limit. Switch models or wait for the quota to reset.",
-  "chat.quota.action.upgrade": "Upgrade",
-  "chat.quota.action.renew": "Renew",
-  "chat.quota.action.switchModel": "Switch model",
-  "chat.quota.action.switchProvider": "Switch provider",
-  "chat.quota.action.refresh": "Refresh quota",
-
   // Permissions
   "chat.permission.title": "Permission required",
   "chat.permission.awaitingApproval": "Awaiting approval",
@@ -5862,28 +5834,10 @@ const enUS: Record<string, string> = {
     "The current model is no longer available. Select an available model from the current model list to continue.",
   "zcode.error.ZCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "The current model is unavailable. Check whether the current account has been added to the project member list.",
-  "zcode.error.providerBusiness.1006": "Your login session has expired. Please sign in again.",
-  "zcode.error.providerBusiness.1005":
-    "Today's available quota has been used up. Switch models or wait for the quota to reset.",
-  "zcode.error.providerBusiness.3006":
-    "The current model is not included in this plan. Switch to an allowed model and try again.",
-  "zcode.error.providerBusiness.3002":
-    "You're sending requests too quickly. Please try again later.",
-  "zcode.error.providerBusiness.3001":
-    "The request parameters are invalid. Check the input and try again.",
-  "zcode.error.providerBusiness.3007":
-    "The request was rejected by the gateway security check. Please try again later or contact support.",
-  "zcode.error.providerBusiness.3008": "The system is busy. Switch models or try again later.",
-  "zcode.error.providerBusiness.3009": "The system is busy. Switch models or try again later.",
-  "zcode.error.providerBusiness.3010": "The system is busy. Switch models or try again later.",
   "zcode.error.providerBusiness.3102":
     "This run exceeded the maximum single-run time. Create a new off-peak task to continue.",
   "zcode.error.modelSuspiciousEmpty":
     "The model returned no content (often caused by an expired token or plan issues). Please send again.",
-  "zcode.error.providerBusiness.2007":
-    "The upstream service is temporarily unavailable. Please try again later.",
-  "zcode.error.providerBusiness.429":
-    "You're sending requests too quickly. Please try again later.",
 
   // Debug info bar
   "debugInfo.taskId": "Task ID",
