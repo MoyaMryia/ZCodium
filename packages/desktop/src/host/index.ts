@@ -61,8 +61,7 @@ import {
   buildTaskChangeSummary,
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
-  AstrBotBridgeService,
-  BotsRepo,
+  IAstrBotBridgeService,
   getAppConfigDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
@@ -72,7 +71,6 @@ import {
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
-import { createBotsRuntimeAdapter } from "./botsRuntimeAdapter.js";
 import { startBotsBridgeServer, type BotsBridgeServerHandle } from "./botsBridgeServer.js";
 import {
   assertBoundSessionDispatchable,
@@ -81,6 +79,8 @@ import {
 import {
   HostMessageTypes,
   HostResponseTypes,
+  DEFAULT_BOT_COMMANDS,
+  DEFAULT_BOT_REPLY_GRANULARITY,
   ZCODE_VERSION,
   formatLogPrefix,
   formatZCodeHostProcessName,
@@ -1874,24 +1874,38 @@ const BOTS_BRIDGE_TOKEN_KEY = "bot:bridge:token";
 const BOTS_BRIDGE_RUNTIME_FILE = "bots-bridge.runtime.v2.json";
 
 let activeBotsBridge: {
-  service: AstrBotBridgeService;
-  adapter: ReturnType<typeof createBotsRuntimeAdapter>;
+  attachment: { dispose(): void };
   handle: BotsBridgeServerHandle;
 } | null = null;
 
 /**
- * 启动 AstrBot 桥接：AstrBotBridgeService 持业务状态，adapter 接 IZCodeTaskService。
- * token 存 credential store；url/port/token 另写 0600 运行时文件，方便插件配置。
+ * 启动 AstrBot 桥接：官方 BotsService 持业务状态，astrbotProvider 持传输。
+ * inbound 帧走 handleProviderCallback("astrbot", ...)，outbound 由 provider 经 handle.transport 广播。
+ * token 存 credential store；url/port/token/bindCode 另写 0600 运行时文件，方便插件配置。
  */
 async function startBotsBridge(services: ServiceCollection): Promise<void> {
-  const zcodeTaskService = services.getOptional(IZCodeTaskService);
-  if (!zcodeTaskService) {
+  const botsService = services.getOptional(IBotsService);
+  const astrBotProvider = services.getOptional(IAstrBotBridgeService);
+  if (!botsService || !astrBotProvider) {
     return;
   }
-  const repo = new BotsRepo({ dir: getAppConfigDir(), logger: createServiceLogger("bots") });
-  const adapter = createBotsRuntimeAdapter({ zcodeTaskService, repo });
-  const service = new AstrBotBridgeService({ repo, runtime: adapter });
-  service.start();
+  // 确保存在一个 astrbot BotConfig（首次启动时创建默认项）。
+  let bot = (await botsService.getConfig()).bots.find((item) => item.provider === "astrbot");
+  if (!bot) {
+    bot = await botsService.saveBot({
+      bot: {
+        id: `astrbot-${randomUUID()}`,
+        name: "AstrBot",
+        provider: "astrbot",
+        enabled: true,
+        allowedWorkspaces: ["*"],
+        allowedCommands: { ...DEFAULT_BOT_COMMANDS },
+        currentOptions: {},
+        replyMode: DEFAULT_BOT_REPLY_GRANULARITY,
+      },
+    });
+  }
+  const botId = bot.id;
   const credentials = services.getOptional(ICredentialService);
   let token = credentials ? await credentials.load(BOTS_BRIDGE_TOKEN_KEY) : null;
   if (!token) {
@@ -1900,11 +1914,32 @@ async function startBotsBridge(services: ServiceCollection): Promise<void> {
       await credentials.save(BOTS_BRIDGE_TOKEN_KEY, token);
     }
   }
-  const handle = await startBotsBridgeServer({ service, token });
-  activeBotsBridge = { service, adapter, handle };
-  // 还没有任何绑定时生成一次性绑定码，写进运行时文件供用户在聊天里 /bind。
+  const handle = await startBotsBridgeServer({
+    token,
+    service: {
+      isEnabled: async () =>
+        (await botsService.getConfig()).bots.some((item) => item.id === botId && item.enabled),
+      getWorkspaceCount: async () => (await botsService.listWorkspaceRefs()).length,
+      handleCommand: async (frame) => {
+        const bindingId = astrBotProvider.beginTurn(frame, botId);
+        try {
+          await botsService.handleProviderCallback("astrbot", { ...frame, zcodeBotId: botId });
+        } finally {
+          astrBotProvider.settleTurn(bindingId);
+        }
+      },
+      ackDeliveryByFrameId: (deliveryId) => astrBotProvider.ackDeliveryByFrameId(deliveryId),
+      resolveResume: (cursors) => astrBotProvider.resolveResume(cursors),
+      buildSnapshot: (bindingId) => astrBotProvider.buildSnapshot(bindingId),
+    },
+  });
+  const attachment = astrBotProvider.attachTransport(handle.transport);
+  activeBotsBridge = { attachment, handle };
+  // 还没有任何 bot 上下文时生成一次性绑定码，写进运行时文件供用户在聊天里 /bind。
   const bindCode =
-    (await service.listBindings()).length === 0 ? await service.createBindCode() : null;
+    (await botsService.getBotStates()).length === 0
+      ? await botsService.createBindCode({ botId })
+      : null;
   const dir = getAppConfigDir();
   await mkdir(dir, { recursive: true });
   await writeFile(
@@ -1929,8 +1964,7 @@ async function disposeBotsBridge(): Promise<void> {
   if (!current) {
     return;
   }
-  current.service.dispose();
-  current.adapter.dispose();
+  current.attachment.dispose();
   await current.handle.close().catch(() => undefined);
 }
 
