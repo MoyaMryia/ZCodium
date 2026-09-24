@@ -35,6 +35,10 @@
       "types": "./permissions.d.ts",
       "import": "./permissions.js"
     },
+    "./driver-host": {
+      "types": "./driver-host.d.ts",
+      "import": "./driver-host.js"
+    },
     "./pip-session": {
       "types": "./pip-session.d.ts",
       "import": "./pip-session.js"
