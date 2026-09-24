@@ -13,7 +13,6 @@ import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import {
   ZCODE_USER_DATA_DIR_NAME,
   buildLocalMediaPreviewUrl,
-  isProviderProvisioningAccountCredentialKey,
   type ProviderProvisioningTrigger,
 } from "@zcode/shared";
 
@@ -163,8 +162,6 @@ export type {
 } from "./model-provider/providerRuntime.js";
 export {
   createProviderProvisioningSource,
-  listProviderProvisioningCredentialKeys,
-  resolveCredentialFilePath,
   type ProviderProvisioningSource,
   type ProviderProvisioningSourceOptions,
 } from "./model-provider/providerProvisioningSource.js";
@@ -379,9 +376,6 @@ import { createProviderSettingsConnectivityTester } from "./model-provider/provi
 import { createProviderModelCatalogLister } from "./model-provider/providerModelCatalog.js";
 import {
   createProviderProvisioningSource,
-  listProviderProvisioningCredentialKeys,
-  PROVIDER_PROVISIONING_OAUTH_CREDENTIAL_KEYS,
-  resolveCredentialFilePath,
   type ProviderProvisioningSource,
 } from "./model-provider/providerProvisioningSource.js";
 import { createProviderProvisioningTarget } from "./model-provider/providerProvisioningTarget.js";
@@ -1377,14 +1371,7 @@ export function createLocalServices(options: {
     resolveRuntimeZCodeEndpointOrigin(process.env, {
       overrideOrigin: (await settingService.get()).zcodeEndpointOrigin,
     });
-  const provisioningOAuthKeys = new Set<string>(PROVIDER_PROVISIONING_OAUTH_CREDENTIAL_KEYS);
-  const credentialService = createCredentialService({
-    onDidMutate: ({ key }) => {
-      if (provisioningOAuthKeys.has(key) || isProviderProvisioningAccountCredentialKey(key)) {
-        options.onProviderProvisioningSourceChanged?.("credential");
-      }
-    },
-  });
+  const credentialService = createCredentialService();
   const accountProviderCredentialStore = createAccountProviderCredentialStore({
     credentialService,
   });
@@ -1538,8 +1525,6 @@ export function createLocalServices(options: {
   });
   const providerProvisioningSource = createProviderProvisioningSource({
     personalRepository: providerConfigRuntime.personalRepository,
-    settingService,
-    credentialFilePath: resolveCredentialFilePath(resolveAppConfigDir()),
     personalConfigFilePath: join(resolveAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
   });
   const providerProvisioningDisposers = [
@@ -1548,14 +1533,6 @@ export function createLocalServices(options: {
       // 作为同步触发，避免其它 Host 的 poll-changed 把一次保存重复计入多个代际。
       if (reason === "personal:updated") {
         options.onProviderProvisioningSourceChanged?.("personal-config");
-      }
-    }),
-    settingService.onDidUpdate((event) => {
-      if (
-        event.keys.includes("providerFamilyDomain") ||
-        event.keys.includes("providerFamilyConnectionSelections")
-      ) {
-        options.onProviderProvisioningSourceChanged?.("account-settings");
       }
     }),
   ];
@@ -2530,13 +2507,8 @@ export function createLocalServices(options: {
       createProviderProvisioningTarget({
         providerRuntime,
         personalRepository: providerConfigRuntime.personalRepository,
-        accountProviderSource: accountProviderConfigSource,
-        credentialService,
-        settingService,
         personalConfigFilePath: join(resolveAppConfigDir(), PERSONAL_PROVIDER_CONFIG_FILE_NAME),
         stateFilePath: join(resolveAppConfigDir(), "runtime", "provider", "provisioning.json"),
-        listProvisioningCredentialKeys: () =>
-          listProviderProvisioningCredentialKeys(resolveCredentialFilePath(resolveAppConfigDir())),
       }),
     );
   }
