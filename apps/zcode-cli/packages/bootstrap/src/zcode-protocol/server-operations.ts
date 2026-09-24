@@ -107,7 +107,6 @@ import { createWorkspaceZCodeApp, ensureSessionModelAvailable } from "./workspac
 import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
-import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
 import { protocolMcpServersToRuntimeMcpConfig } from "./protocol-mcp-config.js";
@@ -2402,7 +2401,7 @@ async function runPromptTurnInBackground(
     record.activeAutomationId = activeAutomationId;
   }
   if (activeOffPeakTaskId) {
-    // 闲时派发轮同型兜底标记，供 offpeak-port 拒绝递归 OffPeakCreate。
+    // 官方派发链退休前保留闲时轮标记，供 runtime 限制跨模型的子 Agent 恢复。
     record.activeOffPeakTaskId = activeOffPeakTaskId;
   }
   record.activeBotDeliveryTarget = params.botDeliveryTarget;
@@ -2489,8 +2488,7 @@ function buildPromptTurnToolDisallowlist(
 ): readonly string[] | undefined {
   const tools = new Set(params.toolDenylist ?? []);
   if (activeAutomationId) tools.add("CronCreate");
-  // 闲时派发轮隐藏 OffPeakCreate（防递归自我派生）；OffPeakList 只读保留。
-  // 注意 automation 轮不加 OffPeakCreate——cron 轮放行（定时派生闲时任务）。
+  // 官方派发链退休前保留 SendMessage/Workflow 隔离；OffPeakCreate 仅是旧 Host 的轮次哨兵。
   // SendMessage / Workflow 同样隐藏，与 V4 prompt-turn 及 core turn-loop-state 同值。
   if (activeOffPeakTaskId) {
     for (const toolName of ["OffPeakCreate", "SendMessage", "Workflow"]) tools.add(toolName);
@@ -3337,8 +3335,7 @@ async function createRecord(
       modelSelection: "model" in params ? toRuntimeModelSelection(initialModel) : undefined,
       parentSessionId,
       taskType,
-      // 动态工作流灰度门：与 offPeakPort
-      // 同一套读法——本次 create/resume 参数优先，缺席时读 Host 同步到进程的 workspace 级
+      // 动态工作流策略：本次 create/resume 参数优先，缺席时读 Host 同步到进程的 workspace 级
       // 结论；两者都没有就是 false（fail-closed）。这里**必须写出显式布尔**，不能省成
       // undefined：core 把「缺席」定义为「不参与灰度、保留全部工具」（TUI / headless /
       // workflow_child 的语义），受信 Host 创建的会话不能落进那条豁免。
@@ -3376,12 +3373,6 @@ async function createRecord(
     // 这里把阻塞交互转换成 server-to-client JSON-RPC request，由 app 通过 response 释放 runtime。
     permissionBroker: createProtocolInteractionBroker(context),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
-    // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
-    // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
-    ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||
-    context.appRuntimePreferences.offPeakToolEnabled === true
-      ? { offPeakPort: createProtocolOffPeakPort(context, () => ownSessionRecord) }
-      : {}),
     resolveInitialBashShellSelection: startupPreferences.resolveInitialBashShellSelection,
     // browser-use：agent.browsers.* 经此把命令转成 interaction/browserExecute 反向请求。
     browserControlPort: createProtocolBrowserControlBroker(context),

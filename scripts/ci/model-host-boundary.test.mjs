@@ -108,14 +108,21 @@ import { createInterface } from 'node:readline';
 import { writeFile } from 'node:fs/promises';
 const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
 let request;
+const methods = ["interaction/requestProviderRuntimeHeaders", "offPeak/create", "offPeak/list"];
+const responses = [];
 for await (const line of createInterface({ input: process.stdin })) {
   const message = JSON.parse(line);
   if (message.method) {
     request = message;
-    send({ id: 'retired-auth', method: 'interaction/requestProviderRuntimeHeaders', params: {} });
+    send({ id: 'retired-auth', method: methods[responses.length], params: {} });
   } else if (message.id === 'retired-auth') {
-    await writeFile(process.argv[2], JSON.stringify(message));
-    send({ id: request.id, error: { code: -32099, message: 'Fixture completed' } });
+    responses.push(message);
+    if (responses.length < methods.length) {
+      send({ id: 'retired-auth', method: methods[responses.length], params: {} });
+    } else {
+      await writeFile(process.argv[2], JSON.stringify(responses));
+      send({ id: request.id, error: { code: -32099, message: 'Fixture completed' } });
+    }
   }
 }
 `,
@@ -130,10 +137,13 @@ for await (const line of createInterface({ input: process.stdin })) {
           },
           {
             get(target, key) {
-              assert.notEqual(
-                key,
-                "accountRequestAuthService",
-                "Host must not read the retired dependency",
+              assert.ok(
+                ![
+                  "accountRequestAuthService",
+                  "resolveOffPeakClientConfig",
+                  "resolveOffPeakTaskService",
+                ].includes(key),
+                "Host must not read retired account/idle-time dependencies",
               );
               return target[key];
             },
@@ -144,7 +154,9 @@ for await (const line of createInterface({ input: process.stdin })) {
         service.getTaskTokenUsage({ workspacePath: dir, sessionId: "fixture" }),
         /Fixture completed/,
       );
-      assert.equal(JSON.parse(await readFile(output, "utf8")).error.code, -32601);
+      for (const response of JSON.parse(await readFile(output, "utf8"))) {
+        assert.equal(response.error.code, -32601);
+      }
     } finally {
       await service?.disposeAllAndWait();
       await rm(dir, { recursive: true, force: true });

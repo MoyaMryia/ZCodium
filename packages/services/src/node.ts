@@ -1927,21 +1927,9 @@ export function createLocalServices(options: {
       return buildOffPeakModelSelectionView(providerRuntime.registryService.getView());
     },
   });
-  // OffPeakTaskService 单例在下方 DI register IIFE 中创建（晚于 agent service）；
-  // 用前向引用 holder 惰性绑定——offPeak/create 协议请求只会发生在服务集合装配完成后。
-  let offPeakTaskServiceForAgent: OffPeakTaskService | undefined;
-  // desktop-attached-remote 装配不暴露 Off-Peak 工具面（远程不在支持范围）。
-  const offPeakToolWiring =
-    options?.serviceAuthorityMode === "desktop-attached-remote"
-      ? {}
-      : {
-          resolveOffPeakClientConfig: () => codingPlanSubscriptionService.getOffPeakClientConfig(),
-          resolveOffPeakTaskService: () => offPeakTaskServiceForAgent,
-        };
   const zcodeAgentService = createZCodeAgentService({
     ...(modelSelectionReadinessSource ? { modelSelectionReadinessSource } : {}),
     authorizeLocalMediaPreviewPath: options?.authorizeLocalMediaPreviewPath,
-    ...offPeakToolWiring,
     // 动态工作流灰度：与 Off-Peak 不同，
     // 这里不按 serviceAuthorityMode 裁剪——SSH/WSL/Docker 的 desktop-attached-remote Host
     // 是它自己那些 workspace 的唯一裁决者，灰度开启时远程 workspace 同样提供工作流。
@@ -2350,8 +2338,6 @@ export function createLocalServices(options: {
           },
         });
         offPeakTaskService.startSync();
-        // 回写前向引用，供 zcodeAgentService 的 offPeak/create、offPeak/list 协议 handler 调用。
-        offPeakTaskServiceForAgent = offPeakTaskService;
         return offPeakTaskService;
       })(),
     )

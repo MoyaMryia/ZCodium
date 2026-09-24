@@ -1546,11 +1546,7 @@ export const zcodeSessionCreateParamsSchema = z
     toolAllowlist: z.array(nonEmptyString).optional(),
     toolDenylist: z.array(nonEmptyString).optional(),
     importedHistory: zcodeSessionImportHistorySchema.optional(),
-    // host 只按本地服务装配/远程/端形态决定是否注册工具，不读取灰度；
-    // 缺省不下发 = 不注册；灰度与套餐准入在实际创建的 Host handler 校验。
-    offPeakToolEnabled: z.boolean().optional(),
-    // 动态工作流灰度：与 offPeakToolEnabled 同一
-    // 模式——host 裁决后下发，缺省不下发 = 不注册工作流工具簇（fail-closed）。
+    // Host 裁决动态工作流工具策略，缺省不下发 = 不注册（fail-closed）。
     dynamicWorkflowEnabled: z.boolean().optional(),
   })
   .strict();
@@ -1566,8 +1562,6 @@ export const zcodeSessionResumeParamsSchema = z
     // 冷恢复重建 runtime 时必须沿用 create 的工具面约束（否则会绕过 allow/deny，尤其 CUA 会话）。
     toolAllowlist: z.array(nonEmptyString).optional(),
     toolDenylist: z.array(nonEmptyString).optional(),
-    // 与 create 同语义；resume 不带会导致冷恢复丢 Off-Peak 工具面。
-    offPeakToolEnabled: z.boolean().optional(),
     // 与 create 同语义；resume 不带会导致冷恢复丢工作流工具簇。
     dynamicWorkflowEnabled: z.boolean().optional(),
   })
@@ -2149,28 +2143,8 @@ export type ZCodeWorkspaceUpdateInteractionPreferencesResult = z.infer<
   typeof zcodeWorkspaceUpdateInteractionPreferencesResultSchema
 >;
 
-export const zcodeWorkspaceUpdateOffPeakToolPolicyParamsSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    enabled: z.boolean(),
-  })
-  .strict();
-export type ZCodeWorkspaceUpdateOffPeakToolPolicyParams = z.infer<
-  typeof zcodeWorkspaceUpdateOffPeakToolPolicyParamsSchema
->;
-
-export const zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema = z
-  .object({
-    workspace: zcodeWorkspaceRefSchema,
-    enabled: z.boolean(),
-  })
-  .strict();
-export type ZCodeWorkspaceUpdateOffPeakToolPolicyResult = z.infer<
-  typeof zcodeWorkspaceUpdateOffPeakToolPolicyResultSchema
->;
-
 // 动态工作流灰度门禁：workspace 级事实，
-// 与 Off-Peak 同一套 host→CLI 同步模式；旧 CLI method-not-found → host 降级忽略。
+// Host→CLI 同步；旧 CLI method-not-found → Host 降级忽略。
 export const zcodeWorkspaceUpdateDynamicWorkflowPolicyParamsSchema = z
   .object({
     workspace: zcodeWorkspaceRefSchema,
@@ -3311,70 +3285,6 @@ export type ZCodeAutomationDeleteProtocolParams = z.infer<typeof zcodeAutomation
 export const zcodeAutomationDeleteResultSchema = z.object({ deleted: z.boolean() }).strict();
 export type ZCodeAutomationDeleteProtocolResult = z.infer<typeof zcodeAutomationDeleteResultSchema>;
 
-// ---- Off-Peak（闲时任务）会话内创建协议----
-// 与 automation 兄弟并列（独立域，禁止互相复用标记/表）。workspace 由 host 端从
-// 当前 session 注入，不进协议参数（对称 automation/create）。permissionMode 只开放产品
-// 四档词表；缺省解析在 host 端（yolo / allowed_models 末位 / 最高推理档）。
-export const zcodeOffPeakPermissionModeSchema = z.enum(["build", "edit", "plan", "yolo"]);
-export type ZCodeOffPeakProtocolPermissionMode = z.infer<typeof zcodeOffPeakPermissionModeSchema>;
-
-export const zcodeOffPeakCreateParamsSchema = z
-  .object({
-    title: nonEmptyString,
-    prompt: nonEmptyString,
-    permissionMode: zcodeOffPeakPermissionModeSchema.optional(),
-    model: nonEmptyString.optional(),
-    thoughtLevel: nonEmptyString.optional(),
-    // 会话内创建绑定当前会话（对齐 automation/create 的 targetTaskId），由 CLI 端口填入。
-    boundSessionId: nonEmptyString.optional(),
-  })
-  .strict();
-export type ZCodeOffPeakCreateProtocolParams = z.infer<typeof zcodeOffPeakCreateParamsSchema>;
-
-// 协议侧任务快照：轮尾卡片与 OffPeakList 的最小字段面。
-// 不暴露 serverTicketId（跨边界禁带）。
-export const zcodeOffPeakTaskSnapshotSchema = z
-  .object({
-    offPeakTaskId: nonEmptyString,
-    title: z.string(),
-    status: z.enum(["queued", "paused", "running", "completed", "failed", "cancelled"]),
-    queuePosition: z.number().int().positive().optional(),
-    sessionId: nonEmptyString.optional(),
-    createdAt: z.number().int().nonnegative(),
-  })
-  .strict();
-export type ZCodeOffPeakTaskProtocolSnapshot = z.infer<typeof zcodeOffPeakTaskSnapshotSchema>;
-
-// 失败分类跨协议保真（镜像 shared OffPeakTaskCreateResult 的判别联合，错误不降级为字符串）。
-// model 白名单预校失败复用 client_validation 分类 + errorCode "model_not_allowed"，不扩分类枚举。
-export const zcodeOffPeakCreateResultSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), task: zcodeOffPeakTaskSnapshotSchema }).strict(),
-  z
-    .object({
-      ok: z.literal(false),
-      failureStage: z.enum(["client_validation", "ticket_request", "local_persist"]),
-      errorCategory: z.enum([
-        "client_validation",
-        "eligibility_3101",
-        "quota_3103",
-        "network",
-        "invalid_response",
-        "local_persist",
-        "unknown",
-      ]),
-      errorCode: z.string(),
-    })
-    .strict(),
-]);
-export type ZCodeOffPeakCreateProtocolResult = z.infer<typeof zcodeOffPeakCreateResultSchema>;
-
-export const zcodeOffPeakListParamsSchema = z.object({}).strict();
-export type ZCodeOffPeakListProtocolParams = z.infer<typeof zcodeOffPeakListParamsSchema>;
-export const zcodeOffPeakListResultSchema = z
-  .object({ tasks: z.array(zcodeOffPeakTaskSnapshotSchema) })
-  .strict();
-export type ZCodeOffPeakListProtocolResult = z.infer<typeof zcodeOffPeakListResultSchema>;
-
 export const zcodeProtocolMethods = {
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
@@ -3416,10 +3326,7 @@ export const zcodeProtocolMethods = {
   workspaceHookTrustGrant: "workspace/hooks/trustGrant",
   // 进程级 Account Provider Config 与 workspace 运行目录分离。
   workspaceUpdateInteractionPreferences: "workspace/updateInteractionPreferences",
-  // Off-Peak 工具面门禁是 workspace 级事实（灰度 + 本地/远程），由 host 在 agent 就绪时同步；
-  // CLI 对 legacy create/resume 与 v4 冷恢复统一读取。旧 CLI method-not-found → host 降级忽略。
-  workspaceUpdateOffPeakToolPolicy: "workspace/updateOffPeakToolPolicy",
-  // 动态工作流灰度门禁：同 Off-Peak 的同步模式。
+  // 动态工作流工具策略按 workspace 同步。
   workspaceUpdateDynamicWorkflowPolicy: "workspace/updateDynamicWorkflowPolicy",
   // LLM 执行面在 CLI，直连不可行；消费仅 services 内部
   // （commit message），待 v4 workspace 查询/命令面覆盖后移除。
@@ -3459,9 +3366,6 @@ export const zcodeProtocolMethods = {
   automationCheckTaskBinding: "automation/checkTaskBinding",
   automationList: "automation/list",
   automationDelete: "automation/delete",
-  // Off-Peak 会话内创建：与 automation 兄弟并列的独立方法族。
-  offPeakCreate: "offPeak/create",
-  offPeakList: "offPeak/list",
   // @deprecated：host 消费已清零（zcodeAgentService 改走 v4/usage/stats）。
   // 仅剩 CLI server 的 wire 兼容 case；随旧词整体删除时一并移除。
   usageStats: "usage/stats",

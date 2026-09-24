@@ -10,7 +10,7 @@ import {
   type TraceContext,
 } from "@zcode/contracts";
 import type { ToolEntry, ToolHandler } from "../types.js";
-import { assertNotOffPeakTurn } from "./off-peak.js";
+import { assertNotOffPeakTurn } from "./off-peak-turn-policy.js";
 
 const MAX_SEND_MESSAGE_MODEL_BYTES = 4096;
 /**

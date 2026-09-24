@@ -232,8 +232,6 @@ export interface V4CommandCoreHost {
   createSessionRecord?(params: {
     workspaceId: string;
     mcpServers?: CommandPayloadMap["createSession"]["mcpServers"];
-    /** host 判定的 Off-Peak 工具面门禁；缺省不注册工具。 */
-    offPeakToolEnabled?: boolean;
     /**
      * host 判定的动态工作流灰度门；
      * 缺省回落到进程级 workspace 结论，仍是 fail-closed。

@@ -1082,12 +1082,7 @@ export function createConversationV4Gateway(
     // createSession 的执行面：record 建立/事件接线/catalog 同步/失败自清理全在旧
     // createSession op 内（半初始化 record 的回收顺序修过 bug，不重复实现）。
     // 语义决策（draft persistence / firstInput 走原生 prompt turn）在原生 handler。
-    createSessionRecord: async ({
-      workspaceId,
-      mcpServers,
-      offPeakToolEnabled,
-      dynamicWorkflowEnabled,
-    }) => {
+    createSessionRecord: async ({ workspaceId, mcpServers, dynamicWorkflowEnabled }) => {
       // workspaceId 双形态（Workspace Identity 约束）：
       // - 本地工作区 = workspacePath（identity 缺省时的 fallback）；
       // - 远程 pane（跨 workspace 分屏）= 远程 identity
@@ -1104,8 +1099,6 @@ export function createConversationV4Gateway(
         // MCP 是 runtime 创建期配置；v4 createSession 必须与 legacy
         // session/create 等价透传，否则创建的 session 永远不会启动这些工具。
         mcpServers,
-        // Off-Peak 工具面 flag 同为 runtime 创建期配置，必须随 create 进入 record。
-        ...(offPeakToolEnabled === true ? { offPeakToolEnabled: true } : {}),
         // 动态工作流灰度门同为 runtime 创建期配置：
         // v4 createSession 必须与 legacy session/create 等价透传，否则无界面创建的会话
         // 会绕过 Host 的灰度判定，只剩进程级缺省。

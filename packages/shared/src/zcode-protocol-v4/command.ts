@@ -57,11 +57,7 @@ export const commandPayloadSchemas = {
     config: createSessionRequestedConfigSchema.optional(),
     // MCP 是 runtime 启动期配置，必须随 create 一次性进入 record，不能在首发后补写。
     mcpServers: z.array(zcodeProtocolMcpServerSchema).optional(),
-    // Off-Peak 工具面 flag，与 legacy session/create 等价——V4 createSession 是桌面
-    // 新会话的实际创建路径，不透传则 OffPeakCreate/OffPeakList 永不注册。additive，
-    // 旧 CLI 的 z.object 会静默丢弃该键（fail-closed）。
-    offPeakToolEnabled: z.boolean().optional(),
-    // 动态工作流灰度 flag，与 offPeakToolEnabled 同一模式。
+    // Host 下发动态工作流工具策略。
     dynamicWorkflowEnabled: z.boolean().optional(),
   }),
   // 父会话由 envelope.sessionId 指定；服务端从父 record 派生完整运行配置。

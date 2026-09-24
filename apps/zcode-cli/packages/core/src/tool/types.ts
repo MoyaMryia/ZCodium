@@ -5,7 +5,6 @@
 import type {
   ExecutionShellSelection,
   AutomationPort,
-  OffPeakPort,
   EmbeddedSearchBackend,
   ExecutionPort,
   BrowserControlPort,
@@ -128,7 +127,7 @@ export interface ToolExecutionContext {
   toolCallId: string;
   /** 当前工具调用是否属于 automation 派发轮；写工具 handler 用它做最终权限校验。 */
   automationTurn?: boolean;
-  /** 当前工具调用是否属于闲时任务派发轮；OffPeakCreate handler 用它做最终拒绝。 */
+  /** 当前工具调用是否属于闲时派发轮；限制子 Agent 恢复绕出本轮模型边界。 */
   offPeakTurn?: boolean;
   traceContext?: TraceContext;
   traceId: TraceId;
@@ -158,7 +157,6 @@ export interface ToolExecutionContext {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  offPeakPort?: OffPeakPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   workflowPort?: WorkflowPort;
