@@ -71,7 +71,6 @@ export function createWindow(options: {
       unavailableWorkspacePath: options.bootstrap?.unavailableWorkspacePath,
     },
     logger: options.logger,
-    deviceMid: options.deviceMid,
     initialDesktopZoomLevel: options.initialDesktopZoomLevel,
     initialWindowSize: options.initialWindowSize,
     currentApplicationLocale: options.currentApplicationLocale,

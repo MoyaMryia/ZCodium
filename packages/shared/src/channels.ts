@@ -394,8 +394,6 @@ export const PlatformChannels = {
   SetTitleBarTheme: "zcode:set-title-bar-theme",
   /** Renderer → Main：迁移旧版 Common MCP 配置 */
   MigrateLegacyCommonMcp: "zcode:migrate-legacy-common-mcp",
-  /** Renderer → Main：获取当前设备的稳定标识符（deviceMid） */
-  GetDeviceId: "zcode:get-device-id",
 } as const;
 
 export type PlatformChannelName = (typeof PlatformChannels)[keyof typeof PlatformChannels];

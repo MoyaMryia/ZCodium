@@ -127,8 +127,6 @@ export { createFileWatcherService } from "./fileWatcher/fileWatcherService.js";
 export { createOAuthService } from "./oauth/oauthService.js";
 export { createOAuthProviderLogoutHandler } from "./oauth/oauthProviderLogout.js";
 export { OAuthCredentialRepo } from "./oauth/repo/oauthCredentialRepo.js";
-export { ensureDeviceMid } from "./device/deviceMid.js";
-export type { EnsureDeviceMidOptions } from "./device/deviceMid.js";
 export type { AccountRequestAuthResolver } from "./model-provider/accountProviderRequestAuthService.js";
 export { createAccountProviderCredentialStore } from "./model-provider/accountProviderCredentialStore.js";
 export type {
@@ -1326,7 +1324,6 @@ export function createLocalServices(options: {
   serviceAuthorityMode?: ServiceAuthorityMode;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
   agentRuntimeContext?: {
-    getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
   };
   /** browser-use 执行桥（host→main WebContentsView+CDP）；desktop host 注入，缺省则 browser 不可用。 */

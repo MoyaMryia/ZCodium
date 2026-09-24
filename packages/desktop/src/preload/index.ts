@@ -6,19 +6,6 @@ import {
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
-/** 从 command-line 参数中解析 --device-id= */
-function parseDeviceIdFromArgs(): string {
-  for (const arg of process.argv) {
-    if (arg.startsWith("--device-id=")) {
-      return arg.slice("--device-id=".length);
-    }
-  }
-  return "";
-}
-
-// 在 contextBridge 建立之前就暴露同步值，让 renderer 在 React 渲染前就能读到
-contextBridge.exposeInMainWorld("__ZCODE_DEVICE_ID__", parseDeviceIdFromArgs());
-
 import type {
   AppSettings,
   ApplicationIconRequest,
@@ -750,8 +737,6 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 同步标题栏亮暗色 */
   setTitleBarTheme: (theme: DesktopTitleBarTheme) =>
     ipcRenderer.invoke(PlatformChannels.SetTitleBarTheme, theme),
-  /** 获取桌面端设备标识符（deviceMid） */
-  getDeviceId: () => ipcRenderer.invoke(PlatformChannels.GetDeviceId),
 });
 
 /**

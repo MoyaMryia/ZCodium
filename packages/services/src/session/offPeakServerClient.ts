@@ -9,7 +9,6 @@ import {
   withRequestIdHeader,
   REQUEST_ID_HEADER_NAME,
 } from "#src/providers/api/requestIdHeaders.js";
-import { buildZCodeSourceHeaders } from "#src/providers/sourceHeaders.js";
 import {
   buildOffPeakPlanIdentityHeaders,
   type OffPeakCredentialSnapshot,
@@ -152,11 +151,8 @@ export function createOffPeakServerClient(deps: OffPeakServerClientDeps): OffPea
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const origin = await deps.resolveOrigin();
-      // 该 client 直接使用 fetch，过去绕过 NodeApiClient 的来源头与 request id 注入；
-      // test 服务端只能看到 user_agent=node，且客户端日志无法关联 2007/裸 429 的服务端请求。
-      // 这里只补标准非敏感来源头和链路 id，JWT/API Key 仍禁止进入日志。
+      // 每请求随机 ID 仅用于关联本次请求，不读取设备身份或环境信息。
       const headers = withRequestIdHeader({
-        ...buildZCodeSourceHeaders(),
         ...(body === undefined ? {} : { "content-type": "application/json" }),
         authorization: `Bearer ${credentials.jwt}`,
         "x-coding-plan-api-key": credentials.codingPlanApiKey,

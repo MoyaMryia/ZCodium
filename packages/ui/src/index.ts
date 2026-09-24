@@ -87,7 +87,6 @@ export {
   subscribeToUiFontSizeStorageChanges,
 } from "./lib/uiFontSize.js";
 
-export { generateMobileDeviceFingerprint, setStreamClientId } from "./lib/streamClientId.js";
 export { GlobalDatabaseStartupLoading } from "./root/GlobalDatabaseStartupLoading.js";
 
 export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";

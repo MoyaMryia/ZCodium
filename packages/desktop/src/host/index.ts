@@ -2889,7 +2889,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               authorizeLocalMediaPreviewPath,
               runtimeProcessEnvPatch: msg.runtimeProcessEnvPatch,
               agentRuntimeContext: {
-                getDeviceMid: () => msg.deviceMid,
                 runtimeSurface: "desktop_local_host",
               },
               serviceAuthorityMode: "desktop-local",

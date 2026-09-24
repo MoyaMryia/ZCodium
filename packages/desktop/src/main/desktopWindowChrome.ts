@@ -544,7 +544,6 @@ export function createBrowserWindow(options: {
   bootstrap?: WindowBootstrapOptions;
   logger: { warn: (...args: unknown[]) => void };
   /** 桌面端设备标识符（基于 userData 路径的 SHA-256），用于 renderer 同步读取 */
-  deviceMid?: string;
   /** 桌面端持久化页面缩放档位；窗口创建时先应用，避免首屏回到默认大小。 */
   initialDesktopZoomLevel?: number;
   /** 主进程设置服务读取的最近一次普通窗口尺寸与最大化状态。 */
@@ -588,8 +587,6 @@ export function createBrowserWindow(options: {
       // 永久 backgroundThrottling=false 会唤醒整窗 renderer、所有 webview guest
       // 和 GPU。窗口保持默认节流；截图期只临时唤醒 owner renderer 与当前目标 guest。
       zoomFactor: initialDesktopZoomFactor,
-      // 将 deviceMid 透传给 preload，供 renderer 在 React 渲染前同步读取
-      additionalArguments: [`--device-id=${options.deviceMid ?? ""}`],
     },
   });
 

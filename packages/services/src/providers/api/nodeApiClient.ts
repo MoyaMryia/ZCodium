@@ -7,7 +7,6 @@ import {
   type ApiRequestInit,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
-import { buildZCodeSourceHeaders } from "../sourceHeaders.js";
 import { withRequestIdHeader } from "./requestIdHeaders.js";
 
 const log = createServiceLogger("node-api-client");
@@ -40,37 +39,6 @@ function isRequestForEndpoint(input: string | URL, endpointOrigin: string): bool
   } catch {
     return false;
   }
-}
-
-function withZCodeEndpointHeaders(
-  headers: RequestInit["headers"] | undefined,
-  endpointOrigin: string,
-): RequestInit["headers"] {
-  const next = new Headers(buildZCodeSourceHeaders());
-  if (headers) {
-    new Headers(headers).forEach((value, key) => {
-      next.set(key, value);
-    });
-  }
-
-  if (next.get("HTTP-Referer") === DEFAULT_ZCODE_ENDPOINT_ORIGIN) {
-    next.set("HTTP-Referer", endpointOrigin);
-  }
-  return next;
-}
-
-function resolveRequestHeaders(
-  requestInput: string | URL,
-  headers: RequestInit["headers"] | undefined,
-  endpointOrigin: string,
-): RequestInit["headers"] | undefined {
-  if (!isRequestForEndpoint(requestInput, endpointOrigin)) {
-    return headers;
-  }
-
-  // ZCode 后端请求以前只有部分业务路径手动补来源头。
-  // 统一在 ApiClient 出口按 endpoint origin 注入，避免 OAuth/config/billing/snapshot 等链路遗漏。
-  return withZCodeEndpointHeaders(headers, endpointOrigin);
 }
 
 export class NodeApiClient implements ApiClient {
@@ -115,9 +83,8 @@ export class NodeApiClient implements ApiClient {
         throw new DOMException("The operation was aborted.", "AbortError");
       }
       const fetchImpl = this.fetchImpl ?? globalThis.fetch;
-      const requestHeaders = withRequestIdHeader(
-        resolveRequestHeaders(requestInput, init?.headers, activeEndpointOrigin),
-      );
+      // 来源头曾在这里读取设备身份和系统信息；只保留调用方明确提供的头与每请求 ID。
+      const requestHeaders = withRequestIdHeader(init?.headers);
       if (isRequestForEndpoint(requestInput, activeEndpointOrigin)) {
         // 调试说明：这里只记录 header key，避免 Authorization / token 等敏感值落盘。
         log.debug(undefined, "zcode endpoint request headers prepared", {

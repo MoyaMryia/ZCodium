@@ -1406,7 +1406,6 @@ function openUpdateStatusWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: false,
-      additionalArguments: [`--device-id=${deviceMid}`],
     },
   });
   // 更新窗口要保留系统窗口控件，但不能允许缩放或全屏。
@@ -1834,7 +1833,6 @@ app.whenReady().then(async () => {
     },
     settingService: mainSettingService,
     locale: currentApplicationLocale,
-    deviceMid,
     resolveEndpointOrigin: resolveCurrentZCodeEndpointOrigin,
     updateFeedSource: resolveUpdateFeedSourceFromStartupConfig({
       argv: process.argv,
@@ -1965,7 +1963,6 @@ app.whenReady().then(async () => {
     }),
     syncAppSettings: syncImmediateAppSettings,
     setShortcutRecordingActive,
-    deviceMid,
   });
 
   registerRemoteIpcHandlers({

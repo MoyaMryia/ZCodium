@@ -5,9 +5,7 @@ import {
   AppErrorBoundary,
   Root,
   ZCodeIntlProvider,
-  generateMobileDeviceFingerprint,
   playTaskNotificationSound,
-  setStreamClientId,
   type Theme,
 } from "@zcode/ui";
 import "@zcode/ui/styles.css";
@@ -73,11 +71,6 @@ async function resolveFeedbackUrl(): Promise<string | undefined> {
 
 const root = createRoot(document.getElementById("root")!);
 const webAuthService = createWebAuthService();
-
-// 初始化 Web 端流式 clientId，确保所有 hook 在首次渲染前就使用稳定 ID
-{
-  setStreamClientId(generateMobileDeviceFingerprint());
-}
 
 interface WebBootstrapResult {
   wsUrl: string;
@@ -337,20 +330,6 @@ function createWebPlatform(): IPlatformService {
     executeDesktopCommand: () => Promise.resolve(),
     setApplicationLocale: (_locale) => Promise.resolve(),
     setTitleBarTheme: () => Promise.resolve(),
-    getDeviceId: () => {
-      const nav = globalThis.navigator as Navigator & { platform?: string };
-      const platform = nav?.platform ?? "";
-      const screenWidth = globalThis.screen?.width;
-      const screenHeight = globalThis.screen?.height;
-      const colorDepth = globalThis.screen?.colorDepth;
-      const parts = [
-        platform,
-        screenWidth !== undefined ? String(screenWidth) : "",
-        screenHeight !== undefined ? String(screenHeight) : "",
-        colorDepth !== undefined ? String(colorDepth) : "",
-      ];
-      return parts.filter(Boolean).join("|");
-    },
   };
 }
 

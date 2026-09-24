@@ -947,12 +947,4 @@ export interface IPlatformService {
 
   /** 同步桌面标题栏亮/暗色，驱动原生窗口控制按钮配色 */
   setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
-
-  /** 获取当前设备的稳定标识符
-   *
-   * - 桌面端：基于 userData 路径的 SHA-256，始终稳定且唯一
-   * - 手机端（Web 远程控制）：物理属性指纹（browserPlatform | screen.width | screen.height | colorDepth），
-   *   抗浏览器/网络/语言/时区变化，换手机才会变
-   */
-  getDeviceId(): string;
 }
