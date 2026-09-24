@@ -6,9 +6,12 @@ import { createSurfaceLayer } from "../surface.js";
 const scope = { app_ref: { pid: 42 }, window_id: 10 };
 const state = (window = 10) => ({
   isError: false,
+  images: [{ mimeType: "image/png", dataBase64: "fixture" }],
   structuredJson: JSON.stringify({
     window_id: window,
     snapshot_id: "snapshot-a",
+    screenshot_width: 100,
+    screenshot_height: 80,
     elements: [{ element_index: 1, element_token: "window-a:1" }],
   }),
 });
@@ -16,10 +19,11 @@ const failure = { isError: true, errorCode: "permission_denied", text: "syntheti
 
 function harness(handler) {
   const calls = [];
+  let seeding = false;
   const surface = createSurfaceLayer({
     callDriver: async (tool, args) => {
       calls.push({ tool, args });
-      return handler(tool, args);
+      return seeding ? state() : handler(tool, args);
     },
     projectDriverResult: projectToolResult,
     projectDriverError,
@@ -27,6 +31,18 @@ function harness(handler) {
   });
   return {
     calls,
+    async observe() {
+      seeding = true;
+      try {
+        await surface.execute({
+          toolName: "get_app_state",
+          arguments: { ...scope, include_screenshot: true },
+        });
+      } finally {
+        seeding = false;
+        calls.length = 0;
+      }
+    },
     run: (toolName, args = {}) => surface.execute({ toolName, arguments: { ...scope, ...args } }),
   };
 }
@@ -93,6 +109,7 @@ for (const code of ["background_unavailable", "CUA_NOT_READY"]) {
         if (thrown) throw Object.assign(new Error("synthetic uncertain dispatch"), result);
         return result;
       });
+      await h.observe();
       const result = await h.run("left_click", { target: [3, 4] });
       assert.equal(h.calls.length, 1);
       assert.equal(result.isError, true);
@@ -108,6 +125,7 @@ test("已接受投递的后台错误不回退前台", async () => {
     errorCode: "background_unavailable",
     structuredJson: '{"action_sent":true,"dispatch_status":"accepted"}',
   }));
+  await h.observe();
   const result = await h.run("left_click", { target: [3, 4] });
   assert.equal(h.calls.length, 1);
   assert.equal(result._meta.actionSent, true);
@@ -118,6 +136,7 @@ test("前台回退抛错后不能二次回退", async () => {
     if (!args.delivery_mode) return { isError: true, errorCode: "background_unavailable" };
     throw Object.assign(new Error("foreground failed"), { code: "background_unavailable" });
   });
+  await h.observe();
   assert.equal((await h.run("left_click", { target: [3, 4] })).isError, true);
   assert.equal(h.calls.length, 2);
 });
@@ -128,6 +147,7 @@ test("错误正文不作为重试指令", async () => {
       code: "permission_denied",
     });
   });
+  await h.observe();
   assert.equal((await h.run("left_click", { target: [3, 4] })).isError, true);
   assert.equal(h.calls.length, 1);
 });
@@ -161,13 +181,18 @@ test("冷启动等待期间取消后不再调用 driver", async () => {
   const controller = new AbortController();
   let calls = 0;
   const surface = createSurfaceLayer({
-    callDriver: async () => {
+    callDriver: async (tool) => {
+      if (tool === "get_window_state") return state();
       calls += 1;
       throw Object.assign(new Error("synthetic cold start"), { code: "CUA_NOT_READY" });
     },
     projectDriverResult: projectToolResult,
     projectDriverError,
     sleep: async () => controller.abort(),
+  });
+  await surface.execute({
+    toolName: "get_app_state",
+    arguments: { ...scope, include_screenshot: true },
   });
   const result = await surface.execute({
     toolName: "left_click",

@@ -13,6 +13,9 @@
  * 一个真实故障静默映射成"成功"。加映射是常态，删条目要看清楚没有别的路径依赖。
  */
 export const BROKER_CODE_TO_SDK_CODE = Object.freeze({
+  // 适配层也会拒绝过期观测；保留重观测语义，不能误归 INTERNAL 后建议重发原动作。
+  STALE_STATE: "STALE_STATE",
+  INVALID_APP: "INVALID_APP",
   permission_denied: "PERMISSION_DENIED",
   not_authorized: "NOT_AUTHORIZED",
   launch_failed: "LAUNCH_FAILED",
@@ -35,8 +38,8 @@ export const BROKER_CODE_TO_SDK_CODE = Object.freeze({
 /**
  * 这些码意味着"界面可能已经变了"，重发同一个动作之前必须先重新观察。
  *
- * 注意 STALE_STATE 与 STRUCTURED_STATE_UNAVAILABLE 不由 broker 产生，而是 SDK
- * 自己在解析观察结果时抛出的；把它们列进来是为了让上层只需查一张表。
+ * STALE_STATE 同时可能来自适配层和 SDK；STRUCTURED_STATE_UNAVAILABLE 来自
+ * SDK 解析观察结果。统一要求重新观察，避免重复发送已经失效的目标。
  */
 export const REACQUIRE_FIRST_CODES = Object.freeze([
   "ELEMENT_UNAVAILABLE",

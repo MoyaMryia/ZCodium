@@ -48,6 +48,10 @@ jobs:
       - name: Release tests
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: node --test --test-isolation=none scripts/ci/*.test.mjs
+      - name: Computer Use runtime and SDK checks
+        run: |
+          node --test --test-isolation=none packages/zcode-cua/test/*.test.mjs
+          pnpm --dir apps/zcode-cli --filter @zcode/zcode-cua-plugin check:sdk
       - name: Standalone CLI and TUI model setup checks
         run: |
           node scripts/ci/cli-local-entrypoints-smoke.mjs
@@ -56,6 +60,12 @@ jobs:
           node scripts/ci/tui-model-setup-smoke.mjs
       - name: Install browser for remote form checks
         run: pnpm exec playwright-core install --with-deps chromium
+      - name: Install isolated Computer Use test desktop
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb openbox bubblewrap dbus-x11 at-spi2-core
+      - name: Computer Use actions without network access
+        run: node scripts/ci/cua-actions-smoke.mjs
       - name: Remote form browser checks
         run: node scripts/ci/remote-form-smoke.mjs
       - name: Bundled help browser checks
