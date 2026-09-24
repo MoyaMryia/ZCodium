@@ -55,7 +55,7 @@ test("bundled recommendations and scheduled templates remain usable without any 
   });
   assert.deepEqual(templates.rejectedScheduledTemplateIds, []);
   assert.ok(templates.scheduled.length >= 3);
-  assert.deepEqual(templates.offPeak, []);
+  assert.equal(Object.hasOwn(templates, "offPeak"), false);
   for (const locale of ["zh-CN", "en-US"]) {
     for (const prompt of prompts) {
       assert.ok(resolveDraftSuggestedPromptText(prompt.label, locale));

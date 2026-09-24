@@ -35,10 +35,7 @@ import {
 } from "@/v4/ConversationDraftSuggestedPrompts.js";
 import { buildDraftSuggestedPluginMention } from "@/v4/draftSuggestedPromptPrefill.js";
 import { resolveDraftSuggestedPromptText } from "@/v4/draftSuggestedPromptItems.js";
-import {
-  DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS,
-  DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK,
-} from "@/v4/draftSuggestedPromptItems.js";
+import { DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS } from "@/v4/draftSuggestedPromptItems.js";
 import {
   resolveDraftSuggestedPluginFlowStage,
   type ConversationDraftSuggestedPromptsContainerProps,
@@ -142,11 +139,8 @@ export function ConversationDraftSuggestedPromptsContainer({
     () =>
       (proactive ? recommendedItems : allItems).filter(
         (item) =>
-          !item.actions?.some(
-            (action) =>
-              action === DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS ||
-              action === DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK,
-          ) || Boolean(onOpenAutomations),
+          !item.actions?.some((action) => action === DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS) ||
+          Boolean(onOpenAutomations),
       ),
     [allItems, onOpenAutomations, proactive, recommendedItems],
   );
@@ -530,13 +524,6 @@ export function ConversationDraftSuggestedPromptsContainer({
 
       const prompt = resolveDraftSuggestedPromptText(item.prompt, locale);
 
-      if (
-        onOpenAutomations &&
-        item.actions?.includes(DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK)
-      ) {
-        onOpenAutomations("idle");
-        return;
-      }
       if (
         onOpenAutomations &&
         item.actions?.includes(DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS)

@@ -6,12 +6,7 @@ export interface DraftSuggestedPromptLocalizedText {
 }
 
 export const DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS = "NAVIGATE:AUTOMATIONS" as const;
-export const DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK =
-  "NAVIGATE:AUTOMATIONS:OFFPEAK" as const;
-
-export type DraftSuggestedPromptAction =
-  | typeof DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS
-  | typeof DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK;
+export type DraftSuggestedPromptAction = typeof DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS;
 
 export interface DraftSuggestedPromptItem {
   id: string;
@@ -43,11 +38,6 @@ function parseDraftSuggestedPromptActions(
           actions.push(DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS);
         }
         break;
-      case DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK:
-        if (!actions.includes(DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK)) {
-          actions.push(DRAFT_SUGGESTED_PROMPT_NAVIGATE_AUTOMATIONS_OFFPEAK);
-        }
-        break;
       default:
         break;
     }
@@ -77,26 +67,34 @@ export function mapClientScenesToDraftSuggestedPromptItems(
   const promptItems = scene?.options.prompts?.items;
   if (!scene || !promptItems) return [];
 
-  return promptItems.map((item) => {
-    const defaultItem = findDefaultItem(scene, item);
-    const actions = parseDraftSuggestedPromptActions(item.on_finish);
-    const stableId = defaultItem?.contents.en?.trim() || defaultItem?.contents.cn?.trim();
-    return {
-      id: item.id,
-      ...(item.img?.trim() ? { iconName: item.img.trim() } : {}),
-      label: item.labels,
-      prompt: item.contents,
-      ...(actions.length > 0 ? { actions } : {}),
-      ...(defaultItem && stableId
-        ? {
-            plugin: {
-              stableId,
-              label: defaultItem.labels,
-            },
-          }
-        : {}),
-    };
-  });
+  // 旧闲时推荐不能退化成普通 prompt，避免把原本免费的官方排队任务发给自配模型。
+  return promptItems
+    .filter(
+      (item) =>
+        !item.on_finish
+          ?.split(",")
+          .some((action) => action.trim() === "NAVIGATE:AUTOMATIONS:OFFPEAK"),
+    )
+    .map((item) => {
+      const defaultItem = findDefaultItem(scene, item);
+      const actions = parseDraftSuggestedPromptActions(item.on_finish);
+      const stableId = defaultItem?.contents.en?.trim() || defaultItem?.contents.cn?.trim();
+      return {
+        id: item.id,
+        ...(item.img?.trim() ? { iconName: item.img.trim() } : {}),
+        label: item.labels,
+        prompt: item.contents,
+        ...(actions.length > 0 ? { actions } : {}),
+        ...(defaultItem && stableId
+          ? {
+              plugin: {
+                stableId,
+                label: defaultItem.labels,
+              },
+            }
+          : {}),
+      };
+    });
 }
 
 export function resolveDraftSuggestedPromptText(
