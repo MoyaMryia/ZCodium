@@ -14,6 +14,10 @@
       "types": "./index.d.ts",
       "import": "./index.js"
     },
+    "./platform": {
+      "types": "./platform.d.ts",
+      "import": "./platform.js"
+    },
     "./frame-contract": {
       "types": "./frame-contract.d.ts",
       "import": "./frame-contract.js"

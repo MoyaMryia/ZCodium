@@ -1,0 +1,116 @@
+/**
+ * 平台运行时装配：把平台判定结果变成 `createComputerUseRuntime` 的选项。
+ *
+ * 契约见 `.agents/specs/computer-use-platform-architecture.md` §4、§6。
+ *
+ * - Linux：老 GNOME → 组装 compat（helper + backend + executor）；其余走 cua-driver 原生。
+ * - macOS：走 cua-driver 原生；TCC（辅助功能 + 屏幕录制）由嵌入宿主 ZCode.app 持有，
+ *   这里只报告 `requiresMacOsPermissions`，不做授权。
+ * - Windows：与 macOS 同为 native；具体嵌入由另一路负责。
+ *
+ * client（cua-driver SDK / daemon connect）由宿主注入；缺失时保持 fail-closed。
+ */
+
+import { execFileSync } from "node:child_process";
+
+import { createWaylandInputBackend } from "./compatible/backend.js";
+import { createCompatExecutor } from "./compatible/executor.js";
+import { createHelperClient } from "./compatible/helper-client.js";
+import { resolvePlatformPath } from "./compatible/detect.js";
+import { createComputerUseRuntime, createUnavailableRuntime } from "./runtime.js";
+
+/**
+ * 同步探测 GNOME 兼容层判定所需的版本（best-effort，失败留 undefined）。
+ * 仅 Linux 调用；不要求 root，只用 `gnome-shell --version` 与 `gdbus`。
+ */
+export function probeGnomeEnvironment() {
+  const probes = {};
+  try {
+    const out = execFileSync("gnome-shell", ["--version"], { encoding: "utf8" });
+    probes.gnomeShellVersion = out.trim().split(/\s+/).pop();
+  } catch {
+    // 忽略：无 gnome-shell 或不可执行。
+  }
+  const property = (dest, iface) => {
+    try {
+      const out = execFileSync(
+        "gdbus",
+        ["call", "--session", "--dest", dest, "--object-path", "/org/freedesktop/portal/desktop", "--method", "org.freedesktop.DBus.Properties.Get", iface, "version"],
+        { encoding: "utf8" },
+      );
+      return /uint32 (\d+)/.exec(out)?.[1];
+    } catch {
+      return undefined;
+    }
+  };
+  probes.portalRemoteDesktopVersion = property("org.freedesktop.portal.Desktop", "org.freedesktop.portal.RemoteDesktop");
+  try {
+    const out = execFileSync(
+      "gdbus",
+      ["call", "--session", "--dest", "org.cua.WinRects", "--object-path", "/org/cua/WinRects", "--method", "org.cua.WinRects.GetVersion"],
+      { encoding: "utf8" },
+    );
+    probes.winRectsVersion = /uint32 (\d+)/.exec(out)?.[1];
+  } catch {
+    // 忽略：扩展未安装。
+  }
+  return probes;
+}
+
+/** Linux 老 GNOME 的 compat 选项（注入 client 以便解析元素框 / set_value）。 */
+export function createCompatRuntimeOptions({ client, helper } = {}) {
+  const backend = createWaylandInputBackend({ helper: helper ?? createHelperClient() });
+  const executor = createCompatExecutor({ backend, client });
+  return { applies: true, execute: executor.execute, dispose: executor.dispose };
+}
+
+/**
+ * @param {object} options
+ * @param {string} [options.platform] `process.platform`
+ * @param {object} [options.env] 探测用环境变量
+ * @param {object} [options.probes] `{ gnomeShellVersion, portalRemoteDesktopVersion, winRectsVersion }`
+ * @param {object} [options.client] 已构造的 cua-driver client
+ * @param {string} [options.socketPath] daemon socket（交给 connectDriver）
+ * @param {Function} [options.connectDriver] `(socketPath?) => client`（同步构造）
+ * @param {object} [options.compat] 覆盖默认 compat 选项（测试用）
+ */
+export function assembleComputerUseRuntime({
+  platform = process.platform,
+  env = process.env,
+  probes = {},
+  client,
+  socketPath,
+  connectDriver,
+  compat,
+} = {}) {
+  const path = resolvePlatformPath({ platform, env, ...probes });
+  const requiresMacOsPermissions = path.path === "native" && platform === "darwin";
+
+  if (path.path === "unavailable") {
+    return { path, runtime: createUnavailableRuntime(path.reason), requiresMacOsPermissions: false };
+  }
+
+  let driverClient = client;
+  if (!driverClient && typeof connectDriver === "function") {
+    try {
+      driverClient = connectDriver(socketPath);
+    } catch {
+      driverClient = undefined;
+    }
+  }
+  if (!driverClient) {
+    return {
+      path,
+      runtime: createUnavailableRuntime(`Computer Use unavailable: no cua-driver client for ${path.path} path`),
+      requiresMacOsPermissions,
+    };
+  }
+
+  const compatOptions =
+    path.path === "compat" ? (compat ?? createCompatRuntimeOptions({ client: driverClient })) : undefined;
+  return {
+    path,
+    runtime: createComputerUseRuntime({ client: driverClient, compat: compatOptions }),
+    requiresMacOsPermissions,
+  };
+}

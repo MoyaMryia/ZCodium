@@ -1,6 +1,7 @@
 import { safeLogArgs } from "@zcode/shared";
 /* eslint-disable max-lines -- shared node_repl host 的 worker、CUA bridge 和生命周期必须保持同一边界。 */
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
 import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
 import { INVALID_PARAMS, Server, type Tool } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
@@ -15,7 +16,8 @@ import {
   type NodeReplRequestMeta,
   type NodeReplRunResult,
 } from "@zcode/core/repl";
-import { createComputerUseRuntime, type ComputerUseRuntime } from "@zcode/zcode-cua";
+import { type ComputerUseRuntime } from "@zcode/zcode-cua";
+import { assembleComputerUseRuntime, probeGnomeEnvironment } from "@zcode/zcode-cua/platform";
 import { z } from "zod";
 import { createBrowserBridgeGlobals, type ActiveNodeReplCall } from "./browser-bridge.js";
 import {
@@ -365,15 +367,47 @@ if (!isMainThread && isWorkerCallData(workerData)) {
     });
 }
 
+/**
+ * 同步构造 cua-driver client（同进程 SDK 或 daemon connect）。
+ * `@trycua/cua-driver` 由桌面端/打包提供；缺失或 ESM 无法同步 require 时返回 undefined，
+ * 运行时保持 fail-closed。桌面端也可直接通过 `input.cuaRuntime` 注入已构造的 runtime。
+ */
+function connectCuaDriverSync(socketPath?: string): unknown {
+  try {
+    const require = createRequire(import.meta.url);
+    const mod = require("@trycua/cua-driver") as {
+      CuaDriver?: { connect?: (socket: string) => unknown; create?: (options: unknown) => unknown };
+    };
+    const CuaDriver = mod?.CuaDriver;
+    if (!CuaDriver) return undefined;
+    return socketPath && typeof CuaDriver.connect === "function"
+      ? CuaDriver.connect(socketPath)
+      : CuaDriver.create?.(undefined);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 按平台装配 Computer Use 运行时：
+ * - Linux 老 GNOME 自动组装 compat（探测 shell/portal/WinRects 版本）；
+ * - macOS / Linux 新合成器 / X11 走 cua-driver 原生。
+ * 仅当 env 指定 driver socket / embedded 时才构造。
+ */
 export function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
 ): ComputerUseRuntime | undefined {
-  const socketPath = env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
-  if (!socketPath) return undefined;
-  return createComputerUseRuntime({
-    brokerSocketPath: socketPath,
-    refreshMarkerPath: env.ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim(),
+  const socketPath =
+    env.ZCODE_CUA_DRIVER_SOCKET?.trim() ?? env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
+  const enabled = Boolean(socketPath) || env.ZCODE_CUA_DRIVER_EMBEDDED === "1";
+  if (!enabled) return undefined;
+  const { runtime } = assembleComputerUseRuntime({
+    env,
+    socketPath,
+    probes: process.platform === "linux" ? probeGnomeEnvironment() : {},
+    connectDriver: (path) => connectCuaDriverSync(path) as never,
   });
+  return runtime;
 }
 
 function isWorkerCallData(value: unknown): value is WorkerCallData {

@@ -200,12 +200,16 @@ detect() →
 
 | 项 | 状态 |
 | --- | --- |
-| cua-driver 适配器 `createComputerUseRuntime` | 已实现（13/13 单测 + 真实 driver 验证） |
-| 老 GNOME 兼容层（legacy 扩展 + mutter） | 已验证路径，待按 `compatible/` 落地 |
-| 跨平台路由 `detect()` | 计划 |
-| Windows/macOS/Linux 原生路由 | 计划（P1–P2，见 runtime spec） |
+| cua-driver 适配器 `createComputerUseRuntime` | 已实现（单测 + 真实 driver 验证） |
+| 老 GNOME 兼容层（legacy 扩展 + mutter） | 已实现并验证（`compatible/`） |
+| 跨平台路由 `detect()` / `resolvePlatformPath()` | 已实现（纯函数 + 单测） |
+| 平台装配 `packages/zcode-cua/platform.js` | 已实现（Linux compat / macOS native / 缺 client fail-closed） |
+| host 接线 `captureComputerUseRuntimeFromEnvironment` | 已接入（按平台装配；driver 缺失保持 fail-closed） |
+| macOS TCC 归属 | 待做（嵌入宿主 ZCode.app） |
+| Windows 嵌入 / autostart | 由另一路负责 |
+| Linux 本机 UI 限制 | 已解锁（`local-linux` supported:true） |
 | KWin/KDE Wayland | **缺口**（等上游或另行论证） |
-| 三平台 E2E | 计划（P5） |
+| 三平台 E2E | 计划 |
 
 ## 10. 待定
 
