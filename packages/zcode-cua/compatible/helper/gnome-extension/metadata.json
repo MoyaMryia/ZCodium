@@ -1,0 +1,7 @@
+{
+  "uuid": "cua-winrects@local",
+  "name": "cua WinRects (GNOME 42 legacy port)",
+  "description": "Legacy GNOME 42 port of cua-driver's WinRects Shell helper. Exposes org.cua.WinRects (window geometry, verified activation, stage capture) so cua-driver can drive Mutter Wayland sessions.",
+  "shell-version": ["42", "43", "44"],
+  "version": 8
+}

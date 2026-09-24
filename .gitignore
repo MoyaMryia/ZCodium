@@ -87,3 +87,6 @@ packages/desktop/.e2e-network-capture/
 /ZCodium-*.AppImage
 /ZCodium-*.rpm
 /ZCodium-*.pkg.tar.zst
+
+# 误落仓库根的 favicon（真实资源在各包的 public/material-icons/ 下），不随主仓库入库。
+/favicon.svg

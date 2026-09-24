@@ -36,7 +36,19 @@ export function resolveBuiltInNodeReplMcpServers(input: {
     env: {
       // 领域 root 各自注入，且只在对应能力启用时注入：宿主据此决定哪一半文档可用。
       ...(browserUsePackage ? { ZCODE_PLUGIN_ROOT: browserUsePackage.rootPath } : {}),
-      ...(cuaPackage ? { ZCODE_CUA_PLUGIN_ROOT: cuaPackage.rootPath } : {}),
+      ...(cuaPackage
+        ? {
+            ZCODE_CUA_PLUGIN_ROOT: cuaPackage.rootPath,
+            // cua-driver 运行时开关（定向给官方 node_repl server，不进其它子进程）：
+            // Linux 用同进程 SDK；macOS 待嵌入宿主铸造 socket 后经 ZCODE_CUA_DRIVER_SOCKET 注入；
+            // Windows 由另一路负责。
+            ...(process.platform === "linux"
+              ? { ZCODE_CUA_DRIVER_EMBEDDED: "1" }
+              : process.platform === "darwin" && process.env.ZCODE_CUA_DRIVER_SOCKET?.trim()
+                ? { ZCODE_CUA_DRIVER_SOCKET: process.env.ZCODE_CUA_DRIVER_SOCKET.trim() }
+                : {}),
+          }
+        : {}),
     },
     rootPath: hostPackage.rootPath,
     timeoutMs: 600_000,

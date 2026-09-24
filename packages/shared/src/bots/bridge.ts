@@ -15,7 +15,7 @@ export const BOTS_BRIDGE_PATH = "/bots/bridge/v2" as const;
 const nonEmpty = z.string().trim().min(1);
 const timestampMs = z.number().int().nonnegative();
 
-/** 平台标识；由 AstrBot 插件上报，ZCodium 只做透传与绑定隔离。 */
+/** ZCodium 侧固定为 `astrbot`；插件用 id 前缀自行隔离真实平台，只做透传。 */
 export const botsBridgeChannelSchema = z.string().trim().min(1);
 export type BotsBridgeChannel = z.infer<typeof botsBridgeChannelSchema>;
 

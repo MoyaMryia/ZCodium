@@ -47,7 +47,7 @@
   （`packages/ui/src/v4/zcodiumWatermarkPath.ts`，由 `public/logo/watermark.png`
   的 alpha 描摹而来），以内联 SVG + `currentColor` 绘制。水印不得再退回位图蒙版：
   `mask-image` 指向 PNG 时，元素光栅化早于图片解码完成会只画出半截轮廓。
-  空态容器也不得继承消息层的遮罩：`ConversationTimeline` 的两个分支
+- 空态容器不得继承消息层的遮罩：`ConversationTimeline` 的两个分支
   （消息层 / 空态槽）必须各带自己的 `key`，否则 React 复用同一节点时会把
   `syncMessageLayerMask` 写下的内联遮罩留给空态，水印同样只剩半截。
 - Linux deep link 条目：`packages/desktop/src/main/desktopLinuxDeepLinkRegistration.ts` 拥有

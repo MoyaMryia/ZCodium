@@ -510,6 +510,9 @@ const zhCN: Record<string, string> = {
   "bots.astrbot.step.install": "安装 astrbot-zcodium-plugin 插件。",
   "bots.astrbot.step.configure": "把该文件里的 url、port、token 填入插件配置。",
   "bots.astrbot.step.bind": "在聊天里发送 /bind <绑定码> 完成绑定。",
+  "bots.astrbot.boundDescription": "已绑定 AstrBot 桥接；消息经官方 Bots 流程处理。",
+  "bots.astrbot.unboundDescription":
+    "安装并配置 astrbot-zcodium-plugin，然后生成绑定码完成绑定。",
   "bots.addBot": "新建机器人",
   "bots.addBinding": "添加新的绑定",
   "bots.setup.chooseBot": "选择机器人",
@@ -635,6 +638,7 @@ const zhCN: Record<string, string> = {
   "bots.channel.discord": "Discord",
   "bots.channel.wecom": "企业微信",
   "bots.channel.webhook": "Webhook",
+  "bots.channel.astrbot": "AstrBot",
   "bots.newBot.title": "新建机器人",
   "bots.newBot.chooseChannel": "选择渠道",
   "bots.newBot.description":
@@ -650,6 +654,8 @@ const zhCN: Record<string, string> = {
   "bots.newBot.providerDescription.webhook": "从你的系统接收入站回调，并可配置出站回复。",
   "bots.newBot.providerDescription.discord": "Discord 机器人集成规划中。",
   "bots.newBot.providerDescription.wecom": "企业微信机器人集成规划中。",
+  "bots.newBot.providerDescription.astrbot":
+    "通过 AstrBot 桥接插件接入，由 AstrBot 负责各聊天平台适配。",
   "bots.empty": "还没有配置机器人。",
   "bots.name": "机器人名称",
   "bots.provider": "渠道",
@@ -1634,6 +1640,9 @@ const zhCN: Record<string, string> = {
   "webRemoteControl.botChannel.lark.description": "从 Lark 打开这个工作区。",
   "webRemoteControl.botChannel.telegram.title": "Telegram",
   "webRemoteControl.botChannel.telegram.description": "从 Telegram 打开这个工作区。",
+  "webRemoteControl.botChannel.astrbot.title": "AstrBot",
+  "webRemoteControl.botChannel.astrbot.description":
+    "通过 AstrBot 打开的聊天平台访问这个工作区。",
   "webRemoteControl.botChannel.configure": "去 Bot Channels 配置",
   "webRemoteControl.botChannel.manageBots": "机器人管理",
   "remote.title": "连接远程环境",

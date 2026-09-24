@@ -7,12 +7,17 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "install:gnome-extension": "node compatible/helper/install-extension.mjs"
   },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "import": "./index.js"
+    },
+    "./platform": {
+      "types": "./platform.d.ts",
+      "import": "./platform.js"
     },
     "./frame-contract": {
       "types": "./frame-contract.d.ts",
@@ -25,6 +30,14 @@
     "./request-access-contract": {
       "types": "./request-access-contract.d.ts",
       "import": "./request-access-contract.js"
+    },
+    "./permissions": {
+      "types": "./permissions.d.ts",
+      "import": "./permissions.js"
+    },
+    "./driver-host": {
+      "types": "./driver-host.d.ts",
+      "import": "./driver-host.js"
     },
     "./pip-session": {
       "types": "./pip-session.d.ts",
@@ -58,5 +71,8 @@
       "types": "./broker-helper-health.d.ts",
       "import": "./broker-helper-health.js"
     }
+  },
+  "dependencies": {
+    "@trycua/cua-driver": "0.28.2"
   }
 }

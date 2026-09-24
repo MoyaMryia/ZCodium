@@ -12,16 +12,16 @@ type BotProviderEntry =
   | { id: BotProviderEntryId; label: string; implemented: false };
 
 export const BOT_PROVIDERS: BotProviderEntry[] = [
-  // 当前只启用 AstrBot 桥接；官方平台适配器代码保留，待后续与桥接统一后再开放。
+  // AstrBot 走官方 provider 化后的桥接；官方已实现适配器的平台同步开放。
   { id: "astrbot", label: "AstrBot", implemented: true },
-  { id: "weixin", label: "Weixin", implemented: false },
-  { id: "feishu", label: "Feishu", implemented: false },
-  { id: "lark", label: "Lark", implemented: false },
-  { id: "telegram", label: "Telegram", implemented: false },
+  { id: "weixin", label: "Weixin", implemented: true },
+  { id: "feishu", label: "Feishu", implemented: true },
+  { id: "lark", label: "Lark", implemented: true },
+  { id: "telegram", label: "Telegram", implemented: true },
   { id: "dingding", label: "DingTalk", implemented: false },
   { id: "discord", label: "Discord", implemented: false },
   { id: "wecom", label: "WeCom", implemented: false },
-  { id: "webhook", label: "Webhook", implemented: false },
+  { id: "webhook", label: "Webhook", implemented: true },
 ];
 
 export const BOT_REPLY_GRANULARITIES: Array<{
