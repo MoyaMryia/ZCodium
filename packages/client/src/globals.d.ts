@@ -27,7 +27,6 @@ import type {
   ApplicationIconInfo,
   ApplicationIconRequest,
   Locale,
-  OAuthStateRegistration,
   PostUpdateReleaseNotesPayload,
   RemoteConnectionRuntimeLog,
   RemoteSessionClosedEvent,
@@ -196,11 +195,6 @@ declare global {
       prepareCuaHelperPermissionDrag?(): Promise<PrepareCuaHelperPermissionDragResult>;
       /** 从权限浮窗拖拽 Helper.app 到 macOS 权限列表 */
       startCuaHelperPermissionDrag?(): void;
-      /** 上报 OAuth state 用于 deep link 路由 */
-      registerOAuthState(payload: OAuthStateRegistration): void;
-      /** 注册 OAuth deep link 回调，返回 disposer */
-      onOAuthCallback(cb: (url: string) => void): () => void;
-      /** 注册支付 deep link 回调，返回 disposer */
       /** 通知 main process renderer 已就绪 */
       notifyRendererReady(): void;
       /** 触发任务状态对应的系统通知 */

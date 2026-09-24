@@ -27,7 +27,6 @@ import type {
   DesktopTitleBarTheme,
   EmbeddedBrowserOpenUrlRequest,
   Locale,
-  OAuthStateRegistration,
   OpenInEditorOptions,
   RemoteTarget,
   TaskNotificationPayload,
@@ -51,7 +50,6 @@ import type {
   OpenCuaPermissionOnboardingOptions,
 } from "@zcode/shared";
 import { InternalChannels, PlatformChannels, formatZCodeRendererProcessName } from "@zcode/shared";
-import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 
 const updateReadyCallbacks = new Set<(version: string) => void>();
 const updateStateCallbacks = new Set<(payload: UpdateStatePayload) => void>();
@@ -538,20 +536,9 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 从权限浮窗拖拽 Helper.app 到 macOS 权限列表。必须是 send —— invoke 的往返会错过手势。 */
   startCuaHelperPermissionDrag: () =>
     ipcRenderer.send(PlatformChannels.StartCuaHelperPermissionDrag),
-  /** 上报 OAuth state 用于 deep link 路由 */
-  registerOAuthState: (payload: OAuthStateRegistration) =>
-    ipcRenderer.send(PlatformChannels.OAuthRegisterState, payload),
-  /** 注册 OAuth deep link 回调，返回 disposer */
-  onOAuthCallback: (cb: (url: string) => void): (() => void) => {
-    const handler = createOAuthCallbackHandler(cb);
-    ipcRenderer.on(PlatformChannels.OAuthCallback, handler);
-    return () => ipcRenderer.removeListener(PlatformChannels.OAuthCallback, handler);
-  },
-  /** 注册支付 deep link 回调，返回 disposer */
-
   /** 通知 main process renderer 已就绪 */
   notifyRendererReady: () => ipcRenderer.send(PlatformChannels.RendererReady),
-  /** 发送已结束 Span；使用 send 避免遥测往返阻塞业务。 */
+  /** 发送本地诊断记录；使用 send 避免 IPC 往返阻塞业务。 */
   reportDiagnostic: (record: import("@zcode/shared").DiagnosticRecordInput): void =>
     ipcRenderer.send(PlatformChannels.ReportDiagnostic, record),
   reportRendererHeapSample: (sample: import("@zcode/shared").RendererHeapSample): void =>

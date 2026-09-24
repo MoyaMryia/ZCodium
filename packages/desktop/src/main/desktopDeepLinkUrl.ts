@@ -1,35 +1,14 @@
 const DEEP_LINK_SCHEME = "zcode";
 const DEEP_LINK_RE = /\bzcode:(?:\/\/|\/)?[^\s"'<>]+/i;
-const OAUTH_CALLBACK_HOSTS = new Set(["oauth"]);
 const WORKSPACE_OPEN_HOST = "workspace";
 const DEEP_LINK_ADDITIONAL_DATA_KEY = "deepLinkUrl";
 const OPEN_WORKSPACE_ADDITIONAL_DATA_KEY = "openWorkspacePath";
 const OPEN_WORKSPACE_ARG = "--open-workspace";
 
-function normalizeOAuthCallbackPath(pathname: string): string {
+function normalizeDeepLinkPath(pathname: string): string {
   const withoutTrailingSlash = pathname.replace(/\/+$/, "");
   const normalized = withoutTrailingSlash === "" ? "/" : withoutTrailingSlash;
   return `/${normalized.replace(/^\/+/, "")}`;
-}
-
-export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
-    return false;
-  }
-
-  const normalizedPath = normalizeOAuthCallbackPath(parsedUrl.pathname);
-  if (OAUTH_CALLBACK_HOSTS.has(parsedUrl.hostname)) {
-    return normalizedPath === "/callback";
-  }
-
-  if (parsedUrl.hostname) {
-    return false;
-  }
-
-  const [, host, ...pathParts] = normalizedPath.split("/");
-  return Boolean(
-    host && OAUTH_CALLBACK_HOSTS.has(host) && `/${pathParts.join("/")}` === "/callback",
-  );
 }
 
 export function isWorkspaceOpenUrl(parsedUrl: URL): boolean {
@@ -37,7 +16,7 @@ export function isWorkspaceOpenUrl(parsedUrl: URL): boolean {
     return false;
   }
 
-  const normalizedPath = normalizeOAuthCallbackPath(parsedUrl.pathname);
+  const normalizedPath = normalizeDeepLinkPath(parsedUrl.pathname);
   if (parsedUrl.hostname === WORKSPACE_OPEN_HOST) {
     return normalizedPath === "/open";
   }
@@ -115,7 +94,14 @@ function buildArgCandidates(args: readonly string[]): string[] {
 function extractFromCandidate(value: string): string | null {
   const trimmed = value.trim().replace(/^["']|["']$/g, "");
   const match = trimmed.match(DEEP_LINK_RE);
-  return match?.[0].replace(/&amp;/gi, "&").replace(/\\([&=?:/])/g, "$1") ?? null;
+  const url = match?.[0].replace(/&amp;/gi, "&").replace(/\\([&=?:/])/g, "$1");
+  if (!url) return null;
+  try {
+    // 单实例转发只接收工作区入口，避免把旧登录凭据再次传给主进程。
+    return isWorkspaceOpenUrl(new URL(url)) ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 function isCompleteDeepLinkUrl(value: string): boolean {
@@ -126,15 +112,7 @@ function isCompleteDeepLinkUrl(value: string): boolean {
     return false;
   }
 
-  if (isOAuthCallbackUrl(parsedUrl)) {
-    return parsedUrl.searchParams.has("state");
-  }
-
-  if (isWorkspaceOpenUrl(parsedUrl)) {
-    return parsedUrl.searchParams.has("path");
-  }
-
-  return true;
+  return isWorkspaceOpenUrl(parsedUrl) && parsedUrl.searchParams.has("path");
 }
 
 export function extractDeepLinkUrlFromArgs(args: readonly string[]): string | null {
@@ -144,9 +122,9 @@ export function extractDeepLinkUrlFromArgs(args: readonly string[]): string | nu
     for (const candidate of expandDecodedDeepLinkCandidates(arg)) {
       const match = extractFromCandidate(candidate);
       if (match) {
-        // Debian/xdg 的协议回调可能被浏览器或桌面门户多次编码，
+        // Debian/xdg 的工作区链接可能被浏览器或桌面门户多次编码，
         // 也可能把 query 片段拆成相邻 argv。这里先生成有限候选再多轮解码，
-        // 避免浏览器确认“打开 ZCode”后主进程拿不到完整回调 URL。
+        // 避免浏览器确认“打开 ZCode”后主进程拿不到完整工作区 URL。
         if (isCompleteDeepLinkUrl(match)) {
           return match;
         }

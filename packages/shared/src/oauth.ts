@@ -58,96 +58,12 @@ export type OAuthProviderId =
   | typeof ZAI_PROVIDER_ID
   | (string & { readonly __oauthProviderBrand?: never });
 
-/** Provider 展示元信息 */
-export interface OAuthProviderMeta {
-  id: OAuthProviderId;
-  displayName: string;
-  enabled: boolean;
-  order: number;
-}
-
-/** 发起 OAuth 请求 */
-export interface OAuthStartRequest {
-  provider: OAuthProviderId;
-}
-
-/** 发起 OAuth 返回 */
-export interface OAuthStartResponse {
-  provider: OAuthProviderId;
-  authorizeUrl: string;
-  state: string;
-}
-
-/** 应用登录回调结果 */
-export interface OAuthSessionCallbackResult {
-  kind: "session";
-  provider: OAuthProviderId;
-  userInfo: {
-    id: string;
-    username: string;
-    displayName: string;
-    avatarUrl?: string;
-  };
-}
-
-/** 只携带归因参数的 OAuth deep link 回调结果 */
-export interface OAuthAttributionCallbackResult {
-  kind: "attribution";
-  provider: OAuthProviderId;
-  attribution: OAuthLoginAttribution;
-}
-
-/** 同一登录已由 polling 完成后迟到的 deep link；调用方只需忽略。 */
-export interface OAuthDuplicateCallbackResult {
-  kind: "duplicate";
-  provider: OAuthProviderId;
-}
-
-/** OAuth 回调归一化结果 */
-export type OAuthCallbackResult =
-  | OAuthSessionCallbackResult
-  | OAuthAttributionCallbackResult
-  | OAuthDuplicateCallbackResult;
-
-/** Main 进程路由 deep link 时使用的 state 上报结构 */
-export interface OAuthStateRegistration {
-  state: string;
-  provider?: OAuthProviderId;
-}
-
-/** 归一化后的回调参数 */
-export interface OAuthCallbackParams {
-  state: string;
-  code: string;
-  attribution?: OAuthLoginAttribution;
-}
-
-/** OAuth 登录归因参数：来自官网中转页或投放链接 */
-export interface OAuthLoginAttribution {
-  channel_id?: string;
-  utm_source?: string;
-  utm_campaign?: string;
-}
-
-/** 归一化 token 结构 */
-export interface OAuthTokenSet {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-  zcodeJwtToken?: string;
-}
-
 export interface UserInfo {
   id: string;
   username: string;
   displayName: string;
   avatarUrl?: string;
 }
-
-export type OAuthCachedSessionRestoreResult =
-  | { status: "authenticated"; userInfo: UserInfo }
-  | { status: "signed-out" }
-  | { status: "reauthentication-required"; reason: "jwt-expired" };
 
 export type JwtExpirationResult =
   | { kind: "valid"; expiresAt: number }
@@ -186,15 +102,3 @@ export function resolveJwtExpiration(
     return { kind: "unknown" };
   }
 }
-
-/** 归一化用户信息 */
-export interface OAuthUserProfile {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  rawProfile?: unknown;
-}
-
-/** 登出范围 */
-export type OAuthLogoutScope = "active" | "all";
