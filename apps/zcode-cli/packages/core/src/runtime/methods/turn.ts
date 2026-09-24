@@ -269,7 +269,7 @@ export async function executeTurnCommand(
       turnMachine = new TurnMachineImpl(turnMachine.start());
       phaseStartedAt = startTurnPhase("session_persistence");
       await this.ensureSessionPersisted(displayInput, turnTraceContext);
-      // execution-scoped 临时 Provider（例如闲时任务）拥有本轮自己的模型，不改写
+      // execution-scoped 临时 Provider拥有本轮自己的模型，不改写
       // Session Selection；普通 Submission 才在真正开跑时应用其原子选择。
       const submissionModel = await applySubmissionExecutionState(
         this,
@@ -299,14 +299,7 @@ export async function executeTurnCommand(
           input: displayInput,
           messageId: userMessageId,
           inputId: options?.inputId,
-          ...(options?.automationId
-            ? { automationId: options.automationId }
-            : options?.offPeakTaskId
-              ? {
-                  offPeakTaskId: options.offPeakTaskId,
-                  ...(options.offPeakRunType ? { offPeakRunType: options.offPeakRunType } : {}),
-                }
-              : {}),
+          ...(options?.automationId ? { automationId: options.automationId } : {}),
           foregroundExecutionId: this.activeForegroundExecution?.foregroundExecutionId,
           queryId,
           inputSource: options?.inputSource,
@@ -547,8 +540,7 @@ export async function executeTurnCommand(
         loopState = {
           activeTurn,
           ...(options?.automationId ? { automationId: options.automationId } : {}),
-          // 闲时派发轮的身份进入 loop state，供工具执行边界 deny OffPeakCreate。
-          ...(options?.offPeakTaskId ? { offPeakTaskId: options.offPeakTaskId } : {}),
+
           anomalyWarningsInjected: 0,
           backgroundSubagentResultConsumed: options?.backgroundSubagentResultConsumed === true,
           workflowResultConsumed: options?.workflowResultConsumed === true,

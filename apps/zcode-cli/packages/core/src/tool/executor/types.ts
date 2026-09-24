@@ -161,7 +161,6 @@ export interface ToolExecutor {
 
 export interface ToolExecuteOptions {
   automationTurn?: boolean;
-  offPeakTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;
   subagentModelOverride?: SubagentRunOptions["modelOverride"];

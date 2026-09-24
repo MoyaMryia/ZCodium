@@ -600,7 +600,7 @@ export interface ZCodeApp {
     modelId: string | ModelSelection,
     options?: {
       /**
-       * per-turn（off-peak idle plan）：true = 仅切运行态——不写磁盘模型选择、
+       * per-turn 临时模型选择：true = 仅切运行态——不写磁盘模型选择、
        * 不产出 modelChange 聊天通知。用于 turn 级临时切换（应用/还原成对出现）。
        */
       transient?: boolean;

@@ -1698,6 +1698,20 @@ export const zcodeBrowserAmbientContextSchema = z
   .strict();
 export type ZCodeBrowserAmbientContext = z.infer<typeof zcodeBrowserAmbientContextSchema>;
 
+// 旧 RPC 调用方可能绕过 TypeScript；先拒绝退休字段，再做 Host→Agent 参数投影，
+// 否则投影丢掉闲时身份后，旧派发会静默变成使用个人模型的普通输入。
+const retiredIdleExecutionGuardSchema = z
+  .object({
+    offPeakTaskId: z.never().optional(),
+    offPeakRunType: z.never().optional(),
+    modelExecution: modelExecutionSchema.optional(),
+  })
+  .passthrough();
+
+export function assertNoRetiredIdleExecution(input: unknown): void {
+  retiredIdleExecutionGuardSchema.parse(input);
+}
+
 export const zcodeSessionSendParamsSchema = z
   .object({
     sessionId: nonEmptyString,
@@ -1711,25 +1725,17 @@ export const zcodeSessionSendParamsSchema = z
     expectedRevision: z.number().int().nonnegative().optional(),
     expectedProviderRevision: nonEmptyString.optional(),
     automationId: nonEmptyString.optional(),
-    offPeakTaskId: nonEmptyString.optional(),
-    offPeakRunType: z.enum(["init", "resume"]).optional(),
     botDeliveryTarget: zcodeAutomationBotDeliveryTargetSchema.optional(),
     toolDenylist: z.array(nonEmptyString).optional(),
   })
   .strict()
   .superRefine((payload, context) => {
-    if (payload.automationId && payload.offPeakTaskId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "automationId and offPeakTaskId are mutually exclusive",
-      });
-    }
-    if (payload.offPeakRunType && !payload.offPeakTaskId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "offPeakRunType requires offPeakTaskId",
-        path: ["offPeakRunType"],
-      });
+    // 退休派发的前缀/哨兵不能静默退化为普通输入并使用个人模型。
+    if (
+      [payload.inputId, payload.queryId].some((id) => id?.trim().startsWith("offpeak-")) ||
+      payload.toolDenylist?.includes("OffPeakCreate")
+    ) {
+      context.addIssue({ code: "custom", message: "Idle-time execution is no longer supported" });
     }
     if (payload.modelExecution && !payload.modelSelection) {
       context.addIssue({

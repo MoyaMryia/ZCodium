@@ -106,8 +106,6 @@ export interface ZCodeProtocolSessionRecord {
   residencyFinalizationCount?: number;
   /** 当前正在执行的 automation 派发 turn；只在 turn 运行期间存在，禁止递归 CronCreate。 */
   activeAutomationId?: string;
-  /** 当前正在执行的闲时派发 turn；只在 turn 运行期间存在，禁止递归 OffPeakCreate。 */
-  activeOffPeakTaskId?: string;
   /** 当前 Bot 入站 turn 的稳定回推地址；只允许 CronCreate 在本轮读取。 */
   activeBotDeliveryTarget?: ZCodeAutomationBotDeliveryTarget;
   restoreWarning?: { message: string; type: string };

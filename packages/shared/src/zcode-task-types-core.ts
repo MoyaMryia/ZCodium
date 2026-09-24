@@ -148,17 +148,8 @@ export interface ZCodeTaskGoalChangedPatch {
 
 export type ZCodeTaskMode = "yolo" | "plan" | "edit" | "auto" | "autoEdit" | "build";
 
-export type ZCodeOffPeakRunType = "init" | "resume";
-
-/** 单个自动输入轮的来源归因；两种后台业务身份禁止同时存在。 */
-export type ZCodeBackgroundTurnAttribution =
-  | { automationId: string; offPeakTaskId?: never; offPeakRunType?: never }
-  | {
-      offPeakTaskId: string;
-      offPeakRunType?: ZCodeOffPeakRunType;
-      automationId?: never;
-    }
-  | { automationId?: undefined; offPeakTaskId?: undefined; offPeakRunType?: never };
+/** 本轮定时任务归因，不改变历史会话所属关系。 */
+export type ZCodeBackgroundTurnAttribution = { automationId?: string };
 /** 当前 workspace 下任务的运行时状态 */
 export type ZCodeTaskRuntimeStatus =
   | "idle"

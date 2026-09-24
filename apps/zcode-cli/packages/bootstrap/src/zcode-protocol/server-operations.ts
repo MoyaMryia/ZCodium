@@ -1991,14 +1991,7 @@ export async function sendPrompt(context: ZCodeProtocolAgentServerContext, rawPa
         : undefined,
       queryId: (params.queryId ?? inputId) as QueryId | undefined,
       content: params.content,
-      ...(params.automationId
-        ? { automationId: params.automationId }
-        : params.offPeakTaskId
-          ? {
-              offPeakTaskId: params.offPeakTaskId,
-              ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-            }
-          : {}),
+      ...(params.automationId ? { automationId: params.automationId } : {}),
       toolDenylist: params.toolDenylist,
       botDeliveryTarget: params.botDeliveryTarget,
     }),
@@ -2385,24 +2378,14 @@ async function runPromptTurnInBackground(
   });
   let mutationReason = "prompt_completed";
   const previousAutomationId = record.activeAutomationId;
-  const previousOffPeakTaskId = record.activeOffPeakTaskId;
   const previousBotDeliveryTarget = record.activeBotDeliveryTarget;
   const activeAutomationId = resolvePromptTurnAutomationId(params);
-  const activeOffPeakTaskId = resolvePromptTurnOffPeakTaskId(params);
-  const turnToolDisallowlist = buildPromptTurnToolDisallowlist(
-    params,
-    activeAutomationId,
-    activeOffPeakTaskId,
-  );
+  const turnToolDisallowlist = buildPromptTurnToolDisallowlist(params, activeAutomationId);
   if (activeAutomationId) {
     // 附件输入仍走旧 session/send；automation 派发可能漏传 automationId，
     // 但 inputId 会保留 automation-* runId。这里兜底标记，避免 CronCreate 在绑定 active
     // 会话里递归创建定时任务。
     record.activeAutomationId = activeAutomationId;
-  }
-  if (activeOffPeakTaskId) {
-    // 官方派发链退休前保留闲时轮标记，供 runtime 限制跨模型的子 Agent 恢复。
-    record.activeOffPeakTaskId = activeOffPeakTaskId;
   }
   record.activeBotDeliveryTarget = params.botDeliveryTarget;
   try {
@@ -2418,14 +2401,7 @@ async function runPromptTurnInBackground(
         browserAmbientContext: params.browserAmbientContext,
         inputId: params.inputId,
         queryId: params.queryId,
-        ...(params.automationId
-          ? { automationId: params.automationId }
-          : params.offPeakTaskId
-            ? {
-                offPeakTaskId: params.offPeakTaskId,
-                ...(params.offPeakRunType ? { offPeakRunType: params.offPeakRunType } : {}),
-              }
-            : {}),
+        ...(params.automationId ? { automationId: params.automationId } : {}),
         // legacy session/send 同样可能复用 active runtime；只做 port 拒绝时模型仍看得到
         // CronCreate，并可能在失败后改调 CronDelete。automation turn 与 cron task 会话后续输入
         // 都直接从本轮 provider 工具面移除。
@@ -2468,7 +2444,6 @@ async function runPromptTurnInBackground(
       });
     }
     record.activeAutomationId = previousAutomationId;
-    record.activeOffPeakTaskId = previousOffPeakTaskId;
     // Bug 原因：legacy record 会跨 turn 复用；必须恢复 Bot 地址，避免后续普通 UI turn
     // 创建的定时任务错误继承上一轮 Bot 会话。
     record.activeBotDeliveryTarget = previousBotDeliveryTarget;
@@ -2479,20 +2454,13 @@ async function runPromptTurnInBackground(
 function buildPromptTurnToolDisallowlist(
   params: {
     automationId?: string;
-    offPeakTaskId?: string;
     inputId?: string;
     toolDenylist?: readonly string[];
   },
   activeAutomationId = params.automationId,
-  activeOffPeakTaskId = params.offPeakTaskId,
 ): readonly string[] | undefined {
   const tools = new Set(params.toolDenylist ?? []);
   if (activeAutomationId) tools.add("CronCreate");
-  // 官方派发链退休前保留 SendMessage/Workflow 隔离；OffPeakCreate 仅是旧 Host 的轮次哨兵。
-  // SendMessage / Workflow 同样隐藏，与 V4 prompt-turn 及 core turn-loop-state 同值。
-  if (activeOffPeakTaskId) {
-    for (const toolName of ["OffPeakCreate", "SendMessage", "Workflow"]) tools.add(toolName);
-  }
   return tools.size > 0 ? [...tools] : undefined;
 }
 
@@ -2507,21 +2475,6 @@ function resolvePromptTurnAutomationId(params: {
   const separatorIndex = inputId.indexOf(":");
   const automationId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
   return automationId.length > "automation-".length ? automationId : undefined;
-}
-
-function resolvePromptTurnOffPeakTaskId(params: {
-  offPeakTaskId?: string;
-  inputId?: string;
-}): string | undefined {
-  const explicit = params.offPeakTaskId?.trim();
-  if (explicit) return explicit;
-  // 兜底：续跑派发的 inputId 形如 `offpeak-<uuid>:resume:<uuid>`（首段 traceId 无固定前缀，
-  // 主信号必须是显式 offPeakTaskId）。
-  const inputId = params.inputId?.trim();
-  if (!inputId?.startsWith("offpeak-")) return undefined;
-  const separatorIndex = inputId.indexOf(":");
-  const offPeakTaskId = separatorIndex >= 0 ? inputId.slice(0, separatorIndex) : inputId;
-  return offPeakTaskId.length > "offpeak-".length ? offPeakTaskId : undefined;
 }
 
 async function continueGoalAfterChange(

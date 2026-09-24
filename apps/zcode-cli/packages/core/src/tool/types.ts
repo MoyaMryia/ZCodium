@@ -127,8 +127,6 @@ export interface ToolExecutionContext {
   toolCallId: string;
   /** 当前工具调用是否属于 automation 派发轮；写工具 handler 用它做最终权限校验。 */
   automationTurn?: boolean;
-  /** 当前工具调用是否属于闲时派发轮；限制子 Agent 恢复绕出本轮模型边界。 */
-  offPeakTurn?: boolean;
   traceContext?: TraceContext;
   traceId: TraceId;
   spanId?: string;

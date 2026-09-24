@@ -54,7 +54,7 @@ test("V4 session creation strips a retired idle-time tool flag", () => {
   assert.equal(Object.hasOwn(result, "offPeakToolEnabled"), false);
 });
 
-test("remaining idle-time dispatch cannot resume a child through a different model boundary", async () => {
+test("SendMessage uses its ordinary child port without retired idle execution context", async () => {
   const registry = new ToolRegistryImpl();
   registerBuiltInTools(registry, { includeSendMessage: true });
   let sent = 0;
@@ -65,7 +65,6 @@ test("remaining idle-time dispatch cannot resume a child through a different mod
     sessionId: "fixture-session",
     turnId: "fixture-turn",
     traceId: "fixture-trace",
-    offPeakTurn: true,
     subagentPort: {
       async sendMessage() {
         sent++;
@@ -73,11 +72,6 @@ test("remaining idle-time dispatch cannot resume a child through a different mod
       },
     },
   };
-  await assert.rejects(
-    entry.handler(input, context),
-    /not allowed while running an idle-time task/,
-  );
-  assert.equal(sent, 0);
-  assert.equal((await entry.handler(input, { ...context, offPeakTurn: false })).success, true);
+  assert.equal((await entry.handler(input, context)).success, true);
   assert.equal(sent, 1);
 });

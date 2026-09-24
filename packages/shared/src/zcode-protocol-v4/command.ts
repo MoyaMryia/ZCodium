@@ -94,31 +94,21 @@ export const commandPayloadSchemas = {
       modelSelection: modelSelectionSchema.optional(),
       mode: submissionModeSchema.optional(),
       planEnabled: z.boolean().optional(),
-      // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义、动态鉴权和 child 策略。
-      // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
+      // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义和 child 策略。
+      // 仅空闲时 startNow 接受，不进入普通 CommandInbox 持久队列。
       modelExecution: modelExecutionSchema.optional(),
       automationId: z.string().min(1).optional(),
-      offPeakTaskId: z.string().min(1).optional(),
-      offPeakRunType: z.enum(["init", "resume"]).optional(),
       // Bot 来源只由 Host 注入，用于 CronCreate 在当前 turn 内读取并持久化回推地址。
       botDeliveryTarget: zcodeAutomationBotDeliveryTargetSchema.optional(),
       // 定时任务会话的后续用户输入也必须保持 turn-scoped 工具面隔离；不能借用
       // automationId，否则会把普通用户输入误标成一次 automation 派发。
       toolDisallowlist: z.array(z.string().min(1)).optional(),
     })
+    .strict()
     .superRefine((payload, context) => {
-      if (payload.automationId && payload.offPeakTaskId) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "automationId and offPeakTaskId are mutually exclusive",
-        });
-      }
-      if (payload.offPeakRunType && !payload.offPeakTaskId) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "offPeakRunType requires offPeakTaskId",
-          path: ["offPeakRunType"],
-        });
+      // 旧闲时哨兵不能被当成普通用户输入执行。
+      if (payload.toolDisallowlist?.includes("OffPeakCreate")) {
+        context.addIssue({ code: "custom", message: "Idle-time execution is no longer supported" });
       }
       if (payload.modelExecution && !payload.modelSelection) {
         context.addIssue({
@@ -338,6 +328,19 @@ export function parseCommandEnvelope(
 ): { ok: true; envelope: CommandEnvelope } | { ok: false; error: z.ZodError } {
   const envelope = commandEnvelopeSchema.safeParse(value);
   if (!envelope.success) return { ok: false, error: envelope.error };
+  // 旧 Host 仅携带续跑 commandId 时也必须拒绝，不能退化为自配模型执行。
+  if (envelope.data.type === "sendText" && envelope.data.commandId.trim().startsWith("offpeak-")) {
+    return {
+      ok: false,
+      error: new z.ZodError([
+        {
+          code: "custom",
+          path: ["commandId"],
+          message: "Idle-time execution is no longer supported",
+        },
+      ]),
+    };
+  }
   const payload = commandPayloadSchemas[envelope.data.type].safeParse(envelope.data.payload);
   if (!payload.success) return { ok: false, error: payload.error };
   if (

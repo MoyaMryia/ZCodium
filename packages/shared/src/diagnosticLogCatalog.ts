@@ -3204,7 +3204,6 @@ export const diagnosticModules: readonly string[] = [
   "apps/zcode-cli/packages/core/src/tool/handlers/model-reference.ts",
   "apps/zcode-cli/packages/core/src/tool/handlers/node-repl-model-content.ts",
   "apps/zcode-cli/packages/core/src/tool/handlers/node-repl.ts",
-  "apps/zcode-cli/packages/core/src/tool/handlers/off-peak-turn-policy.ts",
   "apps/zcode-cli/packages/core/src/tool/handlers/plan-mode-prompts.ts",
   "apps/zcode-cli/packages/core/src/tool/handlers/plan-mode.ts",
   "apps/zcode-cli/packages/core/src/tool/handlers/read-image.ts",

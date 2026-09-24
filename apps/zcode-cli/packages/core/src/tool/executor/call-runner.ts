@@ -341,7 +341,6 @@ async function executeToolCallImpl(
       toolCallId: canonicalToolCall.id,
 
       automationTurn: options?.automationTurn,
-      offPeakTurn: options?.offPeakTurn,
       traceContext,
       traceId,
       spanId: traceContext.spanId,

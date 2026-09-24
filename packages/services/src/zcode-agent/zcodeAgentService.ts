@@ -1,3 +1,4 @@
+import { assertNoRetiredIdleExecution } from "@zcode/shared";
 import {
   DiagnosticRecordSchema,
   ZCODE_USER_DATA_DIR_NAME,
@@ -104,10 +105,7 @@ import {
   type ZCodeTaskMode,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
-import {
-  mergeAutomationMutationToolDenylist,
-  mergeOffPeakMutationToolDenylist,
-} from "#src/zcode-agent/automationToolPolicy.js";
+import { mergeAutomationMutationToolDenylist } from "#src/zcode-agent/automationToolPolicy.js";
 import { ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./zcodeAgent.js";
 import type {
   ZCodeProtocolRequestId,
@@ -339,8 +337,6 @@ type SessionResumeCompatField =
 type SessionSendCompatField =
   | "browserAmbientContext"
   | "automationId"
-  | "offPeakTaskId"
-  | "offPeakRunType"
   | "botDeliveryTarget"
   | "toolDenylist";
 
@@ -367,8 +363,6 @@ const SESSION_RESUME_OPTIONAL_COMPAT_FIELDS = new Set<SessionResumeCompatField>(
 const SESSION_SEND_OPTIONAL_COMPAT_FIELDS = new Set<SessionSendCompatField>([
   "browserAmbientContext",
   "automationId",
-  "offPeakTaskId",
-  "offPeakRunType",
   "botDeliveryTarget",
   "toolDenylist",
 ]);
@@ -683,12 +677,6 @@ function buildSessionSendParams(
     expectedProviderRevision: params.expectedProviderRevision,
     ...(params.automationId !== undefined && !omittedFields.has("automationId")
       ? { automationId: params.automationId }
-      : {}),
-    ...(params.offPeakTaskId !== undefined && !omittedFields.has("offPeakTaskId")
-      ? { offPeakTaskId: params.offPeakTaskId }
-      : {}),
-    ...(params.offPeakRunType !== undefined && !omittedFields.has("offPeakRunType")
-      ? { offPeakRunType: params.offPeakRunType }
       : {}),
     ...(params.botDeliveryTarget !== undefined && !omittedFields.has("botDeliveryTarget")
       ? { botDeliveryTarget: params.botDeliveryTarget }
@@ -2615,16 +2603,6 @@ export function createZCodeAgentService(
         },
       };
     }
-    if (payload.offPeakTaskId) {
-      // 官方派发链退休前保留旧 denylist 哨兵，CLI 用它兼容识别隔离轮次。
-      return {
-        ...envelope,
-        payload: {
-          ...payload,
-          toolDisallowlist: mergeOffPeakMutationToolDenylist(payload.toolDisallowlist ?? []),
-        },
-      };
-    }
     return envelope;
   }
 
@@ -3680,6 +3658,7 @@ export function createZCodeAgentService(
     },
 
     async sendPrompt(params: ZCodeAgentSendPromptParams) {
+      assertNoRetiredIdleExecution(params);
       const startedAt = Date.now();
       const client = await getClient(params);
       const sessionTraceId = params.sessionTraceId?.trim() || getSessionTraceId(params);

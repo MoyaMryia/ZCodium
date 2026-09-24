@@ -692,7 +692,6 @@ export interface PermissionDecisionResult {
 
 export interface ExecuteToolsOptions {
   automationTurn?: boolean;
-  offPeakTurn?: boolean;
   signal?: AbortSignal;
   traceContext?: TraceContext;
   /** 仅透传给当前 turn 同步等待的 Agent child。 */
