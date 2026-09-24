@@ -15,10 +15,6 @@ export interface BigModelTeamPlanApiKeySummary {
   name?: string | null;
 }
 
-interface BigModelTeamPlanApiKeySecret {
-  secretKey?: string | null;
-}
-
 interface BigModelBizEnvelope<T> {
   code?: number;
   msg?: string;
@@ -52,7 +48,7 @@ export interface BigModelBizEnvelopeDiagnostics {
   success: boolean | null;
 }
 
-export function createBigModelBizHeaders(
+function createBigModelBizHeaders(
   authorization: string,
   teamContext?: BigModelTeamPlanBizContext | null,
 ): Record<string, string> {
@@ -83,17 +79,6 @@ function isUsableBigModelTeamPlanApiKey(item: BigModelTeamPlanApiKeySummary): bo
     item.keyType === BIGMODEL_TEAM_PLAN_API_KEY_TYPE &&
     Boolean(item.apiKey?.trim())
   );
-}
-
-export async function ensureBigModelTeamPlanProjectApiKey(params: {
-  apiClient: ApiClient;
-  authorization: string;
-  host: string;
-  teamContext: BigModelTeamPlanBizContext;
-  timeoutMs: number;
-}): Promise<BigModelTeamPlanApiKeySummary | null> {
-  const result = await ensureBigModelTeamPlanProjectApiKeyWithStatus(params);
-  return result.apiKey;
 }
 
 export async function ensureBigModelTeamPlanProjectApiKeyWithStatus(params: {
@@ -155,31 +140,6 @@ export async function ensureBigModelTeamPlanProjectApiKeyWithStatus(params: {
     },
     status: createdApiKey ? "created" : "missing",
   };
-}
-
-export async function copyBigModelTeamPlanProjectApiKeySecret(params: {
-  apiClient: ApiClient;
-  authorization: string;
-  apiKey: string;
-  host: string;
-  teamContext: BigModelTeamPlanBizContext;
-  timeoutMs: number;
-}): Promise<string | null> {
-  const copyPayload = await readApiJson<BigModelBizEnvelope<BigModelTeamPlanApiKeySecret>>(
-    params.apiClient,
-    `${buildBigModelTeamPlanApiKeysUrl(params.host, params.teamContext)}/copy/${encodeURIComponent(
-      params.apiKey,
-    )}`,
-    {
-      method: "GET",
-      timeoutMs: params.timeoutMs,
-      headers: createBigModelBizHeaders(params.authorization, params.teamContext),
-    },
-  );
-  const secretKey = isSuccessfulBigModelBizEnvelope(copyPayload)
-    ? (copyPayload.data?.secretKey?.trim() ?? "")
-    : "";
-  return secretKey || null;
 }
 
 function buildBigModelTeamPlanApiKeysUrl(
