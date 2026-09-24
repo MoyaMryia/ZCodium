@@ -68,7 +68,7 @@ import {
   type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
 } from "@zcode/services/node";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHostResourceUsageResponder } from "./hostResourceUsage.js";
 import { startBotsBridgeServer, type BotsBridgeServerHandle } from "./botsBridgeServer.js";
@@ -1872,6 +1872,40 @@ function disposeLocalResourceTelemetry(): void {
 
 const BOTS_BRIDGE_TOKEN_KEY = "bot:bridge:token";
 const BOTS_BRIDGE_RUNTIME_FILE = "bots-bridge.runtime.v2.json";
+const BOTS_BRIDGE_LEGACY_CONFIG_FILE = "bots-bridge.v2.json";
+const BOTS_BRIDGE_LEGACY_BINDINGS_FILE = "bots-bindings.v2.json";
+
+/**
+ * v2.0 → v2.1 迁移：读一次旧桥接配置（enabled/allowedWorkspaces），
+ * 随后把旧配置/绑定文件备份为 .bak。会话/绑定不迁移（见 spec 迁移边界）。
+ */
+async function readLegacyBotsBridgeConfig(): Promise<{
+  enabled: boolean;
+  allowedWorkspaces: string[];
+} | null> {
+  const dir = getAppConfigDir();
+  let legacy: { enabled?: unknown; allowedWorkspaces?: unknown } | null = null;
+  try {
+    legacy = JSON.parse(await readFile(join(dir, BOTS_BRIDGE_LEGACY_CONFIG_FILE), "utf-8"));
+  } catch {
+    legacy = null;
+  }
+  for (const name of [BOTS_BRIDGE_LEGACY_CONFIG_FILE, BOTS_BRIDGE_LEGACY_BINDINGS_FILE]) {
+    await rename(join(dir, name), join(dir, `${name}.bak`)).catch(() => undefined);
+  }
+  if (!legacy) {
+    return null;
+  }
+  const allowedWorkspaces = Array.isArray(legacy.allowedWorkspaces)
+    ? legacy.allowedWorkspaces.filter(
+        (value): value is string => typeof value === "string" && value.trim().length > 0,
+      )
+    : [];
+  return {
+    enabled: legacy.enabled !== false,
+    allowedWorkspaces: allowedWorkspaces.length > 0 ? allowedWorkspaces : ["*"],
+  };
+}
 
 let activeBotsBridge: {
   attachment: { dispose(): void };
@@ -1890,6 +1924,7 @@ async function startBotsBridge(services: ServiceCollection): Promise<void> {
     return;
   }
   // 确保存在一个 astrbot BotConfig（首次启动时创建默认项）。
+  const legacy = await readLegacyBotsBridgeConfig();
   let bot = (await botsService.getConfig()).bots.find((item) => item.provider === "astrbot");
   if (!bot) {
     bot = await botsService.saveBot({
@@ -1897,8 +1932,8 @@ async function startBotsBridge(services: ServiceCollection): Promise<void> {
         id: `astrbot-${randomUUID()}`,
         name: "AstrBot",
         provider: "astrbot",
-        enabled: true,
-        allowedWorkspaces: ["*"],
+        enabled: legacy?.enabled ?? true,
+        allowedWorkspaces: legacy?.allowedWorkspaces ?? ["*"],
         allowedCommands: { ...DEFAULT_BOT_COMMANDS },
         currentOptions: {},
         replyMode: DEFAULT_BOT_REPLY_GRANULARITY,
