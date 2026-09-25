@@ -1,0 +1,96 @@
+name: macOS Desktop Build
+
+# 只做一件事：在 GitHub 托管的 macOS runner 上打出 arm64 的 .dmg / .zip 并上传为 artifact。
+# 不触碰 scripts/ci/desktop-release.mjs（它的产物白名单只认 linux/win），
+# 因此和上游同步不会冲突，也不会创建 Release。
+#
+# 上游打包链路在 electron-builder.config.js 的 beforePack/afterPack 里无条件校验
+# packages/desktop/bundled-remote-assets/（verifyBundledRemoteAssets），
+# ZCODE_SKIP_REMOTE_ASSETS=1 只是不重复构建、并不能绕过校验，所以照上游 desktop.yml
+# 的两段式结构：ubuntu 上的 remote-assets job 生产 Linux x64 远端运行时并上传 artifact，
+# macOS 打包 job 下载同一份制品后再打包。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: "0"
+  ZCODE_ENV: production
+  ZCODE_SKIP_REMOTE_ASSETS: "1"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+
+jobs:
+  remote-assets:
+    name: Bundled Linux remote runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # 必须覆盖成 linux/x64：prepare:remote-assets 会按 ZCODE_TARGET_OS/ARCH 解析目标平台
+    # （scripts/prepare-native-search-tools.mjs、packages/desktop/scripts/target-platform.mjs），
+    # 用 mac/arm64 会产出与生产端不一致的制品。
+    env:
+      ZCODE_TARGET_OS: linux
+      ZCODE_TARGET_ARCH: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - name: Build remote components from source
+        run: pnpm prepare:remote-assets
+      - name: Verify native remote runtime
+        run: node scripts/ci/remote-assets-smoke.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: bundled-remote-linux-x64
+          path: packages/desktop/bundled-remote-assets/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  build:
+    name: Build (mac arm64)
+    needs: remote-assets
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      ZCODE_TARGET_OS: mac
+      ZCODE_TARGET_ARCH: arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-workspace
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: bundled-remote-linux-x64
+          path: packages/desktop/bundled-remote-assets
+      - name: Verify bundled remote components
+        run: node scripts/bundle-remote-assets.mjs verify
+      - name: Prepare desktop runtime
+        run: pnpm prepare:desktop-runtime
+      - name: Build workspace and desktop
+        run: pnpm build:bootstrap
+      - name: Package desktop (macOS arm64)
+        run: pnpm bundle:desktop -- --os mac --arch arm64 --skip-prepare --skip-build
+      - name: List built artifacts
+        run: ls -lh packages/desktop/dist/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: zcodium-macos-arm64
+          path: |
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
