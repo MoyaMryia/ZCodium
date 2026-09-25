@@ -4,10 +4,10 @@ import {
   mintBrokerSocketPath,
   probeHelperHealth,
   type HelperHealth,
-} from "@zcode/zcode-cua/broker";
+} from "@zcode/zcode-cua/helper-transport";
 // Contract constants are single-sourced from the producer package: locally re-declared literals here had drifted risk — a rename in the
 // producer would silently orphan these. Kept as aliases for existing callers.
-import { HELPER_ADDON_ENV, WINDOWS_DEV_CONTROL_PROTOCOL } from "@zcode/zcode-cua/broker/server";
+import { HELPER_ADDON_ENV, WINDOWS_DEV_CONTROL_PROTOCOL } from "@zcode/zcode-cua/helper-transport";
 
 import type { ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { WindowsCuaRuntime } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";

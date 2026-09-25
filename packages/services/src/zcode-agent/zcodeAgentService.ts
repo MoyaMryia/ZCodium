@@ -291,10 +291,8 @@ import {
 } from "./zcodeAgentBrowserAmbientContext.js";
 import {
   createCuaOperationTurnTracker,
-  type CuaOperationWorkspaceTarget,
   type CuaOperationStateReporter,
 } from "./cuaOperationTurnTracker.js";
-import type { PipSessionEvent } from "@zcode/zcode-cua/pip-session";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 
 const logger = createServiceLogger("zcode-agent-service");
@@ -839,10 +837,6 @@ interface CreateZCodeAgentServiceOptions extends Omit<
   browserControlExecutor?: BrowserAmbientContextExecutor;
   /** desktop-local Host 注入；只消费已校验、已去重的 live session event。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
-  onCuaPipSessionLifecycle?: (
-    workspace: CuaOperationWorkspaceTarget,
-    event: Exclude<PipSessionEvent, { kind: "focus-changed" }>,
-  ) => void;
 }
 
 function toProtocolAutomation(automation: ZCodeAutomation) {
@@ -870,23 +864,17 @@ export function createZCodeAgentService(
   options?: CreateZCodeAgentServiceOptions,
 ): IZCodeAgentService & { disposeAllAndWait(): Promise<void> } {
   const processManager = new ZCodeAgentProcessManager(options);
-  // Windows indicator 与 macOS producer lifecycle client 共用已校验、去重的 sideband facts。
-  const cuaOperationTurnTracker =
-    options?.cuaOperationStateReporter || options?.onCuaPipSessionLifecycle
-      ? createCuaOperationTurnTracker({
-          ...(options?.cuaOperationStateReporter
-            ? { reporter: options.cuaOperationStateReporter }
-            : {}),
-          ...(options?.onCuaPipSessionLifecycle
-            ? { onPipSessionLifecycle: options.onCuaPipSessionLifecycle }
-            : {}),
-          logger: {
-            debug: (message) => cuaOperationLogger.debug(undefined, message),
-            info: (message) => cuaOperationLogger.info(undefined, message),
-            warn: (message) => cuaOperationLogger.warn(undefined, message),
-          },
-        })
-      : undefined;
+  // Windows indicator 消费已校验、去重后的 sideband facts。
+  const cuaOperationTurnTracker = options?.cuaOperationStateReporter
+    ? createCuaOperationTurnTracker({
+        reporter: options.cuaOperationStateReporter,
+        logger: {
+          debug: (message) => cuaOperationLogger.debug(undefined, message),
+          info: (message) => cuaOperationLogger.info(undefined, message),
+          warn: (message) => cuaOperationLogger.warn(undefined, message),
+        },
+      })
+    : undefined;
   // AutomationRepo 也持有 tasks-index.sqlite 连接，disposeAll 需一并收口（见下方 disposeAll 注释）
   const automationRepo = new AutomationRepo();
   const automationService = new AutomationService(automationRepo);

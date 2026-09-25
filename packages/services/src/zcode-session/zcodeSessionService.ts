@@ -27,7 +27,7 @@ import { createZCodeSessionApiRetryRuntimeTracker } from "#src/zcode-session/zco
 import { appendWorkspaceToFilesystemMcpServers } from "#src/session/mcpWorkspaceScope.js";
 import { repairEmptyImportedClaudeSessionSnapshot } from "#src/zcode-session/importedClaudeSessionRepair.js";
 import { createZCodeDeferredDraftRegistry } from "#src/zcode-session/zcodeSessionDraftRegistry.js";
-import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
+import type { CuaProductMcpServerResolver } from "@zcode/zcode-cua/helper-transport";
 
 const logger = createServiceLogger("zcode-session-service");
 

@@ -1,23 +1,18 @@
-// Computer Use Helper macOS permission service — services-side descriptor registration.
+// Computer Use 权限服务 — services-side descriptor registration。
 //
-// As part of the single-package merge the type definitions + functional helpers
-// (CuaPermissionStatus, CuaPermissionStatusResult, isCuaPermissionStatusAvailable,
-// shouldRunCuaScreenCaptureProbe, ICuaPermissionService interface, etc.) moved
-// to @zcode/zcode-cua/src/broker/ports.ts. The descriptor registration itself stays in
-// services (host control plane — depends on services' createServiceDescriptor
-// + @zcode/shared ServiceChannels), so services internal callers (node.ts,
-// accessor.ts, services/index.ts) and ui consumers (via @zcode/services root
-// export) keep importing `ICuaPermissionService` from this exact path.
+// 契约与实现都在 @zcode/zcode-cua/permissions（cua-driver 的 check_permissions 后端），
+// 取代了原先闭源 Helper 的 permission_status broker 回报。descriptor 注册本身留在 services：
+// 它依赖 services 的 createServiceDescriptor 与 @zcode/shared 的 ServiceChannels，
+// 属于 host 控制面，不该反向塞进 producer。
 //
-// producer 只拥有 type contract；VALUE descriptor 继续由 services 的
-// createServiceDescriptor 创建，避免 producer 反向依赖 RPC/service registry。
+// 因此 services 内部调用方（node.ts / accessor.ts / services/index.ts）与 UI 消费者
+// （经 @zcode/services 根导出）继续从这条路径 import `ICuaPermissionService`。
 
 import { ServiceChannels } from "@zcode/shared";
 
 import { createServiceDescriptor } from "../descriptors.js";
 
-// Type layer — type-only imports from the consolidated package (erased by TS
-// at compile time; Vite never resolves @zcode/zcode-cua for these).
+// 类型层：type-only import，编译期擦除；Vite 不会为这些解析 @zcode/zcode-cua。
 import type {
   CuaPermissionState,
   CuaPermissionStatus,
@@ -26,8 +21,8 @@ import type {
   CuaPermissionStatusQueryOptions,
   CuaPermissionRestartResult,
   CuaPermissionRestartOptions,
-  ICuaPermissionService as BrokerICuaPermissionService,
-} from "@zcode/zcode-cua/broker";
+  ICuaPermissionService as CuaDriverICuaPermissionService,
+} from "@zcode/zcode-cua/permissions";
 
 // Re-export types for consumers.
 export type {
@@ -40,16 +35,15 @@ export type {
   CuaPermissionRestartOptions,
 };
 
-// 只从 producer 的纯 ports subpath 复用值谓词。这里不能从 Node-only broker barrel
-// re-export，否则 renderer bundle 会引入 process/node:path/node:crypto；也不能再复制实现，
+// 只从 producer 的纯 permissions subpath 复用值谓词。这里不能再复制实现，
 // 否则“省略 options 是否主动抓屏”这种隐私契约会再次漂移。
 export {
   isCuaPermissionStatusAvailable,
   shouldRunCuaScreenCaptureProbe,
-} from "@zcode/zcode-cua/broker/ports";
+} from "@zcode/zcode-cua/permissions";
 
-export interface ICuaPermissionService extends BrokerICuaPermissionService {}
+export interface ICuaPermissionService extends CuaDriverICuaPermissionService {}
 
-export const ICuaPermissionService = createServiceDescriptor<BrokerICuaPermissionService>(
+export const ICuaPermissionService = createServiceDescriptor<CuaDriverICuaPermissionService>(
   ServiceChannels.CuaPermission,
 );

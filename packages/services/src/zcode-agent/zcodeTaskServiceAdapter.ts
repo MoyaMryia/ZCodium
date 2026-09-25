@@ -163,7 +163,7 @@ import {
   normalizeAvailableZCodeMode,
   settingsToConfigOptions,
 } from "./zcodeConfigOptions.js";
-import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
+import type { CuaProductMcpServerResolver } from "@zcode/zcode-cua/helper-transport";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 
 interface TaskOverlay {

@@ -43,37 +43,9 @@
       "types": "./macos-permissions.d.ts",
       "import": "./macos-permissions.js"
     },
-    "./pip-session": {
-      "types": "./pip-session.d.ts",
-      "import": "./pip-session.js"
-    },
-    "./pip-session/node": {
-      "types": "./pip-session-node.d.ts",
-      "import": "./pip-session-node.js"
-    },
-    "./broker": {
-      "types": "./broker.d.ts",
-      "import": "./broker.js"
-    },
-    "./broker/server": {
-      "types": "./broker-server.d.ts",
-      "import": "./broker-server.js"
-    },
-    "./broker/ports": {
-      "types": "./broker-ports.d.ts",
-      "import": "./broker-ports.js"
-    },
-    "./broker/socketPath": {
-      "types": "./broker-socket-path.d.ts",
-      "import": "./broker-socket-path.js"
-    },
-    "./broker/helperConstants": {
-      "types": "./broker-helper-constants.d.ts",
-      "import": "./broker-helper-constants.js"
-    },
-    "./broker/helperHealth": {
-      "types": "./broker-helper-health.d.ts",
-      "import": "./broker-helper-health.js"
+    "./helper-transport": {
+      "types": "./helper-transport.d.ts",
+      "import": "./helper-transport.js"
     }
   },
   "dependencies": {

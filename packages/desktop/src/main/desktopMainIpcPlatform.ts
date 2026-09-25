@@ -54,7 +54,6 @@ import {
 import { createTempTextAttachment } from "./tempTextAttachment.js";
 import { registerDesktopSaveFileIpcHandler } from "./desktopSaveFile.js";
 import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
-import { registerCuaPipActiveSessionIpc } from "./desktopCuaPipIpc.js";
 
 export function registerPlatformIpcHandlers(options: {
   logger: {
@@ -75,7 +74,6 @@ export function registerPlatformIpcHandlers(options: {
     senderWindow?: BrowserWindow | null,
   ) => Promise<unknown>;
   acknowledgePostUpdateReleaseNotes: (version: string) => Promise<void>;
-  syncActiveTaskSession: (windowId: number, sessionId: string | null) => void;
   syncTaskRealtimeWorkspaceKeys: (windowId: number, workspaceKeys: Iterable<string>) => void;
   getUpdateState: () => UpdateStatePayload;
   openUpdateStatusWindow: () => void;
@@ -258,10 +256,6 @@ export function registerPlatformIpcHandlers(options: {
       options.logger,
     );
   });
-  registerCuaPipActiveSessionIpc({
-    syncActiveTaskSession: options.syncActiveTaskSession,
-    warn: (message) => options.logger.warn(message),
-  });
   ipcMain.on(
     PlatformChannels.WindowControlsOverlayReady,
     (event, payload: WindowControlsOverlayReadyPayload) => {
@@ -315,10 +309,7 @@ export function registerPlatformIpcHandlers(options: {
     openPathInFileManager(rawPath, options.logger),
   );
 
-  registerCuaPermissionIpcHandlers({
-    logger: options.logger,
-    currentApplicationLocale: options.currentApplicationLocale,
-  });
+  registerCuaPermissionIpcHandlers({ logger: options.logger });
 
   ipcMain.handle(PlatformChannels.CanOpenCommunity, async (_event, locale: unknown) => {
     const result = localeSchema.safeParse(locale);

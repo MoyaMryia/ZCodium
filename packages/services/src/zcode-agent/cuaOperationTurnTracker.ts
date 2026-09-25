@@ -1,5 +1,4 @@
 import { resolveWorkspaceKey, type ZCodeComputerUseOperationEvent } from "@zcode/shared";
-import type { PipSessionEvent } from "@zcode/zcode-cua/pip-session";
 
 export interface CuaOperationWorkspaceTarget {
   workspacePath: string;
@@ -54,14 +53,9 @@ function toReportedState(record: ActiveTurnRecord, active: boolean): CuaOperatio
 export function createCuaOperationTurnTracker(options: {
   /** Windows 顶部提示条的桌面投影；非 win32 不注入。 */
   reporter?: CuaOperationStateReporter;
-  /** Windows operation indicator 的聚合边界；PiP 不再消费该聚合状态。 */
+  /** Windows operation indicator 的聚合边界。 */
   onTurnsActive?: () => void;
   onTurnsIdle?: () => void;
-  /** macOS desktop-local PiP 只消费这些产品事实；panel policy 留在 producer。 */
-  onPipSessionLifecycle?: (
-    workspace: CuaOperationWorkspaceTarget,
-    event: Exclude<PipSessionEvent, { kind: "focus-changed" }>,
-  ) => void;
   logger?: TrackerLogger;
 }): CuaOperationTurnTracker {
   const currentTurnBySession = new Map<string, string>();
@@ -94,21 +88,8 @@ export function createCuaOperationTurnTracker(options: {
     try {
       callback();
     } catch (error) {
-      // 边界回调是展示旁路（PiP 收口），不能截断主 session event 链路。
+      // 边界回调是展示旁路，不能截断主 session event 链路。
       options.logger?.warn(`CUA operation turn boundary callback failed error=${String(error)}`);
-    }
-  }
-
-  function publishPipLifecycle(
-    workspace: CuaOperationWorkspaceTarget,
-    event: Exclude<PipSessionEvent, { kind: "focus-changed" }>,
-  ): void {
-    try {
-      options.onPipSessionLifecycle?.(workspace, event);
-    } catch (error) {
-      options.logger?.warn(
-        `CUA PiP lifecycle publisher failed session=${event.sessionId} event=${event.kind} error=${String(error)}`,
-      );
     }
   }
 
@@ -195,13 +176,6 @@ export function createCuaOperationTurnTracker(options: {
       if (!event.turnId) return;
       const nextTurnKey = turnKeyFor(sessionKey, event.turnId);
       if (retiredTurnKeys.has(nextTurnKey)) return;
-      publishPipLifecycle(workspace, {
-        kind: "turn-started",
-        sessionId: event.sessionId,
-        turnId: event.turnId,
-        sequenceNumber: event.sequenceNumber,
-        eventId: event.eventId,
-      });
       const previousTurnId = currentTurnBySession.get(sessionKey);
       if (previousTurnId && previousTurnId !== event.turnId) {
         retireTurn(turnKeyFor(sessionKey, previousTurnId));
@@ -212,12 +186,6 @@ export function createCuaOperationTurnTracker(options: {
     }
 
     if (event.kind === "session-closed") {
-      publishPipLifecycle(workspace, {
-        kind: "session-closed",
-        sessionId: event.sessionId,
-        sequenceNumber: event.sequenceNumber,
-        eventId: event.eventId,
-      });
       const currentTurnId = currentTurnBySession.get(sessionKey);
       if (currentTurnId) retireTurn(turnKeyFor(sessionKey, currentTurnId));
       clearSession(sessionKey);
@@ -228,14 +196,6 @@ export function createCuaOperationTurnTracker(options: {
     if (event.kind === "turn-completed" || event.kind === "turn-failed") {
       const turnId = event.turnId;
       if (!turnId) return;
-      publishPipLifecycle(workspace, {
-        kind: "turn-ended",
-        sessionId: event.sessionId,
-        turnId,
-        sequenceNumber: event.sequenceNumber,
-        eventId: event.eventId,
-        outcome: event.kind === "turn-completed" ? "completed" : "failed",
-      });
       const turnKey = turnKeyFor(sessionKey, turnId);
       retireTurn(turnKey);
       clearTurn(turnKey);

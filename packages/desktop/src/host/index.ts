@@ -42,7 +42,6 @@ import {
   IZCodeAgentService,
   IZCodeTaskService,
   IZCodeSessionService,
-  ICuaPipSessionService,
   ICredentialService,
   createZCodeAgentConnectionScope,
   type ZCodeAgentV4ClientMode,
@@ -2033,19 +2032,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
     if (msg.control.action === "snapshot") databaseStartup?.coordinator.publish();
     else if (msg.control.action === "retry")
       void databaseStartup?.coordinator.retry(msg.control.attemptId);
-    return;
-  }
-
-  if (msg.type === HostMessageTypes.CuaPipFocusChanged) {
-    const service = activeServices?.getOptional(ICuaPipSessionService);
-    if (service) {
-      void service.publishFocus(msg.event);
-    } else {
-      // 取不到服务时过去静默丢弃，focus-changed 于是从链路上凭空消失
-      // （dev 实测 0 条，正式包同期 92 条）。补这条才能把「main 没发」与
-      // 「host 收到了但服务没注册」分开。
-      logger.warn("[cua-pip-session] focus event dropped: service unavailable");
-    }
     return;
   }
 

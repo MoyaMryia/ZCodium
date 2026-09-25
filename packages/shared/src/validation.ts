@@ -364,20 +364,6 @@ export const hostLocalMediaPreviewPathAuthorizeResultMessageSchema = z
   })
   .strict();
 
-export const hostCuaPipFocusChangedMessageSchema = z
-  .object({
-    type: z.literal("cua-pip-focus-changed"),
-    event: z
-      .object({
-        kind: z.literal("focus-changed"),
-        revision: z.number().int().nonnegative().safe(),
-        sourceWindowId: nonEmptyStringSchema.max(255),
-        sessionId: nonEmptyStringSchema.max(255).nullable(),
-      })
-      .strict(),
-  })
-  .strict();
-
 export const hostProviderProvisioningExecuteMessageSchema = z
   .object({
     type: z.literal("provider-provisioning-execute"),
@@ -428,7 +414,6 @@ export const hostIncomingMessageSchema = z.discriminatedUnion("type", [
   hostCronRunMessageSchema,
   hostBrowserExecuteResultMessageSchema,
   hostLocalMediaPreviewPathAuthorizeResultMessageSchema,
-  hostCuaPipFocusChangedMessageSchema,
   hostProviderProvisioningExecuteMessageSchema,
 ]);
 
