@@ -6,10 +6,18 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-// Draft release 的首行固定为本仓库的立意句，其后才是构建说明。
+/**
+ * Draft release 的首段固定为本仓库的立意句。
+ *
+ * 出处：《论语·雍也》6.30 —— 「夫仁者，己欲立而立人，己欲达而达人。能近取譬，可谓仁之方也已。」
+ * 英文是该句的英译（The Analects, "Yong Ye" 6.30），非某一特定译者的定本。
+ * 排版约定：中文在前，空行，英文在后。
+ */
 const RELEASE_MESSAGE_HEADING =
-  "He who seeks to stand, shall raise others; he who aspires to flourish, shall see others flourish. " +
-  "己欲立而立人，己欲达而达人。";
+  "己欲立而立人，己欲达而达人。\n" +
+  "——《论语·雍也》 6.30\n\n" +
+  "He who seeks to stand, shall raise others; he who aspires to flourish, shall see others flourish.\n" +
+  '— The Analects of Confucius, "Yong Ye" 6.30';
 const RELEASE_MESSAGE_BODY =
   "Linux x64 and Windows x64/arm64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.";
 // electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
