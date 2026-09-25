@@ -117,7 +117,6 @@ const PREFIX_RULES: Record<Exclude<StorageCategoryId, "other">, string[]> = {
     "controller",
     "launcher",
     "dev-signing",
-    "cua-helper-dev-identity",
     "perf-task-manifests",
     "plugin-workspace",
     "projects",

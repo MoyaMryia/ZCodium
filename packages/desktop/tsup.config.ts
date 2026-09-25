@@ -105,12 +105,6 @@ function createSharedDefines() {
     // ZCodium 自有更新源。留空表示不检查更新：上游 manifest 分发的是官方 ZCode 安装包，
     // 沿用会把本仓库构建的客户端覆盖成上游版本。详见 .agents/specs/update-source-ownership.md。
     __ZCODIUM_UPDATE_ORIGIN__: JSON.stringify(process.env.ZCODIUM_UPDATE_ORIGIN?.trim() ?? ""),
-    // Computer Use Helper build identity — helperInstaller 读它决定下载哪个 Helper bundle。
-    // 缺失时 installer 抛 "Packaged ZCode is missing its embedded Computer Use Helper build identity"。
-    // CI 构建时通过 ZCODE_CUA_HELPER_BUILD_ID env 注入；dev 为空串走兜底（dev helper 不走下载）。
-    __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(
-      process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ?? "",
-    ),
     // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
     __ZCODE_CDN_BASE_URL__: JSON.stringify(env.ZCODE_CDN_BASE_URL?.trim() || ""),
   };
