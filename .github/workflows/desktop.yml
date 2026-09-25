@@ -181,13 +181,21 @@ jobs:
         run: node scripts/bundle-remote-assets.mjs verify
       - name: Prepare desktop runtime
         run: pnpm prepare:desktop-runtime
+      # 交叉架构（如在 x64 runner 上打 Windows arm64）加载不了目标原生库，
+      # 只能校验随包资产文件；执行探针留给同架构的 x64 job。
       - name: Verify native CUA and shared plugin host
+        if: matrix.arch == 'x64'
         run: node scripts/ci/cua-driver-smoke.mjs
+      - name: Verify staged CUA assets (cross-arch)
+        if: matrix.arch != 'x64'
+        run: node scripts/ci/cua-driver-smoke.mjs --files-only
       - name: Build workspace and desktop
         run: pnpm build:bootstrap
       - name: Package and verify desktop
         run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch "$ZCODE_TARGET_ARCH" --skip-prepare --skip-build
+      # 同理：arm64 的 Electron 可执行文件在 x64 runner 上跑不起来。
       - name: Verify CUA with the packaged Electron runtime
+        if: matrix.arch == 'x64'
         run: node scripts/ci/cua-driver-smoke.mjs --packaged
       - name: Collect installers
         run: node scripts/ci/desktop-release.mjs collect "$ZCODE_TARGET_OS" "$ZCODE_TARGET_ARCH"

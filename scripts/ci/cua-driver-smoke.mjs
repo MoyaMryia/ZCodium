@@ -52,10 +52,25 @@ function resolveCuaSmokeTarget() {
   return { platform, arch };
 }
 
-/** Actual shipped files, isolated from the repository's ancestor node_modules. No screen capture. */
-export async function smokeCuaDriverRuntime(pluginRoot, nodeExecutable = process.execPath) {
+/**
+ * Actual shipped files, isolated from the repository's ancestor node_modules. No screen capture.
+ *
+ * `filesOnly` 用于交叉架构打包（如在 x64 runner 上打 Windows arm64）：资产文件可以校验，
+ * 但 arm64 原生库不可能被 x64 的 Node/Electron 加载，执行探针只能跳过。
+ */
+export async function smokeCuaDriverRuntime(
+  pluginRoot,
+  nodeExecutable = process.execPath,
+  { filesOnly = false } = {},
+) {
   const target = resolveCuaSmokeTarget();
   await validateCuaDriverRuntime(pluginRoot, target);
+  if (filesOnly) {
+    console.log(
+      `CUA runtime assets validated (execution skipped for cross-arch build): ${target.platform}-${target.arch}`,
+    );
+    return;
+  }
   const root = await mkdtemp(join(tmpdir(), "zcodium-cua-packaged-"));
   let client;
   try {
@@ -120,14 +135,17 @@ export async function smokeCuaDriverRuntime(pluginRoot, nodeExecutable = process
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const target = resolveCuaSmokeTarget();
+  const flags = process.argv.slice(2).filter((arg) => arg.startsWith("--"));
+  const positional = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
+  const filesOnly = flags.includes("--files-only");
   let pluginRoot =
-    process.argv[2] ??
+    positional[0] ??
     resolve(
       import.meta.dirname,
       `../../packages/desktop/bundled-agents/${target.platform}-${target.arch}/glm/packages/node-repl-host`,
     );
-  let nodeExecutable = process.argv[3];
-  if (process.argv[2] === "--packaged") {
+  let nodeExecutable = positional[1];
+  if (flags.includes("--packaged")) {
     const platform = target.platform;
     assert.ok(
       platform === "linux" || platform === "win32",
@@ -146,5 +164,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       platform === "win32" ? `${identity.productName}.exe` : identity.linuxExecutableName,
     );
   }
-  await smokeCuaDriverRuntime(pluginRoot, nodeExecutable);
+  await smokeCuaDriverRuntime(pluginRoot, nodeExecutable, { filesOnly });
 }
