@@ -63,6 +63,7 @@ window.modelFixture = {
   createCount: 0,
   deleteCount: 0,
   tests: [],
+  draftSaves: [],
   failRefresh: false,
   holdCreate: false,
 };
@@ -157,11 +158,29 @@ const service = {
       modelId,
       builtin: false,
       personalExactConfig: config,
-      effectiveConfig: { ...modelDefaults, ...config },
+      effectiveBuiltinConfig: structuredClone(modelDefaults),
+      effectiveConfig: { ...structuredClone(modelDefaults), ...config },
       selectable: true,
       executable: true,
       issues: [],
     });
+    return view();
+  },
+  async savePersonalModelDraft(input) {
+    // 与主进程 ProviderSettingsFacade 相同的乐观并发校验：
+    // basedOnRevision 过期时必须拒绝，设置页漏传 revision 会在这里暴露。
+    if (input.basedOnRevision !== revision) {
+      throw new Error(
+        `Provider Settings revision conflict: expected ${input.basedOnRevision}, current ${revision}`,
+      );
+    }
+    fixture.draftSaves.push(structuredClone({ ...input, serverRevisionAtSave: revision }));
+    const provider = providers.find((p) => p.providerId === input.providerId);
+    const model = provider.models.find((m) => m.modelId === input.originalModelId);
+    model.modelId = input.nextModelId;
+    model.personalExactConfig = structuredClone(input.personalConfig);
+    model.effectiveBuiltinConfig = structuredClone(modelDefaults);
+    model.effectiveConfig = { ...structuredClone(modelDefaults), ...input.personalConfig };
     return view();
   },
   async testModelConnectivity(input) {
