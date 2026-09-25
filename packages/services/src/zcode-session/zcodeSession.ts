@@ -56,6 +56,8 @@ export interface ZCodeSessionResumeParams extends ZCodeTaskTarget {
 }
 
 export interface ZCodeSessionListParams extends ZCodeSessionWorkspaceTarget {
+  /** 精确检查指定会话，不受列表分页窗口影响。 */
+  sessionIds?: string[];
   includeArchived?: boolean;
   limit?: number;
 }

@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type {
   CustomCommandRoot,
@@ -27,7 +27,6 @@ import {
   directoryExists,
   fileExists,
   isMissingPath,
-  isNotFoundError,
   isRecord,
   parsePathList,
   resolveInside,
@@ -54,7 +53,6 @@ import type {
 export {
   addMarketplace,
   describeMarketplacePlugin,
-  ensureDefaultPluginMarketplaces,
   ensureMarketplaceManifestAvailable,
   getPluginDataDir,
   installMarketplacePlugin,
@@ -84,10 +82,7 @@ export {
   type PluginMarketplaceManifest,
 } from "./marketplace.js";
 
-export {
-  writeBundledOfficialMarketplacePartitionSync,
-  writeCdnOfficialMarketplacePartitionSync,
-} from "./official-marketplace.js";
+export { writeBundledOfficialMarketplacePartitionSync } from "./official-marketplace.js";
 
 export { getPluginSourceDiagnosticCode } from "./source-errors.js";
 
@@ -104,12 +99,7 @@ const DEFAULT_VERSION = "0.0.0";
 const FIRST_PLUGIN_PRIORITY = 1_000;
 const PRIORITY_STEP = 10;
 const PLUGIN_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
-const UNSUPPORTED_COMPONENT_KEYS = [
-  "channels",
-  "lspServers",
-  "outputStyles",
-  "settings",
-] as const;
+const UNSUPPORTED_COMPONENT_KEYS = ["channels", "lspServers", "outputStyles", "settings"] as const;
 const SUPPORTED_HOOK_EVENTS = new Set<string>(Object.values(HookEventNameValue));
 
 interface PluginHookInspection {
@@ -139,7 +129,7 @@ export class NodePluginAdapter implements PluginPort {
 
     const diagnostics: PluginDiagnostic[] = [];
     const dataRoot = join(request.storageRoot || this.options.storageRoot, "data");
-    const candidates = this.resolveCandidates(request, diagnostics, options);
+    const candidates = this.resolveCandidates(request, options);
     const commandRoots: CustomCommandRoot[] = [];
     const hooks: PluginLoadOutcome["hooks"] = {};
     const mcpServers: PluginLoadOutcome["mcpServers"] = {};
@@ -234,7 +224,6 @@ export class NodePluginAdapter implements PluginPort {
 
   private resolveCandidates(
     request: Pick<PluginDiscoverRequest, "config" | "officialPluginRoots" | "storageRoot">,
-    diagnostics: PluginDiagnostic[],
     options?: PluginAbortOptions,
   ): PluginCandidate[] {
     const candidates: PluginCandidate[] = [];
@@ -255,7 +244,7 @@ export class NodePluginAdapter implements PluginPort {
       });
     }
     candidates.push(
-      ...scanOfficialCache(request.storageRoot, diagnostics, options).map((rootPath) => ({
+      ...scanOfficialCache(request.storageRoot, options).map((rootPath) => ({
         defaultEnabled: false,
         marketplace: ZCODE_OFFICIAL_PLUGIN_MARKETPLACE,
         rootPath,
@@ -849,45 +838,11 @@ function stripMarkdownFrontmatter(markdown: string): string {
   return endIndex > 0 ? lines.slice(endIndex + 1).join("\n") : markdown;
 }
 
-function scanOfficialCache(
-  storageRoot: string,
-  diagnostics: PluginDiagnostic[],
-  options?: PluginAbortOptions,
-): string[] {
-  // 官方插件升级会保留旧版本缓存目录；若遍历全部目录再按插件 id
-  // “先到先得”，旧版本会抢在 bundled marketplace 指向的当前版本前被加载。
-  // bundled 分片是当前随应用发布资产的权威清单；存在时只加载其 cachePath。
-  // 不能简单选择最高 semver，否则官方回滚版本时仍会错误加载旧缓存。
-  const bundledRoots = loadBundledOfficialPluginRootsSync(storageRoot);
-  if (bundledRoots !== undefined) {
-    for (const rootPath of bundledRoots) {
-      throwIfAborted(options);
-    }
-    return bundledRoots;
-  }
-
-  const cacheRoot = join(storageRoot, "cache", ZCODE_OFFICIAL_PLUGIN_MARKETPLACE);
-  try {
-    const roots: string[] = [];
-    for (const pluginEntry of readdirSync(cacheRoot, { withFileTypes: true })) {
-      throwIfAborted(options);
-      if (!pluginEntry.isDirectory()) continue;
-      const pluginDir = join(cacheRoot, pluginEntry.name);
-      for (const versionEntry of readdirSync(pluginDir, { withFileTypes: true })) {
-        if (versionEntry.isDirectory()) roots.push(join(pluginDir, versionEntry.name));
-      }
-    }
-    return roots;
-  } catch (error) {
-    if (isNotFoundError(error)) return [];
-    diagnostics.push({
-      code: "plugin_root_not_found",
-      message: error instanceof Error ? error.message : `Failed to scan ${cacheRoot}`,
-      path: cacheRoot,
-      severity: "warning",
-    });
-    return [];
-  }
+function scanOfficialCache(storageRoot: string, options?: PluginAbortOptions): string[] {
+  // 旧目录扫描会在 seed 缺失时把历史缓存误当内置插件复活；只有随包清单能授权隐式发现。
+  // 用户显式安装的记录仍在 resolveCandidates 的 installed 分支独立处理。
+  throwIfAborted(options);
+  return loadBundledOfficialPluginRootsSync(storageRoot) ?? [];
 }
 
 function loadPlugin(

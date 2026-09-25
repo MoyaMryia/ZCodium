@@ -26,7 +26,7 @@ export function ProviderTemplatePicker({
   creating,
 }: {
   templates: ProviderSettingsView["providerTemplates"];
-  onBack: () => void;
+  onBack?: () => void;
   onCreateFromTemplate: ProviderTemplateCreate;
   onCreateCustom: CustomProviderCreate;
   creating: boolean;
@@ -71,63 +71,69 @@ export function ProviderTemplatePicker({
   return (
     <section className="space-y-5" data-testid={TID_MODEL_PROVIDER_TEMPLATE_PICKER}>
       <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          data-testid={TID_MODEL_PROVIDER_TEMPLATE_BACK_BUTTON}
-          aria-label={intl.formatMessage({ id: "settings.modelProvider.templatePickerBack" })}
-          onClick={onBack}
-        >
-          <ArrowLeftIcon className="size-4" aria-hidden="true" />
-        </Button>
+        {onBack ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            data-testid={TID_MODEL_PROVIDER_TEMPLATE_BACK_BUTTON}
+            aria-label={intl.formatMessage({ id: "settings.modelProvider.templatePickerBack" })}
+            onClick={onBack}
+          >
+            <ArrowLeftIcon className="size-4" aria-hidden="true" />
+          </Button>
+        ) : null}
         <h2 className="text-ui-lg font-semibold text-foreground">
           {intl.formatMessage({ id: "settings.modelProvider.templatePickerTitle" })}
         </h2>
       </div>
 
       <div className="space-y-6">
-        {groups.map((group) => (
-          <section key={group.id} data-provider-template-group={group.id} className="space-y-3">
-            <h3 className="text-ui-base font-medium text-foreground-subtle">
-              {intl.formatMessage({ id: `settings.modelProvider.templateGroup.${group.id}` })}
-            </h3>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {group.id === "other" ? (
-                <ProviderTemplateCard
-                  label={intl.formatMessage({ id: "settings.modelProvider.createCustomProvider" })}
-                  disabled={creating}
-                  testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, "custom")}
-                  icon={
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover">
-                      <PlusIcon className="size-4" aria-hidden="true" />
-                    </span>
-                  }
-                  onClick={() => void createWithFeedback(() => onCreateCustom(customLabel))}
-                />
-              ) : null}
-              {group.templates.map((template) => {
-                const label = resolveProviderTemplateName(template.templateId, template, locale);
-                return (
+        {groups
+          .filter((group) => group.id === "other" || group.templates.length > 0)
+          .map((group) => (
+            <section key={group.id} data-provider-template-group={group.id} className="space-y-3">
+              <h3 className="text-ui-base font-medium text-foreground-subtle">
+                {intl.formatMessage({ id: `settings.modelProvider.templateGroup.${group.id}` })}
+              </h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {group.id === "other" ? (
                   <ProviderTemplateCard
-                    key={template.templateId}
-                    label={label}
+                    label={intl.formatMessage({
+                      id: "settings.modelProvider.createCustomProvider",
+                    })}
                     disabled={creating}
-                    testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, template.templateId)}
+                    testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, "custom")}
                     icon={
-                      <span className="flex size-9 shrink-0 items-center justify-center">
-                        <ProviderLogo logo={template.config.logo} className="size-8" />
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover">
+                        <PlusIcon className="size-4" aria-hidden="true" />
                       </span>
                     }
-                    onClick={() =>
-                      void createWithFeedback(() => onCreateFromTemplate(template.templateId))
-                    }
+                    onClick={() => void createWithFeedback(() => onCreateCustom(customLabel))}
                   />
-                );
-              })}
-            </div>
-          </section>
-        ))}
+                ) : null}
+                {group.templates.map((template) => {
+                  const label = resolveProviderTemplateName(template.templateId, template, locale);
+                  return (
+                    <ProviderTemplateCard
+                      key={template.templateId}
+                      label={label}
+                      disabled={creating}
+                      testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, template.templateId)}
+                      icon={
+                        <span className="flex size-9 shrink-0 items-center justify-center">
+                          <ProviderLogo logo={template.config.logo} className="size-8" />
+                        </span>
+                      }
+                      onClick={() =>
+                        void createWithFeedback(() => onCreateFromTemplate(template.templateId))
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          ))}
       </div>
     </section>
   );

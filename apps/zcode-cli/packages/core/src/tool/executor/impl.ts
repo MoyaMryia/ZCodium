@@ -48,7 +48,6 @@ export class ToolExecutorImpl implements ToolExecutor {
       workflowEscalatePort: options.workflowEscalatePort,
       artifactStore: options.artifactStore,
       automationPort: options.automationPort,
-      offPeakPort: options.offPeakPort,
       sessionStore: options.sessionStore,
       sessionModePort: options.sessionModePort,
       workflowPort: options.workflowPort,

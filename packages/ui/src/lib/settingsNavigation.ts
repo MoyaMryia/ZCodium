@@ -21,7 +21,6 @@ export type SettingsSectionId =
   | "automations"
   | "shortcuts";
 
-type SettingsUsageTabTarget = "app" | "codingPlan";
 type SettingsPluginTabTarget = "plugins" | "mcps" | "skills" | "commands";
 type SettingsPluginNavigationOrigin = "plugin-store";
 
@@ -50,7 +49,6 @@ interface SettingsSectionIntentEventDetail {
   pluginTab?: SettingsPluginTabTarget;
   pluginOrigin?: SettingsPluginNavigationOrigin;
   pluginScopeKey?: string;
-  usageTab?: SettingsUsageTabTarget;
   modelProviderId?: string;
 }
 
@@ -180,14 +178,8 @@ export function setPendingSettingsSection(section: SettingsSectionId): void {
 }
 
 export function setPendingSettingsUsageIntent(): void {
-  // 使用统计入口只负责打开 Usage 分区，不强行覆盖用户要看的具体统计 tab。
+  // 使用统计直接打开本地 Agent 用量，不依赖账号或套餐来源。
   setPendingSettingsSectionIntent("usage");
-}
-
-export function setPendingSettingsUsageCodingPlanIntent(): void {
-  // 剩余额度详情入口需要直达 Coding Plan 使用统计；
-  // 头像菜单入口则只打开 Usage 分区，避免覆盖用户上次查看的统计 tab。
-  setPendingSettingsSectionIntent("usage", { usageTab: "codingPlan" });
 }
 
 export function setPendingSettingsPluginIntent(
@@ -219,7 +211,6 @@ export function setPendingSettingsSectionIntent(
     pluginOrigin?: SettingsPluginNavigationOrigin;
     pluginScopeKey?: string;
     modelProviderId?: string;
-    usageTab?: SettingsUsageTabTarget;
   } = {},
 ): void {
   if (typeof window === "undefined") {
@@ -244,9 +235,8 @@ export function setPendingSettingsSectionIntent(
     } else {
       window.sessionStorage.removeItem(SETTINGS_PLUGIN_SCOPE_KEY_INTENT_KEY);
     }
-    if (options.usageTab) {
-      window.sessionStorage.setItem(SETTINGS_USAGE_TAB_INTENT_KEY, options.usageTab);
-    }
+    // 旧版本遗留的套餐页签意图已无对应页面，清掉后仍正常进入 Usage。
+    window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
     if (options.modelProviderId) {
       window.sessionStorage.setItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY, options.modelProviderId);
     } else {
@@ -265,7 +255,6 @@ export function setPendingSettingsSectionIntent(
         pluginTab: options.pluginTab,
         pluginOrigin: options.pluginOrigin,
         pluginScopeKey: options.pluginScopeKey?.trim() || undefined,
-        usageTab: options.usageTab,
         modelProviderId: options.modelProviderId,
       },
     }),
@@ -297,6 +286,7 @@ function consumePendingSettingsSection(
   }
 
   try {
+    window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
     const raw = window.sessionStorage.getItem(SETTINGS_SECTION_INTENT_KEY);
     if (raw !== null) {
       window.sessionStorage.removeItem(SETTINGS_SECTION_INTENT_KEY);
@@ -374,23 +364,6 @@ export function clearPendingSettingsPluginOrigin(): void {
   }
 }
 
-export function consumePendingSettingsUsageTab(): SettingsUsageTabTarget | undefined {
-  if (typeof window === "undefined") {
-    return undefined;
-  }
-
-  try {
-    const raw = window.sessionStorage.getItem(SETTINGS_USAGE_TAB_INTENT_KEY);
-    if (raw !== null) {
-      window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
-    }
-    return raw === "app" || raw === "codingPlan" ? raw : undefined;
-  } catch {
-    // 忽略浏览器存储异常，不影响主流程。
-    return undefined;
-  }
-}
-
 export function consumePendingSettingsModelProviderTarget():
   | SettingsModelProviderTarget
   | undefined {
@@ -411,27 +384,6 @@ export function consumePendingSettingsModelProviderTarget():
     // 忽略浏览器存储异常，不影响主流程。
     return undefined;
   }
-}
-
-export function shouldFallbackSettingsUsageTabToApp({
-  activeTab,
-  checkingCodingPlanTab,
-  loadingModelProviders,
-  showCodingPlanTab,
-}: {
-  activeTab: SettingsUsageTabTarget;
-  checkingCodingPlanTab: boolean;
-  loadingModelProviders: boolean;
-  showCodingPlanTab: boolean;
-}): boolean {
-  // Coding Plan 跳转意图可能先于 provider/entitlement 数据完成加载。
-  // 只有确认不再 loading 且仍没有有效套餐时才回退到 App Usage，避免“更多”点击后被首帧误改回默认 tab。
-  return (
-    activeTab === "codingPlan" &&
-    !showCodingPlanTab &&
-    !loadingModelProviders &&
-    !checkingCodingPlanTab
-  );
 }
 
 export function addPendingSettingsSectionListener(

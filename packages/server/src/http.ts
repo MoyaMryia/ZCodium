@@ -133,6 +133,8 @@ function generateId(): string {
 }
 
 interface HttpServerOptions {
+  /** 服务启动入口拥有本地资源目录，HTTP 连接请求不能覆盖。 */
+  bundledRemoteAssetsDir?: string;
   serverId?: string;
   name?: string;
   host?: string;
@@ -356,7 +358,9 @@ export function createHttpServer(
 
     try {
       const backend = await createRemoteBackend(body);
-      const connection = await connectRemote(backend);
+      const connection = await connectRemote(backend, {
+        bundledRemoteAssetsDir: options.bundledRemoteAssetsDir,
+      });
       const id = generateId();
       remoteConnections.set(id, connection);
 

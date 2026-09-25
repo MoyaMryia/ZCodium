@@ -116,7 +116,9 @@ function isAppUnresolved(result) {
   const blocks = Array.isArray(result?.content) ? result.content : [];
   return blocks.some(
     (block) =>
-      block?.type === "text" && typeof block.text === "string" && /target app is not running/u.test(block.text),
+      block?.type === "text" &&
+      typeof block.text === "string" &&
+      /target app is not running/u.test(block.text),
   );
 }
 
@@ -310,10 +312,19 @@ function createAppTarget(ctx, binding) {
     },
 
     async drag(from, to, options) {
+      const deliveryMode = options?.deliveryMode;
+      if (
+        deliveryMode !== undefined &&
+        deliveryMode !== "background" &&
+        deliveryMode !== "foreground"
+      ) {
+        throw new ComputerUseError("drag deliveryMode must be background or foreground");
+      }
       await act("left_click_drag", {
         from_target: resolveTarget(binding, from, "drag from"),
         to: resolveTarget(binding, to, "drag to"),
         app_ref: binding.appRef,
+        ...(deliveryMode ? { delivery_mode: deliveryMode } : {}),
         ...(options?.modifiers ? { modifiers: options.modifiers } : {}),
       });
     },

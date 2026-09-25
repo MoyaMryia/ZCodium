@@ -26,10 +26,15 @@ export interface LocalTarGzEntry {
 // Windows 客户端不一定能 spawn System32\tar.exe，远端资源本地缓存不能依赖系统 tar。
 // 这里仅支持 ZCode remote assets 使用的普通文件/目录子集，避免扩大归档格式的行为面。
 export async function extractTarGzArchive(archivePath: string, targetDir: string): Promise<void> {
+  await extractTarGzBuffer(await readFile(archivePath), targetDir);
+}
+
+/** Allows callers to verify and extract exactly the same archive bytes. */
+export async function extractTarGzBuffer(bytes: Uint8Array, targetDir: string): Promise<void> {
   const targetRoot = resolve(targetDir);
   await mkdir(targetRoot, { recursive: true });
 
-  const archiveBuffer = await gunzipAsync(await readFile(archivePath));
+  const archiveBuffer = await gunzipAsync(bytes);
   let offset = 0;
   let nextEntryName: string | null = null;
 
@@ -45,7 +50,7 @@ export async function extractTarGzArchive(archivePath: string, targetDir: string
     const dataStart = offset;
     const dataEnd = dataStart + size;
     if (dataEnd > archiveBuffer.length) {
-      throw new Error(`[remote-assets] truncated tar entry in ${archivePath}`);
+      throw new Error("[remote-assets] truncated tar entry");
     }
 
     const data = archiveBuffer.subarray(dataStart, dataEnd);

@@ -3,22 +3,8 @@ import type {
   AiSdkNetworkConfig,
   EnvRecord,
 } from "@zcode/adapters/model";
-import {
-  resolveRuntimeZCodeEnv,
-  resolveRuntimeZCodeEndpointOrigin,
-  ZCODE_APP_VERSION_ENV,
-} from "@zcode/shared";
-import {
-  createRuntimePlatformHeaders,
-  normalizePrintableHeaderValue,
-} from "./runtime-platform-headers.js";
-
-export type ModelProviderSourceTitle = "cli" | "electron";
-
 interface RuntimeExecutionConfigOptions {
-  appVersion?: string;
   network?: AiSdkNetworkConfig;
-  sourceTitle?: ModelProviderSourceTitle;
 }
 
 export function createRuntimeAiSdkModelExecutionConfig(
@@ -26,8 +12,8 @@ export function createRuntimeAiSdkModelExecutionConfig(
   options: RuntimeExecutionConfigOptions = {},
 ): AiSdkModelExecutionConfig {
   const network = normalizeAiSdkNetworkConfig(options.network);
+  // 模型请求头来自用户配置；启动装配不采集地区、系统版本或官方来源元数据。
   return {
-    defaultHeaders: buildCliZCodeSourceHeaders(env, options),
     env,
     ...(network ? { network } : {}),
   };
@@ -42,38 +28,4 @@ function normalizeAiSdkNetworkConfig(
     ...(network.httpProxy ? { httpProxy: network.httpProxy } : {}),
     ...(network.noProxy ? { noProxy: network.noProxy } : {}),
   };
-}
-
-function buildCliZCodeSourceHeaders(
-  env: EnvRecord,
-  options: Pick<RuntimeExecutionConfigOptions, "appVersion" | "sourceTitle"> = {},
-): Record<string, string> {
-  const sourceTitle = options.sourceTitle ?? detectDefaultProviderSourceTitle();
-  const appVersion = resolveAppVersionForHeaders(env, options);
-  const locale = normalizePrintableHeaderValue(Intl.DateTimeFormat().resolvedOptions().locale);
-  const timezone = normalizePrintableHeaderValue(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  return {
-    "HTTP-Referer": resolveRuntimeZCodeEndpointOrigin(env),
-    "User-Agent": `ZCode/${appVersion ?? "unknown"}`,
-    ...(appVersion ? { "X-ZCode-App-Version": appVersion } : {}),
-    "X-Title": `Z Code@${sourceTitle}`,
-    "X-Release-Channel": resolveRuntimeZCodeEnv(env),
-    "X-Client-Language": locale ?? "unknown",
-    "X-Client-Timezone": timezone ?? "unknown",
-    "X-ZCode-Agent": "glm",
-    ...createRuntimePlatformHeaders(),
-  };
-}
-
-function resolveAppVersionForHeaders(
-  env: EnvRecord,
-  options: Pick<RuntimeExecutionConfigOptions, "appVersion">,
-): string | undefined {
-  return normalizePrintableHeaderValue(env[ZCODE_APP_VERSION_ENV] ?? options.appVersion);
-}
-
-function detectDefaultProviderSourceTitle(): ModelProviderSourceTitle {
-  return process.argv.includes("app-server") || process.argv.includes("agent-server")
-    ? "electron"
-    : "cli";
 }

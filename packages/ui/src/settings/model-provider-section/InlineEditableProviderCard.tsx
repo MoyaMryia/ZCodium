@@ -292,43 +292,34 @@ export function InlineEditableProviderCard({
         ? target.operation === "delete"
           ? {
               pending: "settings.modelProvider.modelDeleting",
-              success: "settings.modelProvider.modelDeleteSuccess",
               failure: "settings.modelProvider.modelDeleteFailure",
             }
           : {
               pending: "settings.modelProvider.modelSaving",
-              success: "settings.modelProvider.modelSaveSuccess",
               failure: "settings.modelProvider.modelSaveFailure",
             }
         : {
             pending: "settings.modelProvider.providerSaving",
-            success: "settings.modelProvider.providerSaveSuccess",
             failure: "settings.modelProvider.providerSaveFailure",
           };
-      notification.showFeedback({
-        key: dedupeKey,
-        message: notification.formatMessage(
-          {
-            id: messageIds.pending,
-          },
-          messageValues,
-        ),
-        state: "pending",
-        durationMs: 0,
-      });
-      try {
-        await operation();
-        if (!shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision)) return;
+      if (target.modelId)
         notification.showFeedback({
           key: dedupeKey,
           message: notification.formatMessage(
             {
-              id: messageIds.success,
+              id: messageIds.pending,
             },
             messageValues,
           ),
-          state: "success",
+          state: "pending",
+          durationMs: 0,
         });
+      try {
+        await operation();
+        if (!shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision)) return;
+        // 成功由输入值、模型列表和弹窗关闭体现，自动保存不堆叠横幅干扰编辑。
+        // 失败反馈仍保留；显式连通性测试由独立入口展示结果。
+        notification.dismissFeedback(dedupeKey);
       } catch (error) {
         selfSaveRequestedRef.current = false;
         if (shouldApplyProviderSaveCompletion(draftRevisionRef.current, revision)) {

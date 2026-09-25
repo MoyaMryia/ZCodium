@@ -148,7 +148,6 @@ export class AgentRuntime {
   private hookRunner?: HookRunner;
   private workspaceHookAdmission?: WorkspaceHookRuntimeAdmissionPort;
   private modelFactory: AgentRuntimeDeps["modelFactory"];
-  private providerRuntimeHeadersPort?: AgentRuntimeDeps["providerRuntimeHeadersPort"];
   private browserControlPort?: AgentRuntimeDeps["browserControlPort"];
   /** 模型请求准入端口；随每次模型请求进调用上下文。 */
   private modelRequestAdmission?: AgentRuntimeDeps["modelRequestAdmission"];
@@ -255,7 +254,6 @@ export class AgentRuntime {
     this.now = deps.now ?? (() => new Date());
     this.isRemoteWorkspace = deps.isRemoteWorkspace ?? (() => false);
     this.modelFactory = deps.modelFactory;
-    this.providerRuntimeHeadersPort = deps.providerRuntimeHeadersPort;
     this.browserControlPort = deps.browserControlPort;
     this.modelRequestAdmission = deps.modelRequestAdmission;
     // 旧会话的选择缺失不能阻断历史恢复；不在这里制造默认模型。
@@ -498,9 +496,8 @@ export interface AgentRuntime {
     traceContext?: TraceContext;
   }): Promise<void>;
   /**
-   * 外部子 runtime 的接缝（三）：铸造子 runtime 的对外交互端口（permission broker +
-   * provider runtime headers），已绑定本 runtime 的客户端路由身份。class 外构造的子 runtime
-   * **必须**经这里取这两个端口，不能自行从 appOptions 取——理由见 `methods/config.ts` 的实现注释。
+   * 外部子 runtime 的权限交互端口已绑定本 runtime 的客户端路由身份。
+   * class 外构造的子 runtime 必须经这里取得端口，不能从 appOptions 直接透传。
    */
   createChildClientPorts(context: ChildClientPortsContext): ClientFacingPorts;
   getContextBuilder(): ContextBuilder;

@@ -37,6 +37,22 @@ export function AppUsagePanel() {
   const { snapshot: lifetimeSnapshot, refresh: refreshLifetime } = useAppUsageStats("all");
   const { snapshot, loading, error, refresh } = useAppUsageStats(range);
 
+  const refreshButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-8 rounded-md bg-background"
+      disabled={loading}
+      onClick={() => {
+        void Promise.all([refresh(), refreshLifetime()]);
+      }}
+    >
+      <RefreshCcw className="size-3.5" />
+      {intl.formatMessage({ id: "settings.usage.refresh" })}
+    </Button>
+  );
+
   if (loading && !snapshot) {
     return (
       <div className="space-y-5">
@@ -68,13 +84,15 @@ export function AppUsagePanel() {
           </div>
           <AppUsageRangeTabs range={range} onRangeChange={setRange} />
         </div>
-        {error ? <UsageStatsErrorNotice error={error} /> : null}
+        {error ? <UsageStatsErrorNotice /> : null}
         <UsageEmptyState
           title={intl.formatMessage({ id: "settings.usage.emptyTitle" })}
           description={intl.formatMessage({
             id: "settings.usage.emptyDescription",
           })}
         />
+        {/* 首次读取失败没有 snapshot，也必须提供重试入口，不能要求切换页面恢复。 */}
+        <div className="flex justify-end">{refreshButton}</div>
       </div>
     );
   }
@@ -91,7 +109,7 @@ export function AppUsagePanel() {
         </div>
         <AppUsageRangeTabs range={range} onRangeChange={setRange} />
       </div>
-      {error ? <UsageStatsErrorNotice error={error} /> : null}
+      {error ? <UsageStatsErrorNotice /> : null}
 
       <UsageChartLoadBoundary
         scope="settings.usage.app-daily-model-chart"
@@ -112,20 +130,7 @@ export function AppUsagePanel() {
         <AppUsageModelUsagePieChart snapshot={snapshot} />
       </UsageChartLoadBoundary>
 
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 rounded-md bg-background"
-          onClick={() => {
-            void Promise.all([refresh(), refreshLifetime()]);
-          }}
-        >
-          <RefreshCcw className="size-3.5" />
-          {intl.formatMessage({ id: "settings.usage.refresh" })}
-        </Button>
-      </div>
+      <div className="flex justify-end">{refreshButton}</div>
     </div>
   );
 }

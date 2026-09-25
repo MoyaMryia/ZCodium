@@ -363,7 +363,11 @@ export function ProviderModelMetadataDialog({
             />
           </ModelEditorAdvanced>
         </div>
-        <ModelConfigDraftFeedback error={draftErrorMessage} matched={modelDefaultsLoaded} />
+        {/* 模型 ID 失焦会同步刷新推荐配置。预留反馈行，避免提示出现时推动居中弹窗，
+            让保存按钮在 mousedown 与 mouseup 之间移位并丢失这次点击。 */}
+        <div className="min-h-10">
+          <ModelConfigDraftFeedback error={draftErrorMessage} matched={modelDefaultsLoaded} />
+        </div>
         <ProviderModelMetadataDialogActions
           leadingAction={<ModelConfigRestoreButton disabled={saving} onRestore={onRestore} />}
           saveLabel={intl.formatMessage({ id: "common.save" })}

@@ -335,7 +335,7 @@ function createWorkflowChildRuntime(
       eventSink: deps.eventSink,
       modelFactory: deps.modelFactory,
       resolveEffectiveModelSelection: deps.appOptions.resolveEffectiveModelSelection,
-      // 对外交互端口由父 runtime 派生（permissionBroker + providerRuntimeHeadersPort）：
+      // 权限交互端口由父 runtime 派生（permissionBroker）：
       // 子会话不是协议客户端认识的身份，直接透传 appOptions 的端口会让反向请求发到一个
       // 客户端找不到的 session 上、response 永不回来。
       ...deps.runtime.createChildClientPorts({

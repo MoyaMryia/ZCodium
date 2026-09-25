@@ -8,7 +8,10 @@ import {
   type TurnFileChangeSummary,
   type TurnId,
 } from "@zcode/contracts";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import {
+  restoreSharedContextImportState,
+  type ConversationSnapshot,
+} from "@zcode/shared/zcode-protocol-v4";
 import {
   goalVerificationEntriesFromSessionEntries,
   synthesizeEventsFromMessages,
@@ -93,24 +96,9 @@ export async function loadPersistedConversationMaterialization(input: {
     sharedContextEntry?.data && typeof sharedContextEntry.data === "object"
       ? (sharedContextEntry.data as Record<string, unknown>)
       : undefined;
-  const contextId =
-    typeof sharedContextData?.contextId === "string" ? sharedContextData.contextId : undefined;
-  const shareUrl =
-    typeof sharedContextData?.shareUrl === "string" ? sharedContextData.shareUrl : undefined;
-  const status = sharedContextData?.status;
-  const sharedContextImport =
-    sharedContextMessage && session?.title?.trim()
-      ? contextId &&
-        shareUrl &&
-        ["pending", "reserved", "attached", "discarded"].includes(String(status))
-        ? {
-            contextId,
-            title: session.title.trim(),
-            shareUrl,
-            status: status as "pending" | "reserved" | "attached" | "discarded",
-          }
-        : { title: session.title.trim() }
-      : undefined;
+  const sharedContextImport = sharedContextMessage
+    ? restoreSharedContextImportState(session?.title, sharedContextData)
+    : undefined;
   return {
     goalVerificationEntries: goalVerificationEntriesFromSessionEntries(entries),
     memoryEvents: [...input.memoryEvents],

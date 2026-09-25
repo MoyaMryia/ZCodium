@@ -75,7 +75,6 @@ function finishSessionOpen(
     errorCode: errorCodeFromMessage(options.errorMessage ?? null),
     rendererPrepareMs: rendererTiming?.rendererPrepareMs,
     hostPrepareMs: openTiming?.hostPrepareMs,
-    providerRegistrySyncMs: openTiming?.providerRegistrySyncMs,
     taskMetaReadMs: openTiming?.taskMetaReadMs,
     cliRequestMs: openTiming?.cliRequestMs,
     cliBootstrapMs: openTiming?.cliBootstrapMs,

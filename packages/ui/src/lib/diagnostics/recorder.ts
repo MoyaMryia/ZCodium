@@ -39,7 +39,6 @@ const metricMappings: Record<string, string> = {
   retry_cnt: "retryCount",
   renderer_prepare_ms: "rendererPrepareMs",
   host_prepare_ms: "hostPrepareMs",
-  provider_registry_sync_ms: "providerRegistrySyncMs",
   task_meta_read_ms: "taskMetaReadMs",
   cli_request_ms: "cliRequestMs",
   cli_bootstrap_ms: "cliBootstrapMs",

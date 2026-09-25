@@ -35,7 +35,7 @@ export const AUTOMATION_FORM_FIELD_CLASSNAME = "flex flex-col gap-1.5";
 
 export type AutomationSettingsHistoryTab = "settings" | "history";
 
-/** 定时与闲时共用运行历史空态，防止透明留白与卡片容器样式再次漂移。 */
+/** 定时任务运行历史空态，防止透明留白与卡片容器样式再次漂移。 */
 export function AutomationHistoryEmptyState({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-[226px] items-center justify-center rounded-xl border border-dashed border-card-border bg-background px-4 text-center text-ui-base text-foreground-subtle">
@@ -44,7 +44,7 @@ export function AutomationHistoryEmptyState({ children }: { children: ReactNode 
   );
 }
 
-/** 定时与闲时设置页复用 Hooks scope tabs 的 pill 视觉，避免详情页分段样式漂移。 */
+/** 定时任务设置页复用 Hooks scope tabs 的 pill 视觉，避免详情页分段样式漂移。 */
 export function AutomationSettingsHistoryTabs({
   value,
   settingsLabel,
@@ -87,11 +87,11 @@ export function AutomationKeepAwakeNotice({
         <AutomationInfoIcon className="size-4" />
       </span>
       <p className="min-w-0 flex-1 text-ui-base leading-5">
-        {intl.formatMessage({ id: "offPeak.keepAwakeBanner" })}
+        {intl.formatMessage({ id: "automations.keepAwakeBanner" })}
       </p>
       <AutomationSwitchToggle
         checked={checked}
-        ariaLabel={intl.formatMessage({ id: "offPeak.keepAwakeBanner" })}
+        ariaLabel={intl.formatMessage({ id: "automations.keepAwakeBanner" })}
         onChange={onChange}
         color="blue"
         size="sm"

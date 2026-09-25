@@ -1,38 +1,41 @@
 #!/usr/bin/env node
+import {
+  BUILTIN_PLUGIN_ASSETS,
+  BUILTIN_PLUGIN_REQUIRED_PATHS,
+  BUILTIN_PLUGIN_TOP_LEVEL_PATHS,
+} from "@zcode/shared/builtin-plugin-assets";
 /* eslint-disable max-lines */
 
-import { access, cp, mkdir } from "node:fs/promises";
+import { access, cp, mkdir, rm } from "node:fs/promises";
 import {
   chmodSync,
   copyFileSync,
   cpSync,
-  createWriteStream,
   existsSync,
   mkdirSync,
-  mkdtempSync,
-  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { resolveRemoteNativeSearchPrebuiltPlan } from "./remote-native-search-tools-config.mjs";
 import { prepareNativeSearchTools } from "./prepare-native-search-tools.mjs";
-import { stageNodeNotices, stageThirdPartyNotices } from "./third-party-notices.mjs";
+import { stageThirdPartyNotices } from "./third-party-notices.mjs";
 import {
   computeDeterministicSourceSha256 as computeComponentSourceSha256,
   packSourceAsDeterministicTarGzip as packComponentSourceAsArchive,
 } from "./deterministic-tar-archive.mjs";
 import { runCommand } from "./spawn-command.mjs";
-import { resolveIntranetDepsBaseUrl } from "./intranetDefaults.mjs";
+import { prepareRemoteNode, REMOTE_NODE_VERSION } from "./remote-node-runtime.mjs";
+import { bundleRepositoryRemoteAssets } from "./bundle-remote-assets.mjs";
+import { validateBuiltinPluginAssets } from "./builtin-plugin-assets.mjs";
+import { stageCuaDriverRuntime } from "./cua-driver-runtime-assets.mjs";
+export { DEFAULT_NODE_DIST_BASE, nodeDistBase } from "./remote-node-runtime.mjs";
 
 export { computeComponentSourceSha256, packComponentSourceAsArchive };
 
@@ -42,119 +45,16 @@ const rootDir = resolve(scriptDir, "..");
 const desktopDir = join(rootDir, "packages/desktop");
 const mockCdnDir = join(desktopDir, "mock-cdn");
 const version = require(join(rootDir, "package.json")).version;
-const ZCODE_AGENT_RUNTIME = {
-  glm: {
-    version: readZCodeAgentRuntimeVersion(),
-  },
-};
+const agentVersion = require(join(rootDir, "apps/zcode-cli/package.json")).version;
 const releaseDir = join(mockCdnDir, "releases", version);
-const nodeVersion = "v22.16.0";
+const nodeVersion = REMOTE_NODE_VERSION;
 const componentSchemaVersion = 1;
-const remotePlatforms = ["linux-arm64", "linux-x64", "darwin-arm64", "darwin-x64"];
+const remotePlatforms = ["linux-x64"];
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const isBootstrapWithRemote = process.env.ZCODE_BOOTSTRAP_WITH_REMOTE === "1";
 
-/**
- * Node dist 下载源。默认走国内镜像，`ZCODE_NODE_DIST_MIRROR` 可覆盖（与
- * `.gitlab/ci/00-workflow.yml` 的同名 CI 变量、`scripts/cua-helper-sea-base.mjs` 同一约定）。
- *
- * 这里原本硬编码 `https://nodejs.org/dist`，而 macOS
- * runner 连不上它 —— 3 次尝试全部 `UND_ERR_CONNECT_TIMEOUT`（10s）。更糟的是本文件的报错文案
- * 一直在让人「检查 Node.js 镜像地址」，可当时根本没有这个旋钮。
- *
- * 为什么之前没暴露：`mock-cdn` 靠 GIT_CLEAN_FLAGS 排除项跨 job 持久化，而
- * `build:remote:assets` 每次都 `rm -rf` 掉除自己 $VERSION 以外的所有 release 目录。
- * 不同版本目录因此互相驱逐持久化产物，谁被驱逐谁就必须回源下载。
- * 平时都是 `[skip] already exists`，所以这条网络路径长期没被真正走过。
- */
-export const DEFAULT_NODE_DIST_BASE = "https://cdn.npmmirror.com/binaries/node";
-
-export function nodeDistBase(env = process.env) {
-  const mirror = env.ZCODE_NODE_DIST_MIRROR?.trim();
-  return (mirror || DEFAULT_NODE_DIST_BASE).replace(/\/+$/u, "");
-}
 const BROWSER_USE_PLUGIN_PACKAGE_NAME = "@zcode/browser-use-plugin";
-// node_repl 宿主抽成独立包 @zcode/node-repl-host 之后，browser-use
-// 不再产出 dist/mcp/server.js，CUA 资产也已归 @zcode/zcode-cua-plugin。这是**第三份**平行清单
-// （另两份：packages/desktop/scripts/prepare-agent-node-bundle.mjs 的生产打包、
-// scripts/build-desktop-agent-cli.mjs 的 dev 构建），当时只改了 dev 那份，于是先后在
-// build:macos:arm64 与 build:remote:assets 上以 "missing runtime" 挂掉两次。
-// 权威归属见 bootstrap/official-plugin-definitions.ts。
-const browserUseRequiredRuntimePaths = [
-  "scripts/browser-client.mjs",
-  "docs/api.json",
-  "docs/documents.json",
-  "docs/overview.md",
-  // remote prebuild 必须和桌面 seed 使用同一录屏文档完整性合同。
-  "docs/recording.md",
-  "docs/workflow.md",
-  "skills/control-browser/SKILL.md",
-  "skills/web-gui-tester/SKILL.md",
-];
-// 纯内容内置插件：无 dist、无 workspace 依赖、无 runtime 构建，staging 只搬运
-// skills/agents/commands/docs 等白名单顶层项。契约见 .agents/specs/builtin-plugin-parity.md。
-// 新增条目必须同步 packages/desktop/scripts/prepare-agent-node-bundle.mjs 的桌面 seed 清单与
-// packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts 的远端合同。
-const builtinContentPluginPackages = [
-  // 与桌面发行清单保持一致，避免远端要求未发行的插件资源。
-  "presentations-plugin",
-  // documents 的 Python 脚本是技能正文描述的能力的执行体，seed 必须带齐。
-  "documents-plugin",
-  "pdf-plugin",
-  "spreadsheets-plugin",
-  "skill-creator-plugin",
-  "plugin-creator-plugin",
-  "image-search-plugin",
-  "restore-legacy-sessions-plugin",
-  "zcode-guide-plugin",
-].map((directory) => ({
-  packageName: `@zcode/${directory}`,
-  relativePath: `apps/zcode-cli/packages/${directory}`,
-  stagedPath: `packages/${directory}`,
-}));
-
-// computer-use 与上面几项同属内容型，但它有必填 seed 合同（见
-// apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts 的
-// OFFICIAL_CUA_REQUIRED_SEED_PATHS）：缺任一项都会 seed 出没有 client 的残缺插件，
-// 模型因此看得见 computer-use 却调不到任何方法。原生 runtime 仍不 staged。
-const cuaPluginPackage = {
-  packageName: "@zcode/zcode-cua-plugin",
-  relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
-  stagedPath: "packages/zcode-cua-plugin",
-};
-
-const remoteOfficialPluginPackages = [
-  // 44b25ed46c「remove bundled plugins except browser use and cua」删掉了其余
-  // 内置插件源码，但漏改这份清单，bootstrap:with-remote 在 staging 第一个 manifest 就抛
-  // missing。此处与 packages/desktop/scripts/prepare-agent-node-bundle.mjs 的桌面 seed
-  // 清单、packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts 的远端合同保持一致。
-  {
-    // 远端 shared-host 必须部署 node_repl runtime，否则只剩 skill 而没有 mcp__node_repl__js ——
-    // 该 runtime 现由 @zcode/node-repl-host 提供（见下一个条目），browser-use 只带自己的
-    // client script 与 skill/docs。
-    packageName: "@zcode/browser-use-plugin",
-    relativePath: "apps/zcode-cli/packages/browser-use-plugin",
-    requiresRuntime: true,
-    requiredRuntimePaths: browserUseRequiredRuntimePaths,
-    runtimeBuildScript: "scripts/build.mjs",
-    stagedPath: "packages/browser-use-plugin",
-  },
-  {
-    // node_repl 宿主：Browser Use 与 Computer Use 共用的 MCP runtime。远端 shared-host 缺它
-    // 就没有 mcp__node_repl__js，bua/cua 两边都会连不上。
-    packageName: "@zcode/node-repl-host",
-    relativePath: "apps/zcode-cli/packages/node-repl-host",
-    requiresRuntime: true,
-    requiredRuntimePaths: ["dist/mcp/server.js"],
-    runtimeBuildScript: "scripts/build.mjs",
-    stagedPath: "packages/node-repl-host",
-  },
-  // 纯内容插件：无 dist、无 workspace 依赖，staging 只搬运 skills/agents/commands/docs。
-  // 契约见 .agents/specs/builtin-plugin-parity.md；新增条目必须同步
-  // prepare-agent-node-bundle.mjs 与 zcodeAgentOfficialPluginAssets.ts。
-  ...builtinContentPluginPackages,
-  cuaPluginPackage,
-];
+const remoteOfficialPluginPackages = BUILTIN_PLUGIN_ASSETS;
 // 随 CLI 内置的技能包（不是插件）：远端 agent 的 bootstrap 沿官方插件同款候选目录在 zcode.cjs 旁
 // 找 packages/bundled-skills 并原地读取；与 packages/desktop/scripts/prepare-agent-node-bundle.mjs 同一份清单。
 const remoteBundledSkillPack = {
@@ -167,22 +67,7 @@ const remoteBundledSkillPack = {
   stagedPath: "packages/bundled-skills",
   topLevelPaths: ["skills"],
 };
-const remoteOfficialPluginTopLevelPaths = new Set([
-  ".mcp.json",
-  ".zcodium-plugin",
-  "README.md",
-  // 生产远程预构建有独立顶层白名单，遗漏 agents 会在上传前永久裁掉子代理。
-  "agents",
-  "commands",
-  "dist",
-  "docs",
-  "hooks",
-  "output-styles",
-  "package.json",
-  "scripts",
-  "skills",
-  "templates",
-]);
+const remoteOfficialPluginTopLevelPaths = new Set(BUILTIN_PLUGIN_TOP_LEVEL_PATHS);
 const excludedOfficialPluginAssetNames = new Set([
   ".DS_Store",
   ".venv",
@@ -194,100 +79,9 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   const name = basename(sourcePath);
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
-const remoteOfficialPluginRequiredPaths = [
-  "packages/browser-use-plugin/.zcodium-plugin/plugin.json",
-  "packages/node-repl-host/.zcodium-plugin/plugin.json",
-  // computer-use 的 client 及其四个依赖模块 / skill / 文档，缺一即 seed 出不可用插件。
-  "packages/zcode-cua-plugin/scripts/computer-use-client.mjs",
-  "packages/zcode-cua-plugin/scripts/computer-use-errors.mjs",
-  "packages/zcode-cua-plugin/scripts/computer-use-envelope.mjs",
-  "packages/zcode-cua-plugin/scripts/computer-use-keys.mjs",
-  "packages/zcode-cua-plugin/scripts/computer-use-target.mjs",
-  "packages/zcode-cua-plugin/skills/computer-use/SKILL.md",
-  "packages/zcode-cua-plugin/docs/computer-use.md",
-  ...builtinContentPluginPackages.map(
-    ({ stagedPath }) => `${stagedPath}/.zcodium-plugin/plugin.json`,
-  ),
-];
-
-function readZCodeAgentRuntimeVersion() {
-  const runtimeSourcePath = join(rootDir, "packages/shared/src/zcode-agent-runtime.ts");
-  const runtimeSource = readFileSync(runtimeSourcePath, "utf8");
-  const match = runtimeSource.match(/version:\s*["']([^"']+)["']/);
-  if (!match?.[1]) {
-    throw new Error("Unable to parse ZCode Agent runtime version");
-  }
-  return match[1];
-}
-
-async function download(url, destinationPath) {
-  const response = await fetch(url, { redirect: "follow" });
-  if (!response.ok) {
-    throw new Error(`Download failed: HTTP ${response.status} (${url})`);
-  }
-  if (!response.body) {
-    throw new Error(`Download failed: empty response body (${url})`);
-  }
-
-  // 原实现使用 response.pipe(file) + finish 监听，网络中断时可能既不 resolve 也不 reject，
-  // 最终触发 Node 24 的 unsettled top-level await。改为 pipeline，确保异常路径可观测且可失败退出。
-  await pipeline(
-    Readable.fromWeb(response.body),
-    createWriteStream(destinationPath, { flags: "w" }),
-  );
-}
-
-async function downloadWithRetry(url, destinationPath, maxAttempts = 3) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      await download(url, destinationPath);
-      return;
-    } catch (error) {
-      if (attempt >= maxAttempts) {
-        throw error;
-      }
-      console.warn(`  [warn] download attempt ${attempt}/${maxAttempts} failed: ${url}`);
-      console.warn(`  [warn] retry reason: ${String(error)}`);
-    }
-  }
-}
-
-async function extractArchiveMember(url, destinationDir, archiveMember) {
-  const tempDir = mkdtempSync(join(tmpdir(), "zcode-node-dist-"));
-  const archivePath = join(tempDir, "node.tar.xz");
-
-  try {
-    await downloadWithRetry(url, archivePath);
-    // Bugfix: Windows 下绝对路径带盘符冒号（C:\...），GNU tar（Git Bash）会把 "C:" 当成
-    // 远程主机名报 "Cannot connect to C"。改用 cwd + 相对归档名，避开 -f 参数里的冒号。
-    // 反斜杠路径同样会被 MSYS tar 参数转换破坏（\3 被当转义），-C 目标统一转正斜杠，
-    // 对 bsdtar 与 Linux/macOS CI 无影响。
-    runCommand(
-      "tar",
-      [
-        "-xJf",
-        "node.tar.xz",
-        "--strip-components=2",
-        "-C",
-        destinationDir.replaceAll("\\", "/"),
-        archiveMember,
-      ],
-      {
-        cwd: tempDir,
-      },
-    );
-  } finally {
-    // Bugfix: Windows 下刚写完的归档可能被杀毒/索引器或尚未退出的 xz 子进程短暂持有句柄，
-    // rmSync 立即删除会 EPERM，且 finally 里抛出的异常会掩盖真正的下载/解压错误。
-    // 带重试删除，失败时仅告警，让原始错误正常抛出。
-    try {
-      rmSync(tempDir, { force: true, recursive: true, maxRetries: 10, retryDelay: 500 });
-    } catch (error) {
-      console.warn(`  [warn] 清理临时目录失败（可忽略）: ${tempDir}`);
-      console.warn(`  [warn] ${String(error)}`);
-    }
-  }
-}
+const remoteOfficialPluginRequiredPaths = BUILTIN_PLUGIN_REQUIRED_PATHS.map(
+  (path) => `packages/${path}`,
+);
 
 function resolveDedicatedPackageRoot(packageName, fromDir) {
   const packageEntryPath = require.resolve(packageName, { paths: [fromDir] });
@@ -329,33 +123,13 @@ function resolveNodePtyPackageVersion(platformKey) {
 }
 
 async function prepareNodeBinaries() {
-  for (const platformKey of remotePlatforms) {
-    const nodeDir = join(releaseDir, "node", platformKey);
-    const nodeBinaryPath = join(nodeDir, "node");
-    await stageNodeNotices(nodeDir, nodeVersion, rootDir);
-
-    if (existsSync(nodeBinaryPath)) {
-      console.log(`  [skip] mock-cdn node/${platformKey} already exists`);
-      continue;
-    }
-
-    mkdirSync(nodeDir, { recursive: true });
-    const archiveName = `node-${nodeVersion}-${platformKey}.tar.xz`;
-    const url = `${nodeDistBase()}/${nodeVersion}/${archiveName}`;
-
-    console.log(`  [download] ${url}`);
-
-    try {
-      await extractArchiveMember(url, nodeDir, `node-${nodeVersion}-${platformKey}/bin/node`);
-      chmodSync(nodeBinaryPath, 0o755);
-      console.log(`  [ok] mock-cdn node/${platformKey}`);
-    } catch (error) {
-      console.error(`  [error] 下载或解压失败: ${url}`);
-      console.error(
-        `  [error] 请检查 CI runner 的外网访问、tar/xz 依赖，或用 ZCODE_NODE_DIST_MIRROR 覆盖下载源（当前 ${nodeDistBase()}）`,
-      );
-      throw error;
-    }
+  for (const platform of remotePlatforms) {
+    await prepareRemoteNode({
+      platform,
+      outputDirectory: join(releaseDir, "node", platform),
+      cacheDirectory: join(rootDir, ".cache", "remote-node"),
+      root: rootDir,
+    });
   }
 }
 
@@ -414,30 +188,14 @@ function copyNodePtyPrebuilds() {
     const targetSpawnHelperPath = join(ptyDir, "spawn-helper");
     const requiresSpawnHelper = platformKey.startsWith("darwin-");
 
-    if (
-      existsSync(targetBinaryPath) &&
-      (!requiresSpawnHelper || existsSync(targetSpawnHelperPath))
-    ) {
-      console.log(`  [skip] mock-cdn node-pty/${platformKey} already exists`);
-      continue;
-    }
-
     mkdirSync(ptyDir, { recursive: true });
 
     const packageName = resolveNodePtyPackageName(platformKey);
-    let packageRoot;
-    try {
-      packageRoot = resolveDedicatedPackageRoot(packageName, join(rootDir, "packages/server"));
-    } catch {
-      console.log(`  [warn] ${packageName} not found, run: pnpm install`);
-      continue;
-    }
-
+    const packageRoot = resolveDedicatedPackageRoot(packageName, join(rootDir, "packages/server"));
     const sourcePrebuildDir = join(packageRoot, "prebuilds", platformKey);
     const sourceBinaryPath = join(sourcePrebuildDir, "pty.node");
     if (!existsSync(sourceBinaryPath)) {
-      console.log(`  [warn] binary not found at ${sourceBinaryPath}`);
-      continue;
+      throw new Error(`Missing PTY binary: ${sourceBinaryPath}`);
     }
 
     // Darwin 平台 node-pty 除了 pty.node 还依赖 spawn-helper。
@@ -447,8 +205,7 @@ function copyNodePtyPrebuilds() {
     if (requiresSpawnHelper) {
       const sourceSpawnHelperPath = join(sourcePrebuildDir, "spawn-helper");
       if (!existsSync(sourceSpawnHelperPath)) {
-        console.log(`  [warn] spawn-helper not found at ${sourceSpawnHelperPath}`);
-        continue;
+        throw new Error(`Missing PTY spawn helper: ${sourceSpawnHelperPath}`);
       }
       copyFileSync(sourceSpawnHelperPath, targetSpawnHelperPath);
       chmodSync(targetSpawnHelperPath, 0o755);
@@ -513,7 +270,7 @@ function assertRemoteOfficialPluginRuntime(plugin) {
   }
 }
 
-function stageRemoteOfficialPlugins(glmDir) {
+async function stageRemoteOfficialPlugins(glmDir) {
   for (const plugin of remoteOfficialPluginPackages) {
     const sourceRoot = join(rootDir, plugin.relativePath);
     const manifestPath = join(sourceRoot, ".zcodium-plugin", "plugin.json");
@@ -533,6 +290,9 @@ function stageRemoteOfficialPlugins(glmDir) {
         filter: shouldCopyOfficialPluginAsset,
       });
     }
+    if (plugin.directory === "node-repl-host") {
+      await stageCuaDriverRuntime(targetRoot, { platform: "linux", arch: "x64" });
+    }
     for (const relativePath of remoteOfficialPluginRequiredPaths) {
       if (!relativePath.startsWith(`${plugin.stagedPath}/`)) continue;
       const stagedAssetPath = join(glmDir, ...relativePath.split("/"));
@@ -544,6 +304,7 @@ function stageRemoteOfficialPlugins(glmDir) {
     }
     console.log(`  [ok] mock-cdn glm official plugin ${plugin.stagedPath}`);
   }
+  await validateBuiltinPluginAssets(join(glmDir, "packages"), { platform: "linux", arch: "x64" });
 }
 
 async function stageRemoteBundledSkillPack(glmDir) {
@@ -590,18 +351,9 @@ async function stageRemoteAgentBundles() {
     rmSync(glmDir, { recursive: true, force: true });
     mkdirSync(glmDir, { recursive: true });
     copyFileSync(cliBundlePath, join(glmDir, "zcode.cjs"));
-    stageRemoteOfficialPlugins(glmDir);
+    await stageRemoteOfficialPlugins(glmDir);
     await stageRemoteBundledSkillPack(glmDir);
     console.log(`  [ok] mock-cdn glm/${platformKey}/zcode.cjs`);
-  }
-}
-
-function canResolveIntranetDepsBaseUrl() {
-  try {
-    resolveIntranetDepsBaseUrl();
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -684,59 +436,12 @@ function resolveComponentSemanticVersion(componentVersion) {
   return /^[a-f0-9]{12,64}$/.test(suffix) ? version.slice(0, plusIndex) : version;
 }
 
-// glm 承载 zcode-cli app-server 协议 schema。即使 runtime 版本未变化，
-// zcode.cjs 也可能随 app 代码变更；跨 release 复用旧 glm 会让远端 agent 拒绝新协议字段。
-const nonReusableReleaseAssetIds = new Set(["server-bundle", "glm"]);
-
 function readJsonFile(filePath) {
   try {
     return JSON.parse(readFileSync(filePath, "utf8"));
   } catch {
     return null;
   }
-}
-
-function compareVersionSegments(left, right) {
-  const leftParts = String(left).split(/[.-]/);
-  const rightParts = String(right).split(/[.-]/);
-  const length = Math.max(leftParts.length, rightParts.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const leftPart = leftParts[index] ?? "0";
-    const rightPart = rightParts[index] ?? "0";
-    const leftNumber = /^\d+$/.test(leftPart) ? Number(leftPart) : null;
-    const rightNumber = /^\d+$/.test(rightPart) ? Number(rightPart) : null;
-
-    if (leftNumber !== null && rightNumber !== null) {
-      if (leftNumber !== rightNumber) {
-        return leftNumber - rightNumber;
-      }
-      continue;
-    }
-
-    const compared = leftPart.localeCompare(rightPart, undefined, {
-      numeric: true,
-    });
-    if (compared !== 0) {
-      return compared;
-    }
-  }
-
-  return 0;
-}
-
-function findReusableReleaseDirs({ mockCdnDir, currentVersion }) {
-  const releasesDir = join(mockCdnDir, "releases");
-  if (!existsSync(releasesDir)) {
-    return [];
-  }
-
-  return readdirSync(releasesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== currentVersion)
-    .map((entry) => entry.name)
-    .filter((candidate) => compareVersionSegments(candidate, currentVersion) < 0)
-    .sort((left, right) => compareVersionSegments(right, left))
-    .map((candidate) => join(releasesDir, candidate));
 }
 
 function normalizeManifestComponents(manifest) {
@@ -749,115 +454,6 @@ function normalizeManifestComponents(manifest) {
       .filter((component) => typeof component?.id === "string")
       .map((component) => [component.id, component]),
   );
-}
-
-export function restoreReusableReleaseAssets({
-  mockCdnDir,
-  currentVersion,
-  releaseDir,
-  componentDefinitionsByPlatform,
-}) {
-  const previousReleaseDirs = findReusableReleaseDirs({
-    mockCdnDir,
-    currentVersion,
-  });
-  if (previousReleaseDirs.length === 0) {
-    return;
-  }
-
-  for (const [platformKey, componentDefinitions] of componentDefinitionsByPlatform.entries()) {
-    for (const componentDefinition of componentDefinitions) {
-      if (nonReusableReleaseAssetIds.has(componentDefinition.id)) {
-        continue;
-      }
-
-      for (const previousReleaseDir of previousReleaseDirs) {
-        const previousManifest = readJsonFile(
-          join(previousReleaseDir, `manifest-${platformKey}.json`),
-        );
-        const previousComponents = normalizeManifestComponents(previousManifest);
-        const previousComponent = previousComponents.get(componentDefinition.id);
-        if (
-          resolveComponentSemanticVersion(previousComponent?.version) !==
-          resolveComponentSemanticVersion(componentDefinition.version)
-        ) {
-          continue;
-        }
-
-        const sourcePath = join(previousReleaseDir, ...componentDefinition.mount.split("/"));
-        const targetPath = join(releaseDir, ...componentDefinition.mount.split("/"));
-        if (!existsSync(sourcePath)) {
-          continue;
-        }
-
-        const requiredPaths = componentDefinition.requiredPaths ?? [];
-        const hasTargetRequiredPaths =
-          existsSync(targetPath) &&
-          requiredPaths.every((relativePath) =>
-            existsSync(join(targetPath, ...relativePath.split("/"))),
-          );
-        if (hasTargetRequiredPaths) {
-          continue;
-        }
-
-        const hasRequiredPaths = requiredPaths.every((relativePath) =>
-          existsSync(join(sourcePath, ...relativePath.split("/"))),
-        );
-        if (!hasRequiredPaths) {
-          continue;
-        }
-
-        // app version 变更会生成新的 releases/<version> 目录，mock-cdn cache 命中不能依赖该路径。
-        // 这里仅在组件自身版本一致且关键文件完整时复制历史 release，避免稳定 runtime 重复下载。
-        mkdirSync(dirname(targetPath), { recursive: true });
-        if (existsSync(targetPath)) {
-          // 上一次 bootstrap 中断可能留下只有 .part 文件的残缺目标目录。
-          // 目标目录存在但关键文件不完整时不能跳过复用，先清掉再用历史 release 的完整资源修复。
-          rmSync(targetPath, { force: true, recursive: true });
-        }
-        cpSync(sourcePath, targetPath, { recursive: true });
-        console.log(
-          `  [reuse] ${componentDefinition.id} ${platformKey} from ${basename(previousReleaseDir)}`,
-        );
-        break;
-      }
-    }
-  }
-}
-
-function buildReusableComponentDefinitionsByPlatform() {
-  return new Map(
-    remotePlatforms.map((platformKey) => [
-      platformKey,
-      buildRemoteComponentDefinitions(platformKey).map((component) => ({
-        id: component.id,
-        version: buildComponentVersion(component.semanticPrefix),
-        mount: component.mount,
-        requiredPaths: buildReusableComponentRequiredPaths(component.id, platformKey),
-      })),
-    ]),
-  );
-}
-
-function buildReusableComponentRequiredPaths(componentId, platformKey) {
-  switch (componentId) {
-    case "node-runtime":
-      return ["node"];
-    case "node-pty":
-      return platformKey.startsWith("darwin-") ? ["pty.node", "spawn-helper"] : ["pty.node"];
-    case "glm":
-      // GLM 现在是编译产物 zcode.cjs（跨平台同一份），远端用已部署的 node 执行它。
-      // 复用时还要确认官方插件 seed 资源完整，否则旧 release 会继续产出 0 builtin plugin 的远端资源包。
-      return ["zcode.cjs", ...remoteOfficialPluginRequiredPaths];
-    case "bfs":
-      return ["bfs"];
-    case "ripgrep":
-      return [platformKey.startsWith("win32-") ? "rg.exe" : "rg"];
-    case "ugrep":
-      return ["ugrep"];
-    default:
-      return [];
-  }
 }
 
 export function buildRemoteComponentDefinitions(platformKey) {
@@ -884,9 +480,8 @@ export function buildRemoteComponentDefinitions(platformKey) {
     },
     {
       id: "glm",
-      // GLM native binary 之前固定成 v1，二进制版本升级后不会触发组件 cache 失效。
-      // 这里复用 ZCODE_AGENT_RUNTIME.glm.version，保持 manifest 版本与运行时描述一致。
-      semanticPrefix: ZCODE_AGENT_RUNTIME.glm.version,
+      // Agent bundle 的版本来自 CLI 构建输入，不沿用旧原生运行时描述符。
+      semanticPrefix: agentVersion,
       mount: joinPosix("glm", platformKey),
       sourcePath: join(releaseDir, "glm", platformKey),
     },
@@ -1039,14 +634,6 @@ function prepareRemoteComponentArtifacts() {
     );
 
     for (const component of componentDefinitions) {
-      if (!existsSync(component.sourcePath)) {
-        if (!canResolveIntranetDepsBaseUrl()) {
-          console.warn(
-            `  [skip] component ${component.id} (${platformKey}): source missing and intranet deps source is not configured`,
-          );
-          continue;
-        }
-      }
       componentManifestEntries.push(
         prepareRemoteComponentArtifact({
           mockCdnDir,
@@ -1080,12 +667,10 @@ async function main() {
   console.log(`==> Preparing mock CDN release in ${releaseDir}`);
 
   mkdirSync(releaseDir, { recursive: true });
-  restoreReusableReleaseAssets({
-    mockCdnDir,
-    currentVersion: version,
-    releaseDir,
-    componentDefinitionsByPlatform: buildReusableComponentDefinitionsByPlatform(),
-  });
+  // 旧 manifest 不能在构建失败后伪装为本次完整产物；发布标记最后生成。
+  for (const platform of remotePlatforms) {
+    await rm(join(releaseDir, `manifest-${platform}.json`), { force: true });
+  }
 
   await prepareNodeBinaries();
   buildServerBundle();
@@ -1100,6 +685,7 @@ async function main() {
     await stageThirdPartyNotices(join(releaseDir, "glm", platformKey), rootDir);
   }
   prepareRemoteComponentArtifacts();
+  await bundleRepositoryRemoteAssets(rootDir);
 
   console.log(`==> Done! Mock CDN release ready at ${releaseDir}`);
 }

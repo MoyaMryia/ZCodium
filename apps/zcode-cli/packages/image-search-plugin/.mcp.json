@@ -2,10 +2,9 @@
   "mcpServers": {
     "image_search": {
       "type": "http",
-      "url": "${user_config.imageSearchBaseUrl}/api/v1/mcp/server/image_search",
-      "auth": {
-        "type": "zcode_official",
-        "provider": "jwt_token"
+      "url": "${user_config.imageSearchMcpUrl}",
+      "headers": {
+        "Authorization": "${user_config.authorizationHeader}"
       },
       "timeoutMs": 90000
     }

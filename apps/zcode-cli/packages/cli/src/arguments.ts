@@ -18,9 +18,6 @@ export const parseGlobalArgs = (argv: string[]) =>
       "no-color": {
         type: "boolean",
       },
-      "no-browser": {
-        type: "boolean",
-      },
       "browser-use": {
         type: "string",
       },

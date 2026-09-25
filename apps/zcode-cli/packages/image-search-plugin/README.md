@@ -1,35 +1,21 @@
-# Image Search for ZCode
+# Image Search for ZCodium
 
-This plugin registers the official ZCode image search MCP server, so the agent can look up illustrations and reference images while producing documents, slides, posters, or web pages. It ships enabled by default.
+Connect your own network image-search MCP service. This plugin includes no search backend or local image library, requires no ZCode account, and has no default server.
 
-## Components
+## Setup
 
-- MCP server `image_search` (HTTP), exposed to the model as `mcp__image_search__<tool>`.
-- Nothing else: no commands, skills, hooks, or agents. The plugin is a single `.mcp.json` declaration.
+The plugin is disabled by default. Open the **Image Search** plugin's settings:
 
-## Backend configuration
+1. Enter the service's complete HTTP MCP endpoint in **MCP URL**, including its path. ZCodium does not append a path.
+2. If the service uses a token, enter its complete **Authorization** header, for example `Bearer YOUR_TOKEN`. This field is masked. Leave it empty for public endpoints or standard MCP OAuth; an empty field sends no Authorization header.
+3. Save the configuration and enable the plugin. Start a new session to load the configured tools.
 
-The server URL is built from the plugin's `imageSearchBaseUrl` user setting:
+For example, a self-managed endpoint might be `https://images.example.com/mcp`. Use the URL supplied by your service, not its homepage. For services requiring other headers or custom OAuth settings, use the application's general MCP configuration.
 
-```
-${user_config.imageSearchBaseUrl}/api/v1/mcp/server/image_search
-```
-
-- The setting defaults to `http://127.0.0.1:8787`, a loopback address for local development, and is declared in `.zcodium-plugin/plugin.json`.
-- Point it at the official ZCode API origin to use the hosted service again.
-
-Authentication is injected by the client, not configured here: the declaration carries `auth.type: zcode_official` with provider `jwt_token`, so the signed-in user's official ZCode credentials are attached to each request and no manual token or API key is needed. Official credentials are only sent to an HTTPS origin that matches the runtime ZCode API origin (or a loopback origin explicitly trusted for development), which is why a hosted backend must be the ZCode API origin itself. Requests time out after 90 seconds (`timeoutMs: 90000`).
-
-## Requirements
-
-- A ZCode session signed in to an account whose plan reaches the configured backend.
-- Network access from the client to that backend.
-- Start a new ZCode session after installing or updating the plugin — MCP servers are registered when a session starts.
+Until a URL is configured, the plugin makes no connection attempts. Missing required settings are reported by the plugin configuration UI. If a connection fails, check the endpoint and credentials, then retry from MCP settings.
 
 ## Usage
 
-Once installed, ask for images in natural language — for example "find a photo of a wind farm for the cover" — and the agent calls the image search tool. The plugin pairs with the `documents` and `presentations` plugins: it was split out of the aggregated documents plugin as an independent toggle, so install it alongside them when you want image search available during document production, and disable it when you do not.
+Ask for images in natural language. Available tools and search results come from your chosen service; the plugin registers them under its `image_search` MCP server. Requests time out after 90 seconds.
 
-## Notes
-
-- The plugin only declares an MCP server; it ships no code and no other components. What the search returns comes from the backend at the configured base URL, so its availability and contents are that service's, not this plugin's.
+Search queries and configured credentials go to that service. There is no automatic official authentication, subscription lookup, or fallback search provider.

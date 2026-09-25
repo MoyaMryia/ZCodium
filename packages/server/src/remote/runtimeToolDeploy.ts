@@ -46,6 +46,8 @@ export async function deployRuntimeTools(
     const remoteVersionFile = `${remoteToolDir}/.version`;
     const remoteBinaryPath = `${remoteToolDir}/${binaryName}`;
 
+    const componentVersion = await options.installer.resolveComponentVersion?.(componentId);
+    if (!componentVersion) throw new Error(`Bundled tool identity missing: ${componentId}`);
     let remoteVersion = "";
     try {
       remoteVersion = (await backend.readFile(remoteVersionFile)).trim();
@@ -53,14 +55,14 @@ export async function deployRuntimeTools(
       remoteVersion = "";
     }
 
-    if (remoteVersion === version) {
+    if (remoteVersion === componentVersion) {
       const hasRemoteBinary = await backend.exists(remoteBinaryPath);
       if (hasRemoteBinary) {
         loggers.log(`[tool-deploy] ${toolId}: 远程版本 ${version} 已是最新，跳过`);
         continue;
       }
       loggers.logWarn(
-        `[remote-assets] ${options.installer.mode === "remote-download" ? "download required" : "upload required"}: component=${runtime.bundledResourceDir} reason=remote binary missing path=${remoteBinaryPath}`,
+        `[remote-assets] upload required: component=${runtime.bundledResourceDir} reason=remote binary missing path=${remoteBinaryPath}`,
       );
     }
 
@@ -73,7 +75,7 @@ export async function deployRuntimeTools(
     });
 
     const versionStream = await backend.exec(
-      buildWriteLiteralFileCommand(remoteVersionFile, version),
+      buildWriteLiteralFileCommand(remoteVersionFile, componentVersion),
     );
     await waitForClose(versionStream);
     loggers.log(`[tool-deploy] ${toolId}: 部署完成 ${version}`);

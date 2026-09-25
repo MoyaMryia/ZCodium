@@ -1,4 +1,3 @@
-// feedback 与模型连通性曾分别维护错误码列表，导致 Undici 建连超时只在部分链路被识别。
 // 统一沿 cause/AggregateError 链归一化错误，避免调用方再次因运行时包装层级不同而漏判。
 const NETWORK_FAILURE_CODES = new Set([
   "UND_ERR_CONNECT_TIMEOUT",
@@ -39,7 +38,7 @@ export function isRetryableConnectionEstablishmentError(error: unknown): boolean
   if ([...codes].some((code) => RETRYABLE_CONNECTION_ESTABLISHMENT_CODES.has(code))) {
     return true;
   }
-  // ETIMEDOUT 也可能发生在 POST 请求体已经发出后，不能只凭错误码重试创建工单。
+  // ETIMEDOUT 也可能发生在 POST 请求体已经发出后，不能只凭错误码重试非幂等请求。
   // Node 的建连超时会明确包含 connection attempts/connect ETIMEDOUT，只有该证据存在时才安全重试。
   if (
     codes.has("ETIMEDOUT") &&

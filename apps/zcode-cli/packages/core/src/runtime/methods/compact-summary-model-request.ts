@@ -32,7 +32,6 @@ type CompactSummaryModelRequest = {
   statusSink?: ModelInvocationContext["statusSink"];
   tools?: Parameters<Model["generateText"]>[0]["tools"];
   traceContext: TraceContext;
-  refreshRuntimeHeadersBeforeAttempt?: ModelInvocationContext["refreshRuntimeHeadersBeforeAttempt"];
 };
 
 interface CompactSummaryFinish {
@@ -327,7 +326,6 @@ function invocationContext(request: CompactSummaryModelRequest) {
     statusSink: request.statusSink,
     traceContext: request.traceContext,
     preserveProviderStreamBoundaries: request.preserveProviderStreamBoundaries,
-    refreshRuntimeHeadersBeforeAttempt: request.refreshRuntimeHeadersBeforeAttempt,
   };
 }
 
@@ -340,7 +338,6 @@ function isCompactSummarySetupFailure(error: unknown): boolean {
   }
 
   if (streamFailurePhase === "request_setup") {
-
     // 其他同步 setup 或明确 HTTP 拒绝属于原请求错误，不能用第二种 transport 掩盖。
     return context?.httpResponseStatus !== 404;
   }

@@ -9,35 +9,11 @@ import type {
   AiSdkStreamTextOptions,
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
-import { createModelRequestAttributionHeaders, type ModelStatusContext } from "./runner-status.js";
-
-type ExperimentalIncludeWithResponseBody = {
-  requestBody?: boolean;
-  responseBody?: boolean;
-};
-
-/** zcode-plan 业务码常只出现在 finish chunk 的 response.body，流式路径需显式开启。 */
-function shouldIncludeStreamResponseBody(resolved: ResolvedAiSdkModel): boolean {
-  return (
-    resolved.providerKind === "openai-compatible" && resolved.accountAccess?.mode === "start-plan"
-  );
-}
-
-function mergeRequestHeaders(
-  providerHeaders: Record<string, string> | undefined,
-  attributionHeaders: Record<string, string>,
-): Record<string, string> {
-  return {
-    ...providerHeaders,
-    ...attributionHeaders,
-  };
-}
 
 export function createGenerateTextOptions(input: {
   env?: EnvRecord;
   request: AiSdkModelTextRequest;
   resolved: ResolvedAiSdkModel;
-  statusContext: ModelStatusContext;
 }): AiSdkGenerateTextOptions {
   const providerOptions = mergeProviderOptions(
     input.resolved.providerOptions,
@@ -75,10 +51,8 @@ export function createGenerateTextOptions(input: {
       : undefined,
     providerOptions: requestProviderOptions,
     abortSignal: input.request.abortSignal,
-    headers: mergeRequestHeaders(
-      input.resolved.headers,
-      createModelRequestAttributionHeaders(input.statusContext),
-    ),
+    // 会话/请求/trace 标识只用于本地执行，不能自动作为归因头发送给模型服务。
+    headers: input.resolved.headers,
     // ZCode owns system-message construction in core/context. Keep AI SDK from
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,
@@ -90,7 +64,6 @@ export function createStreamTextOptions(input: {
   env?: EnvRecord;
   request: AiSdkModelTextRequest;
   resolved: ResolvedAiSdkModel;
-  statusContext: ModelStatusContext;
 }): AiSdkStreamTextOptions {
   const providerOptions = mergeProviderOptions(
     input.resolved.providerOptions,
@@ -121,10 +94,7 @@ export function createStreamTextOptions(input: {
     seed: input.request.seed,
     providerOptions: requestProviderOptions,
     abortSignal: input.request.abortSignal,
-    headers: mergeRequestHeaders(
-      input.resolved.headers,
-      createModelRequestAttributionHeaders(input.statusContext),
-    ),
+    headers: input.resolved.headers,
     // ZCode owns system-message construction in core/context. Keep AI SDK from
     // printing its generic system-message warning to process stderr.
     allowSystemInMessages: true,
@@ -132,15 +102,7 @@ export function createStreamTextOptions(input: {
     // AI SDK 会吞掉 Anthropic message_start 等 metadata 事件；compact 需要
     // 在 adapter 内观察 raw event 才能精确结束 SSE retry，raw chunk 不会上送 Core/UI。
     includeRawChunks: input.request.preserveProviderStreamBoundaries ? true : undefined,
-    // zcode-plan 的业务码可能只在流式响应尾部 body 里，需保留 responseBody 供错误分类读取。
-    experimental_include: createStreamExperimentalInclude(input),
   }) as AiSdkStreamTextOptions;
-}
-
-function createStreamExperimentalInclude(input: {
-  resolved: ResolvedAiSdkModel;
-}): ExperimentalIncludeWithResponseBody | undefined {
-  return shouldIncludeStreamResponseBody(input.resolved) ? { responseBody: true } : undefined;
 }
 
 function toAiSdkToolChoice(

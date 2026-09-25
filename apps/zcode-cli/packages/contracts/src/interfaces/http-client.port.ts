@@ -59,6 +59,7 @@ export interface HttpClientRequest {
   maxResponseBytes?: number;
   redirect?: HttpClientRedirectPolicy;
   egressPolicy?: HttpClientEgressPolicy;
+  /** 仅用于本地执行关联，HTTP adapter 不得自动将其转换为出站请求头。 */
   trace?: TraceContext;
 }
 
@@ -87,8 +88,5 @@ export interface HttpClientRunOptions {
 }
 
 export interface HttpClientPort {
-  request(
-    request: HttpClientRequest,
-    options?: HttpClientRunOptions,
-  ): Promise<HttpClientResponse>;
+  request(request: HttpClientRequest, options?: HttpClientRunOptions): Promise<HttpClientResponse>;
 }

@@ -1,6 +1,5 @@
 import type { ClientSceneConfig, ClientSceneItem } from "@zcode/services";
 import type { AutomationScheduledTemplateIconName } from "@/settings/AutomationScheduledTemplateIcon.js";
-import type { OffPeakTemplateIconName } from "@/settings/OffPeakTemplateIcon.js";
 import { canVisualizeCronInAutomationEditor } from "@/settings/automationFormat.js";
 
 export interface AutomationTemplateLocalizedText {
@@ -21,34 +20,10 @@ export interface ScheduledAutomationTemplate extends AutomationTemplateBase {
   icon: AutomationScheduledTemplateIconName;
 }
 
-export interface OffPeakAutomationTemplate extends AutomationTemplateBase {
-  homepageDescription?: AutomationTemplateLocalizedText;
-  customize: boolean;
-  icon: OffPeakTemplateIconName;
-}
-
-type FormatAutomationMessage = (descriptor: { id: string }) => string;
-
-const CUSTOMIZE_TEMPLATE_MESSAGE_IDS = {
-  title: "offPeak.newTask.template.customize.title",
-  description: "offPeak.newTask.template.customize.description",
-} as const;
-
 export interface AutomationTemplateCatalog {
   scheduled: ScheduledAutomationTemplate[];
-  offPeak: OffPeakAutomationTemplate[];
   rejectedScheduledTemplateIds: string[];
 }
-
-const CUSTOMIZE_TEMPLATE: OffPeakAutomationTemplate = {
-  id: "customize",
-  // Customize 是本地保底入口，稳定文案由 locale 真源在渲染时解析，避免 catalog 再保存一份双语副本。
-  title: {},
-  description: {},
-  prompt: { cn: "", en: "" },
-  customize: true,
-  icon: "customize",
-};
 
 function normalizeTemplateId(id: string): string {
   return id.replace(/^item[-_]?/i, "");
@@ -58,36 +33,12 @@ function resolveTemplateIconName(item: ClientSceneItem): string | undefined {
   return item.img?.trim() || undefined;
 }
 
-function resolveOffPeakHomepageDescription(item: ClientSceneItem): AutomationTemplateLocalizedText {
-  return {
-    cn: item.descs?.cn?.trim() || item.contents.cn,
-    en: item.descs?.en?.trim() || item.contents.en,
-  };
-}
-
 function scheduledIcon(id: string): AutomationScheduledTemplateIconName {
   const normalized = normalizeTemplateId(id).toLowerCase();
   if (normalized.includes("morning") || normalized.includes("standup")) return "target";
   if (normalized.includes("risk") || normalized.includes("ci")) return "activity";
   if (normalized.includes("release") || normalized.includes("file")) return "file";
   return "list";
-}
-
-function offPeakIcon(id: string, customize: boolean): OffPeakTemplateIconName {
-  if (customize) return "customize";
-  const normalized = normalizeTemplateId(id).toLowerCase();
-  if (normalized.includes("standup") || normalized.includes("git")) {
-    return "standupGitSummary";
-  }
-  if (normalized.includes("ci") || normalized.includes("flaky")) return "ciFlakyReport";
-  if (normalized.includes("documentation") || normalized.includes("doc")) {
-    return "documentationSyncCheck";
-  }
-  return "followUpMonitor";
-}
-
-function isCustomizeItem(item: ClientSceneItem): boolean {
-  return normalizeTemplateId(item.id).toLowerCase() === "customize";
 }
 
 function hasLocalizedTitle(item: ClientSceneItem): boolean {
@@ -156,34 +107,12 @@ function mapScheduledTemplates(
   return { scheduled, rejectedScheduledTemplateIds };
 }
 
-function mapOffPeakTemplates(scenes: readonly ClientSceneConfig[]): OffPeakAutomationTemplate[] {
-  const scene = scenes.find((candidate) => candidate.scene === "off-peak-task");
-  const items = scene?.options.prompts?.items ?? [];
-  return items.filter(hasLocalizedTitle).map((item): OffPeakAutomationTemplate => {
-    const customize = isCustomizeItem(item);
-    const iconName = resolveTemplateIconName(item);
-    return {
-      id: item.id,
-      ...(iconName ? { iconName } : {}),
-      title: customize ? CUSTOMIZE_TEMPLATE.title : item.labels,
-      description: customize ? CUSTOMIZE_TEMPLATE.description : item.contents,
-      homepageDescription: customize
-        ? CUSTOMIZE_TEMPLATE.description
-        : resolveOffPeakHomepageDescription(item),
-      prompt: item.contents,
-      customize,
-      icon: offPeakIcon(item.id, customize),
-    };
-  });
-}
-
 export function mapClientScenesToAutomationTemplates(
   scenes: readonly ClientSceneConfig[],
   isValidCronExpr: (cronExpr: string) => boolean,
 ): AutomationTemplateCatalog {
   return {
     ...mapScheduledTemplates(scenes, isValidCronExpr),
-    offPeak: mapOffPeakTemplates(scenes),
   };
 }
 
@@ -197,23 +126,6 @@ export function resolveAutomationTemplateText(
   return primary?.trim() || fallback?.trim() || "";
 }
 
-export function resolveOffPeakTemplateText(
-  template: OffPeakAutomationTemplate,
-  field: "title" | "description" | "homepageDescription",
-  locale: string,
-  formatMessage: FormatAutomationMessage,
-): string {
-  if (template.customize) {
-    const messageField = field === "homepageDescription" ? "description" : field;
-    return formatMessage({ id: CUSTOMIZE_TEMPLATE_MESSAGE_IDS[messageField] });
-  }
-  const text =
-    field === "homepageDescription"
-      ? (template.homepageDescription ?? template.description)
-      : template[field];
-  return resolveAutomationTemplateText(text, locale);
-}
-
 export function materializeScheduledTemplateDraft(
   template: ScheduledAutomationTemplate,
   locale: string,
@@ -222,17 +134,6 @@ export function materializeScheduledTemplateDraft(
     templateId: template.id,
     title: resolveAutomationTemplateText(template.title, locale),
     cronExpr: template.cronExpr,
-    prompt: resolveAutomationTemplateText(template.prompt, locale),
-  };
-}
-
-export function materializeOffPeakTemplateDraft(
-  template: OffPeakAutomationTemplate,
-  locale: string,
-): { templateId: string; title: string; prompt: string } {
-  return {
-    templateId: template.id,
-    title: resolveAutomationTemplateText(template.title, locale),
     prompt: resolveAutomationTemplateText(template.prompt, locale),
   };
 }

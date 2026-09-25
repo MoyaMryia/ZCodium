@@ -39,6 +39,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.6.0
+      '@zcode/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       concurrently:
         specifier: ^9.1.2
         version: 9.2.1
@@ -963,6 +966,9 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+      yauzl:
+        specifier: ^3.3.0
+        version: 3.3.0
       yazl:
         specifier: ^3.3.1
         version: 3.3.1
@@ -976,6 +982,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.6.0
+      '@types/yauzl':
+        specifier: ^2.10.3
+        version: 2.10.3
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12

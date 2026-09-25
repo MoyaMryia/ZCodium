@@ -8,7 +8,6 @@ const { DatabaseSync } = createRequire(import.meta.url)(
 ) as typeof import("node:sqlite");
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
 import { AutomationRepo } from "#src/session/automationRepo.js";
-import { OffPeakTaskRepo } from "#src/session/offPeakTaskRepo.js";
 import {
   runTasksDatabaseMigrations,
   inspectTasksMigrationKind,
@@ -96,11 +95,7 @@ export async function prepareTasksIndexStorage(
     }
   }
   markTasksStorageMigrated(path);
-  const repos = [
-    new TaskIndexRepo(path, LOCK_WAIT_MS),
-    new AutomationRepo(path, LOCK_WAIT_MS),
-    new OffPeakTaskRepo(path, LOCK_WAIT_MS),
-  ];
+  const repos = [new TaskIndexRepo(path, LOCK_WAIT_MS), new AutomationRepo(path, LOCK_WAIT_MS)];
   let preparationFailure: unknown;
   try {
     // 这些是原本就在初始化时执行的修复，不创建新的迁移或改变已有事务边界。

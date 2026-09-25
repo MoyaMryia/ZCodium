@@ -292,12 +292,11 @@ function createLocalUserMessage(content: string): Message & { id: string } {
 
 function redactSensitivePromptForTranscript(text: string): string {
   const trimmed = text.trim();
-  const match =
-    /^\/login\s+(zai-coding-plan-api-key|bigmodel-coding-plan-api-key)(?:\s+([\s\S]+))?$/u.exec(
-      trimmed,
-    );
+  // 退休命令的参数可能仍是旧脚本传入的密钥。不能仅匹配小写或特定套餐格式，
+  // 否则命令虽已拒绝，TUI 本地 user row 仍会回显敏感参数。
+  const match = /^\/(login|logout)(?:\s+([\s\S]+))?$/iu.exec(trimmed);
   if (!match?.[2]?.trim()) return text;
-  return `/login ${match[1]} <redacted>`;
+  return `/${match[1]!.toLowerCase()} <redacted>`;
 }
 
 function insertLocalUserMessageAt(

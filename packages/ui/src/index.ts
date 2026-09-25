@@ -60,7 +60,6 @@ export {
   useRecentProjects,
   useConfirmDialog,
   useCredentials,
-  useAuthToken,
   useGitRepository,
   useGitActions,
 } from "./hooks/index.js";
@@ -87,7 +86,8 @@ export {
   subscribeToUiFontSizeStorageChanges,
 } from "./lib/uiFontSize.js";
 
-export { generateMobileDeviceFingerprint, setStreamClientId } from "./lib/streamClientId.js";
 export { GlobalDatabaseStartupLoading } from "./root/GlobalDatabaseStartupLoading.js";
 
 export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/diagnostics/localTtftObserver.js";
+
+export { selectBrowserFileData } from "./lib/browserFilePicker.js";

@@ -39,7 +39,7 @@ export const CONCURRENCY_IDLE_RESET_MS = 300_000;
 /** 会令 cap 减少的限流类原因。 */
 export type ConcurrencyThrottleReason = Extract<
   ConcurrencyChangeReason,
-  "rate_limited" | "provider_overloaded" | "offpeak_queued"
+  "rate_limited" | "provider_overloaded"
 >;
 
 /** 控制器的只读快照（供测试断言与治理器投影 run 头的 `concurrency`）。 */

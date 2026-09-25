@@ -132,7 +132,7 @@ export function useTabPersistence({
     completed: !shouldRestoreSession,
     fullyCompleted: !shouldRestoreSession,
   }));
-  // provider/OAuth gate 从 false 切到 true 的同一轮 render 里，
+  // restoreSession 从 false 切到 true 的同一轮 render 里，
   // 恢复会话 effect 还没来得及把 isRestoring 设为 true。这里把完成态绑定到
   // 当前 settingService + restoreSession，避免 initialWorkspacePath 抢在 restoreTabs 前 addTab。
   const hasCompletedInitialRestore = hasCompletedTabPersistenceInitialRestore({

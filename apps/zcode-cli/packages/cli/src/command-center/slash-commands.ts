@@ -98,24 +98,6 @@ export function parseSlashCommand(input: string): SlashCommand | null {
     };
   }
 
-  if (rawName === "login") {
-    return {
-      args,
-      name: "login",
-      rawName,
-      type: "known",
-    };
-  }
-
-  if (rawName === "logout") {
-    return {
-      args,
-      name: "logout",
-      rawName,
-      type: "known",
-    };
-  }
-
   if (rawName === "locale" || rawName === "language") {
     return {
       args,

@@ -6,22 +6,8 @@
  */
 import { create } from "zustand";
 import type { IBroadcastService, BroadcastMessage } from "@zcode/services";
-import type { OAuthProviderId, UserInfo } from "@zcode/shared";
-import type { CodingPlanResetType } from "@zcode/shared";
+import type { UserInfo } from "@zcode/shared";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
-import type {
-  CodingPlanQuotaResetUiEntries,
-  CodingPlanQuotaResetUiEntry,
-} from "@/lib/codingPlanQuotaResetUi.js";
-import {
-  applyCodingPlanQuotaResetAutoPlayedBroadcast,
-  createCodingPlanQuotaResetStoreActions,
-  parseCodingPlanQuotaResetAutoPlayedBroadcastMessage,
-  type CodingPlanQuotaResetAutomaticObservations,
-  type CodingPlanQuotaResetAutoPlayReservation,
-  type CodingPlanQuotaResetAutoPlayReservationAttempt,
-  type CodingPlanQuotaResetAutoPlayedSlot,
-} from "@/store/codingPlanQuotaResetState.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { readSafeLocalStorage, writeSafeLocalStorage } from "@/lib/browserEnvironment.js";
 import {
@@ -46,26 +32,10 @@ import {
 } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
 
-export type LoginEntryPurpose = "app-login";
-
 // v4 重构：类型与默认值下沉到 @/lib/codePreviewSettings.ts，
 // 让纯展示组件不依赖 store；这里保留 re-export 兼容既有 import 路径。
 export type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 export { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
-
-export type LoginEntryAttemptStatus =
-  | "requested"
-  | "waiting"
-  | "succeeded"
-  | "cancelled"
-  | "failed";
-
-export interface LoginEntryAttempt {
-  id: number;
-  providerId?: OAuthProviderId;
-  purpose?: LoginEntryPurpose;
-  status: LoginEntryAttemptStatus;
-}
 
 const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
 const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
@@ -134,70 +104,7 @@ export interface ZCodeState {
 
   /** 当前用户信息 */
   user: UserInfo | null;
-  /** 用户由未登录进入登录态时递增；连接额外 provider 不会误判为重新登录。 */
-  authSessionSeq: number;
   setUser: (user: UserInfo | null) => void;
-
-  /** 启动阶段是否仍在恢复 OAuth 登录态 */
-  isRestoringOAuthSession: boolean;
-  setIsRestoringOAuthSession: (restoring: boolean) => void;
-
-  /** OAuth 回调错误（Root 层写入，统一登录入口读取） */
-  oauthError: string | null;
-  setOAuthError: (error: string | null) => void;
-  oauthPollingActive: boolean;
-  setOAuthPollingActive: (active: boolean) => void;
-  oauthSuccessSeq: number;
-  lastOAuthSuccessProvider: OAuthProviderId | null;
-  markOAuthSuccess: (provider?: OAuthProviderId) => void;
-  apiKeyLoginSuccessSeq: number;
-  lastApiKeyLoginModel: string | null;
-  markApiKeyLoginSuccess: (preferredModel?: string | null) => void;
-  /** 请求打开统一登录入口，可携带需要自动发起登录/连接的 provider */
-  loginEntryRequest: {
-    id: number;
-    providerId?: OAuthProviderId;
-    purpose?: LoginEntryPurpose;
-  } | null;
-  /** 当前统一登录尝试；购买等后续动作通过 id 只续接自己发起的 OAuth。 */
-  loginEntryAttempt: LoginEntryAttempt | null;
-  requestLoginEntry: (providerId?: OAuthProviderId, purpose?: LoginEntryPurpose) => number;
-  clearLoginEntryRequest: (requestId?: number) => void;
-  markLoginEntryAttemptStatus: (
-    requestId: number,
-    status: Exclude<LoginEntryAttemptStatus, "requested">,
-  ) => void;
-
-  /** Coding Plan 额度重置 UI 状态；entry/观察记录只在当前窗口内共享，不持久化。 */
-  codingPlanQuotaResetUiBySource: Record<string, CodingPlanQuotaResetUiEntries>;
-  /** 自动/运营完成首次被观察时所属的鉴权会话，用于区分同会话后挂载和重新登录。 */
-  codingPlanQuotaResetAutomaticObservationsBySource: Record<
-    string,
-    CodingPlanQuotaResetAutomaticObservations
-  >;
-  /** 自动完成提示"多窗口只播一次"的已播 used_at 记录；窗口内存态，可被广播合并。 */
-  codingPlanQuotaResetAutoPlayedBySource: Record<string, CodingPlanQuotaResetAutoPlayedSlot>;
-  /** 写入服务端 status / 手动 use 对账后的状态；entry 为 null 表示清空该类型。 */
-  setCodingPlanQuotaResetUiEntry: (
-    sourceKey: string,
-    resetType: CodingPlanResetType,
-    entry: CodingPlanQuotaResetUiEntry | null,
-    authSessionSeq: number,
-  ) => void;
-  /** Composer 展示前申请临时 reservation；此阶段不写 played。 */
-  reserveCodingPlanQuotaResetAutoPlay: (
-    sourceKey: string,
-    resetType: CodingPlanResetType,
-    completedAt: number,
-  ) => Promise<CodingPlanQuotaResetAutoPlayReservationAttempt>;
-  /** 组件仍有效且即将展示时提交 reservation、played 与广播。 */
-  commitCodingPlanQuotaResetAutoPlay: (
-    reservation: CodingPlanQuotaResetAutoPlayReservation,
-  ) => boolean;
-  /** 组件失效时释放尚未 commit 的 reservation。 */
-  releaseCodingPlanQuotaResetAutoPlay: (
-    reservation: CodingPlanQuotaResetAutoPlayReservation,
-  ) => Promise<void>;
 
   /** 手动请求打开 onboarding 弹窗 */
   newUserOnboardingOpen: boolean;
@@ -227,15 +134,9 @@ const STATE_CHANNEL_PREFIX = "state:";
  *
  * @param broadcastService - 广播服务。Desktop 走 RPC，Web 可传 no-op 实现
  */
-export function createZCodeStore(
-  broadcastService: IBroadcastService,
-  options: {
-    initialIsRestoringOAuthSession?: boolean;
-  } = {},
-) {
+export function createZCodeStore(broadcastService: IBroadcastService) {
   /** 标记：正在应用来自广播的更新，此时不再重复广播（防止循环） */
   let applyingBroadcast = false;
-  let loginEntryRequestSeq = 0;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
 
@@ -312,83 +213,7 @@ export function createZCodeStore(
     },
 
     user: null,
-    authSessionSeq: 0,
-    setUser: (user: UserInfo | null) =>
-      set((state) => ({
-        user,
-        authSessionSeq:
-          state.user === null && user !== null ? state.authSessionSeq + 1 : state.authSessionSeq,
-      })),
-
-    isRestoringOAuthSession: options.initialIsRestoringOAuthSession ?? false,
-    setIsRestoringOAuthSession: (restoring: boolean) => set({ isRestoringOAuthSession: restoring }),
-
-    oauthError: null,
-    setOAuthError: (error: string | null) => set({ oauthError: error }),
-    oauthPollingActive: false,
-    setOAuthPollingActive: (active: boolean) => set({ oauthPollingActive: active }),
-    oauthSuccessSeq: 0,
-    lastOAuthSuccessProvider: null,
-    markOAuthSuccess: (provider?: OAuthProviderId) =>
-      set((state) => ({
-        oauthSuccessSeq: state.oauthSuccessSeq + 1,
-        lastOAuthSuccessProvider: provider ?? state.lastOAuthSuccessProvider,
-      })),
-    apiKeyLoginSuccessSeq: 0,
-    lastApiKeyLoginModel: null,
-    markApiKeyLoginSuccess: (preferredModel?: string | null) =>
-      set((state) => ({
-        apiKeyLoginSuccessSeq: state.apiKeyLoginSuccessSeq + 1,
-        lastApiKeyLoginModel: preferredModel?.trim() || null,
-      })),
-    loginEntryRequest: null,
-    loginEntryAttempt: null,
-    requestLoginEntry: (providerId?: OAuthProviderId, purpose?: LoginEntryPurpose) => {
-      const id = ++loginEntryRequestSeq;
-      const attempt: LoginEntryAttempt = {
-        id,
-        providerId,
-        purpose,
-        status: "requested",
-      };
-      set({
-        loginEntryRequest: {
-          id,
-          providerId,
-          purpose,
-        },
-        loginEntryAttempt: attempt,
-      });
-      return id;
-    },
-    clearLoginEntryRequest: (requestId?: number) =>
-      set((state) => {
-        if (requestId !== undefined && state.loginEntryRequest?.id !== requestId) {
-          return {};
-        }
-        return { loginEntryRequest: null };
-      }),
-    markLoginEntryAttemptStatus: (requestId, status) =>
-      set((state) => {
-        if (state.loginEntryAttempt?.id !== requestId) {
-          return {};
-        }
-        return {
-          loginEntryAttempt: {
-            ...state.loginEntryAttempt,
-            status,
-          },
-        };
-      }),
-
-    codingPlanQuotaResetUiBySource: {},
-    codingPlanQuotaResetAutomaticObservationsBySource: {},
-    codingPlanQuotaResetAutoPlayedBySource: {},
-    ...createCodingPlanQuotaResetStoreActions({
-      broadcastService,
-      readState: get,
-      writeState: (updater) => set((state) => updater(state)),
-    }),
+    setUser: (user: UserInfo | null) => set({ user }),
 
     newUserOnboardingOpen: false,
     setNewUserOnboardingOpen: (open) => set({ newUserOnboardingOpen: open }),
@@ -454,14 +279,6 @@ export function createZCodeStore(
 
   // 监听来自其他窗口的广播
   broadcastService.onMessage((msg: BroadcastMessage) => {
-    // 自动完成"多窗口只播一次"。其他窗口广播已播 used_at 后，本窗口合并
-    // played 记录并收起正在播放的同 used_at 提示；本地回声已在解析阶段被忽略。
-    const autoPlayed = parseCodingPlanQuotaResetAutoPlayedBroadcastMessage(msg);
-    if (autoPlayed) {
-      useStore.setState((state) => applyCodingPlanQuotaResetAutoPlayedBroadcast(state, autoPlayed));
-      return;
-    }
-
     if (!msg.channel.startsWith(STATE_CHANNEL_PREFIX)) return;
 
     const field = msg.channel.slice(STATE_CHANNEL_PREFIX.length) as BroadcastField;

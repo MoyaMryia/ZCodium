@@ -1,3 +1,4 @@
+import { walkPluginSeedFiles, shouldIncludePluginSeedFile } from "./plugin-seed-files.js";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
@@ -367,9 +368,13 @@ function collectFilesystemPluginFiles(
     ...includedTopLevelPaths,
     ...(definition.runtimeTopLevelPaths ?? []),
   ]);
-  for (const sourcePath of walkFiles(rootPath, allowedTopLevelPaths)) {
+  for (const sourcePath of walkPluginSeedFiles(
+    rootPath,
+    allowedTopLevelPaths,
+    new Set(definition.runtimeSubtrees ?? []),
+  )) {
     const relativePath = toPosixPath(sourcePath.slice(rootPath.length + 1));
-    if (!shouldIncludePluginFile(relativePath, allowedTopLevelPaths)) continue;
+    if (!shouldIncludePluginSeedFile(relativePath, allowedTopLevelPaths)) continue;
     const bytes = readFileSync(sourcePath);
     files.push({
       mode: modeForSeedFile(relativePath, statSync(sourcePath).mode),
@@ -379,22 +384,6 @@ function collectFilesystemPluginFiles(
     });
   }
   return files.sort((left, right) => left.path.localeCompare(right.path));
-}
-
-function* walkFiles(
-  directory: string,
-  allowedTopLevelPaths: ReadonlySet<string>,
-  depth = 0,
-): Generator<string> {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (shouldSkipDirectory(entry.name, depth, allowedTopLevelPaths)) continue;
-    const fullPath = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      yield* walkFiles(fullPath, allowedTopLevelPaths, depth + 1);
-      continue;
-    }
-    if (entry.isFile()) yield fullPath;
-  }
 }
 
 function readSeedFileBytes(
@@ -417,7 +406,7 @@ function writeOfficialMarketplace(storageRoot: string, source: OfficialPluginSee
     manifest: {
       name: OFFICIAL_PLUGIN_MARKETPLACE,
       plugins: source.plugins.map((plugin) => {
-        // 商店信息（listing）与描述随目录条目下发：键名与 CDN 目录 schema 一致，
+        // 商店信息（listing）与描述随本地目录条目下发，
         // 由 adapter 的同一套 parseEntryStoreListing 解析，UI 才能给内置插件渲染
         // 显示名/分类/作者/示例提示词。描述取自插件包内 plugin.json（单一事实源）。
         const description = readSeedPluginDescription(source, plugin);
@@ -456,6 +445,8 @@ function readSeedPluginDescription(
 }
 
 function isSeedCurrent(targetRoot: string, plugin: OfficialPluginSeedPluginSource): boolean {
+  // 修复：标记只证明曾发布过这个版本，磁盘清理或损坏丢失必需库时仍需重新 seed。
+  if (!isSeedUsable(targetRoot, plugin.definition)) return false;
   const markerPath = join(targetRoot, SEED_MARKER_FILE);
   if (!existsSync(markerPath)) return false;
   try {
@@ -650,29 +641,6 @@ function runtimeDir(): string | undefined {
 
 function entrypointDir(): string | undefined {
   return process.argv[1] ? dirname(process.argv[1]) : undefined;
-}
-
-function shouldSkipDirectory(
-  name: string,
-  depth: number,
-  allowedTopLevelPaths: ReadonlySet<string>,
-): boolean {
-  if (name === ".turbo" || name === "coverage" || name === ".venv" || name === "__pycache__") {
-    return true;
-  }
-  return name === "node_modules" && !(depth === 0 && allowedTopLevelPaths.has(name));
-}
-
-function shouldIncludePluginFile(
-  relativePath: string,
-  allowedTopLevelPaths: ReadonlySet<string>,
-): boolean {
-  const segments = relativePath.split("/");
-  if (segments.includes(".DS_Store") || segments.some((segment) => segment.endsWith(".pyc"))) {
-    return false;
-  }
-  const [topLevel] = relativePath.split("/");
-  return topLevel !== undefined && allowedTopLevelPaths.has(topLevel);
 }
 
 function modeForSeedFile(filePath: string, sourceMode?: number): number {

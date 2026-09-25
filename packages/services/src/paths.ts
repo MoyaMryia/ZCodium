@@ -170,18 +170,6 @@ export function getExportLogDir(): string {
   return join(getZCodeDataRootDir(), "export-log");
 }
 
-export function getFeedbackRootDir(): string {
-  return join(getZCodeDataRootDir(), "feedback");
-}
-
-export function getFeedbackAttachmentDir(): string {
-  return join(getFeedbackRootDir(), "attachments");
-}
-
-export function getFeedbackLogArchiveDir(): string {
-  return join(getFeedbackRootDir(), "logs");
-}
-
 export function getGitCheckpointIndexRootDir(): string {
   return join(getZCodeDataRootDir(), "git-checkpoint-index");
 }

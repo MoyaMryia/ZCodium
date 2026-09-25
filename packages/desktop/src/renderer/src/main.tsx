@@ -12,7 +12,6 @@ import {
   registerRemoteWorkspaceSession,
   createRemoteWorkspaceDisconnectedError,
   playTaskNotificationSound,
-  setStreamClientId,
 } from "@zcode/ui";
 import "@zcode/ui/styles.css";
 import { connectViaMessagePort, createMessagePortServiceConnection } from "@zcode/client";
@@ -296,9 +295,6 @@ function initializeBusinessRoot(port: MessagePort): void {
   registerBaseWorkspaceServices(services);
   flushPendingRemoteWorkspaceServicePorts();
   const settingService = supportsSettings ? services.settingService : undefined;
-
-  // 初始化稳定的设备 ID，确保所有 hook 在首次渲染前就使用正确的值
-  setStreamClientId(desktopPlatform.getDeviceId());
 
   // React 错误边界捕获的异常不会冒泡到 window.onerror，RUM Browser SDK 默认收不到。
   // 必须在 createRoot 之前注入 reporter：根级 AppErrorBoundary 的职责正是兜住 Root 自身

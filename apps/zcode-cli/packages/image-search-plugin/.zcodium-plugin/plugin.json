@@ -1,31 +1,37 @@
 {
   "name": "image-search",
-  "version": "0.1.2",
-  "description": "Image search MCP server for finding illustrations and reference images.",
+  "version": "0.2.0",
+  "description": "Connect a user-configured image-search MCP service.",
   "description_i18n": {
-    "en": "Image search MCP server for finding illustrations and reference images.",
-    "zh-CN": "搜图 MCP 服务，用于查找插图与参考配图。"
+    "en": "Connect a user-configured image-search MCP service.",
+    "zh-CN": "连接你配置的网络搜图 MCP 服务。"
   },
   "author": {
     "name": "ZCodium"
   },
   "license": "Apache-2.0",
   "userConfig": {
-    "imageSearchBaseUrl": {
+    "imageSearchMcpUrl": {
       "type": "string",
-      "default": "http://127.0.0.1:8787",
+      "required": true,
+      "title": "MCP URL",
+      "description": "Full HTTP MCP endpoint URL provided by your image-search service. No default server is used."
+    },
+    "authorizationHeader": {
+      "type": "string",
       "required": false,
-      "title": "Image search backend base URL",
-      "description": "Base URL of the image_search MCP backend. Defaults to a local loopback address. Set it to the official API origin (for example https://api.z.ai) to use the hosted service again."
+      "sensitive": true,
+      "default": "",
+      "title": "Authorization (optional)",
+      "description": "Complete Authorization header, such as Bearer YOUR_TOKEN. Leave empty for public endpoints or standard MCP OAuth."
     }
   },
   "mcpServers": {
     "image_search": {
       "type": "http",
-      "url": "${user_config.imageSearchBaseUrl}/api/v1/mcp/server/image_search",
-      "auth": {
-        "type": "zcode_official",
-        "provider": "jwt_token"
+      "url": "${user_config.imageSearchMcpUrl}",
+      "headers": {
+        "Authorization": "${user_config.authorizationHeader}"
       },
       "timeoutMs": 90000
     }

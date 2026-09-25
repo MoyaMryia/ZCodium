@@ -4,33 +4,8 @@
  * 并且每个都需要中文注释
  */
 
-// Login entry
-/** 右上角登录触发按钮 */
-export const TID_LOGIN_TRIGGER = "login-trigger";
-/** 用户菜单中的登录操作 */
-export const TID_LOGIN_MENU_ITEM = "login-menu-item";
-/** 登录页切换到 API Key 登录方式按钮 */
-export const TID_LOGIN_USE_API_KEY_BUTTON = "login-use-api-key-button";
-/** API Key 登录 provider 选择触发器 */
-export const TID_LOGIN_API_KEY_PROVIDER_TRIGGER = "login-api-key-provider-trigger";
-/** API Key 登录 provider 选择项（动态后缀为 provider choice） */
-export const TID_LOGIN_API_KEY_PROVIDER_ITEM = "login-api-key-provider-item";
-/** API Key 登录密钥输入框 */
-export const TID_LOGIN_API_KEY_INPUT = "login-api-key-input";
-/** API Key 登录继续按钮 */
-export const TID_LOGIN_API_KEY_CONTINUE_BUTTON = "login-api-key-continue-button";
-/** API Key 登录取消按钮 */
-export const TID_LOGIN_API_KEY_CANCEL_BUTTON = "login-api-key-cancel-button";
-/** API Key 登录暂时跳过按钮 */
-export const TID_LOGIN_API_KEY_SKIP_BUTTON = "login-api-key-skip-button";
-/** API Key 登录错误提示 */
-export const TID_LOGIN_API_KEY_ERROR = "login-api-key-error";
-/** OAuth 弹窗内的登录按钮 */
-export const TID_OAUTH_LOGIN_BUTTON = "oauth-login-button";
-/** OAuth 弹窗取消按钮 */
-export const TID_OAUTH_CANCEL = "oauth-cancel";
-/** OAuth 错误提示文本 */
-export const TID_OAUTH_ERROR = "oauth-error";
+/** 侧栏底部的本地偏好菜单入口 */
+export const TID_SIDEBAR_PREFERENCES_TRIGGER = "sidebar-preferences-trigger";
 
 // App
 /** 顶部导航栏 */
@@ -39,8 +14,6 @@ export const TID_APP_HEADER = "app-header";
 export const TID_LOCALE_TOGGLE = "locale-toggle";
 /** 主题切换按钮 */
 export const TID_THEME_TOGGLE = "theme-toggle";
-/** 退出登录按钮 */
-export const TID_LOGOUT_BUTTON = "logout-button";
 /** 终端显隐切换按钮 */
 export const TID_TERMINAL_TOGGLE = "terminal-toggle";
 export const TID_SIDE_PANE_TOGGLE = "side-pane-toggle";
@@ -418,11 +391,10 @@ export const TID_SUBAGENT_ROW = "subagent-row";
 /** 内置子智能体模型选择控件（动态后缀为子智能体名称） */
 export const TID_SUBAGENT_BUILT_IN_MODEL_TRIGGER = "subagent-built-in-model-trigger";
 /** 设置页使用统计顶层 tab（动态后缀为 usage tab id） */
-export const TID_SETTINGS_USAGE_TAB = "settings-usage-tab";
 /** 侧边栏头像菜单剩余额度子菜单入口 */
 export const TID_SIDEBAR_USAGE_REMAINING_TRIGGER = "sidebar-usage-remaining-trigger";
-/** 侧边栏头像菜单使用统计入口 */
-export const TID_SIDEBAR_CODING_PLAN_USAGE_BUTTON = "sidebar-coding-plan-usage-button";
+/** 侧边栏偏好菜单的本地使用统计入口 */
+export const TID_SIDEBAR_USAGE_BUTTON = "sidebar-usage-button";
 
 // Model Provider Settings
 /** 模型供应商顶部添加按钮 */
@@ -673,25 +645,11 @@ export const TID_PLUGIN_STORE_BROWSE = "plugin-store-browse";
 // Automations / 定时任务
 export const TID_AUTOMATIONS_OPEN = "automations-open";
 export const TID_AUTOMATIONS_LIST = "automations-list";
-/** 定时 / 闲时列表共用的状态筛选胶囊行（全部 / 进行中 / 已完成 / 失败） */
+/** 定时任务列表的状态筛选胶囊行（全部 / 进行中 / 已完成 / 失败） */
 export const TID_AUTOMATIONS_STATUS_FILTER = "automations-status-filter";
 export const TID_AUTOMATION_CREATE_MENU = "automation-create-menu";
 export const TID_AUTOMATION_CREATE_MANUALLY = "automation-create-manually";
 export const TID_AUTOMATION_CARD = "automation-card";
-// 闲时任务（off-peak，独立面）
-export const TID_OFFPEAK_CREATE_BUTTON = "offpeak-create-button";
-export const TID_OFFPEAK_CARD = "offpeak-card";
-/** 闲时卡片脚注：绑定会话标题（会话内创建）。 */
-export const TID_OFFPEAK_CARD_SESSION = "offpeak-card-session";
-export const TID_OFFPEAK_CARD_MENU = "offpeak-card-menu";
-export const TID_OFFPEAK_EDIT_VIEW = "offpeak-edit-view";
-export const TID_OFFPEAK_EDIT_SUBMIT = "offpeak-edit-submit";
-export const TID_OFFPEAK_FORM_TITLE = "offpeak-form-title";
-export const TID_OFFPEAK_FORM_INSTRUCTIONS = "offpeak-form-instructions";
-export const TID_OFFPEAK_ACTION_PAUSE = "offpeak-action-pause";
-export const TID_OFFPEAK_ACTION_CONTINUE = "offpeak-action-continue";
-export const TID_OFFPEAK_ACTION_DELETE = "offpeak-action-delete";
-export const TID_OFFPEAK_TAB = "offpeak-tab";
 export const TID_AUTOMATION_CARD_MENU = "automation-card-menu";
 export const TID_AUTOMATION_ACTION_TOGGLE = "automation-action-toggle";
 export const TID_AUTOMATION_ACTION_DELETE = "automation-action-delete";
@@ -720,15 +678,12 @@ export const TID_AUTOMATION_SCHEDULE_DELETE = "automation-schedule-delete";
 export const TID_CRON_CREATE_CARD = "cron-create-card";
 export const TID_CRON_CREATE_OPEN = "cron-create-open";
 export const TID_OFFPEAK_CREATE_CARD = "offpeak-create-card";
-export const TID_OFFPEAK_CREATE_OPEN = "offpeak-create-open";
 export const TID_CONFIRM_DIALOG_CONFIRM = "confirm-dialog-confirm";
 
 /** 为动态元素生成带后缀的 testid，如 file-tree-item-/home/user */
 export function testId(base: string, suffix: string): string {
   return `${base}-${suffix}`;
 }
-
-export const TID_START_PLAN_RECOMMENDATION_DIALOG = "start-plan-recommendation-dialog";
 
 /** 用户反馈的诊断日志授权开关 */
 export const TID_FEEDBACK_LOGS_OPT_IN = "feedback-logs-opt-in";

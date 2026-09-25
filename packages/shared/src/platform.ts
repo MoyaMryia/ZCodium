@@ -1,5 +1,5 @@
 import type { RendererHeapSample } from "./validation.js";
-/* eslint-disable max-lines -- 跨端 platform contract 集中声明 renderer 能力；OAuth 与 browser lifecycle 必须保持 desktop/web 类型合同，本 MR 不拆分平台边界。 */
+/* eslint-disable max-lines -- 跨端 platform contract 集中声明 renderer 能力；原生操作与 browser lifecycle 必须保持 desktop/web 类型合同，本 MR 不拆分平台边界。 */
 import type {
   DockerConnectOptions,
   RemoteTarget,
@@ -13,10 +13,10 @@ import type {
   MigrateLegacyCommonMcpResult,
   SaveCliMcpToUserDirectoryRequest,
 } from "./mcp.js";
-import type { OAuthStateRegistration } from "./oauth.js";
 import type { AppSettings, Locale } from "./protocol.js";
 import type {
   CuaAccessibilitySettingsResult,
+  CuaPermissionRequestResult,
   OpenCuaPermissionOnboardingOptions,
   PrepareCuaHelperPermissionDragResult,
 } from "./cuaAccessibilitySettings.js";
@@ -34,7 +34,7 @@ export type {
 
 export interface TaskNotificationPayload {
   taskId: string;
-  status: "completed" | "failed" | "permission_request" | "elicitation_request" | "feedback_update";
+  status: "completed" | "failed" | "permission_request" | "elicitation_request";
   requestId?: string;
   title: string;
   body: string;
@@ -255,7 +255,16 @@ export type SaveFileRequest =
       suggestedName: string;
     };
 
+export interface SelectedFileData {
+  name: string;
+  data: ArrayBuffer;
+}
+
 export interface SaveFileResult {
+  /** 实际保存的文件名，不含目录。 */
+  name?: string;
+  /** 浏览器只确认已发起下载，无法确认用户是否最终保存到磁盘。 */
+  downloadStarted?: boolean;
   canceled?: boolean;
   error?: string;
   path?: string;
@@ -531,10 +540,13 @@ export interface IPlatformService {
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile(): Promise<string | null>;
 
+  /** 用户显式选文件；读取前验证大小，取消返回 null。 */
+  selectFileData?(options: { accept: string; maxBytes: number }): Promise<SelectedFileData | null>;
+
   /** 打开系统多文件选择框，返回选中的文件路径；取消时返回空数组 */
   selectFiles?(): Promise<string[]>;
 
-  /** 使用宿主原生另存为对话框写入文件；普通 Web 端不实现 */
+  /** 桌面另存为，或 Web 浏览器下载；取消不是成功。 */
   saveFile?(payload: SaveFileRequest): Promise<SaveFileResult>;
 
   /**
@@ -634,12 +646,6 @@ export interface IPlatformService {
   /** 打开反馈入口，由平台自行解析最终地址 */
   openFeedback(): Promise<void>;
 
-  /** 订阅 main 进程打开内置反馈对话框事件（Desktop） */
-  onOpenFeedbackDialog?(handler: () => void): () => void;
-
-  /** 订阅 main 进程打开我的工单面板事件（Desktop） */
-  onOpenTicketsPanel?(handler: () => void): () => void;
-
   /** 打开用户社群入口，由平台自行解析当前语言对应渠道 */
   openCommunity(): Promise<void>;
 
@@ -659,6 +665,13 @@ export interface IPlatformService {
   /** 取消本 renderer 以 operationId 发起的 onboarding participant。Desktop only。 */
   cancelCuaPermissionOnboarding?(operationId: string): void;
   /**
+   * 申请 macOS TCC 授权（辅助功能 / 屏幕录制）。必须由 Electron main 在 app.whenReady()
+   * 之后调用，TCC 弹窗才归属 ZCode.app 而不是 MCP worker。Desktop only。
+   */
+  requestCuaPermissions?(): Promise<CuaPermissionRequestResult>;
+  /** 打开 macOS「屏幕录制」系统设置面板。Desktop only。 */
+  openCuaPermissionSystemSettings?(): Promise<boolean>;
+  /**
    * 预热并缓存已验证的 Helper 路径 + 指纹，使随后的 dragstart 能同步 startDrag。
    * 必须在拖拽浮窗挂载时调用：Electron 原生拖拽要求在 dragstart 事件链路里同步调用
    * startDrag，等不了 install/verify 这类异步 I/O（否则错过 OS 拖拽手势窗口）。Desktop only。
@@ -666,24 +679,6 @@ export interface IPlatformService {
   prepareCuaHelperPermissionDrag?(): Promise<PrepareCuaHelperPermissionDragResult>;
   /** 从权限浮窗把 Helper.app 拖进 macOS 权限列表。Desktop only。 */
   startCuaHelperPermissionDrag?(): void;
-
-  /** 上报 OAuth state 给 main process，用于 deep link 路由 */
-  registerOAuthState(payload: OAuthStateRegistration): void;
-
-  /**
-   * 注册 OAuth deep link 回调监听
-   * @returns disposer 函数，调用后只移除当前回调
-   */
-  onOAuthCallback(callback: (url: string) => void): () => void;
-
-  /**
-   * 注册支付 deep link 回调监听
-   * @returns disposer 函数，调用后只移除当前回调
-   */
-  onPaymentCallback(callback: (url: string) => void): () => void;
-
-  /** 注册 `zcode://share/import?code=...` 导入意图。 */
-  onShareImport?(callback: (payload: { shareCode: string }) => void): () => void;
 
   /** 通知 main process renderer 已就绪，触发缓存的冷启动 deep link 转发 */
   notifyRendererReady(): void;
@@ -947,12 +942,4 @@ export interface IPlatformService {
 
   /** 同步桌面标题栏亮/暗色，驱动原生窗口控制按钮配色 */
   setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
-
-  /** 获取当前设备的稳定标识符
-   *
-   * - 桌面端：基于 userData 路径的 SHA-256，始终稳定且唯一
-   * - 手机端（Web 远程控制）：物理属性指纹（browserPlatform | screen.width | screen.height | colorDepth），
-   *   抗浏览器/网络/语言/时区变化，换手机才会变
-   */
-  getDeviceId(): string;
 }

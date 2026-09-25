@@ -40,14 +40,18 @@ export function scopeConversationShareServiceForAttachment(
     };
     return {
       getCapabilities: () => service.getCapabilities(),
-      preflight: (input) => service.preflight(input),
+      canImport: async () => false,
+      preflight: rejectUnavailable,
       publish: rejectUnavailable,
-      onDynamicPublishProgress: (operationId) => service.onDynamicPublishProgress(operationId),
-      importShare: (input, operationId) => service.importShare(input, operationId),
-      onDynamicImportProgress: (operationId) => service.onDynamicImportProgress(operationId),
+      readExportChunk: rejectUnavailable,
+      releaseExport: async () => {},
+      onDynamicPublishProgress: () => RpcEvent.None,
+      beginArchiveImport: rejectUnavailable,
+      appendArchiveImport: rejectUnavailable,
+      releaseArchiveImport: async () => {},
+      importShare: rejectUnavailable,
+      onDynamicImportProgress: () => RpcEvent.None,
       getImportedConversation: (input) => service.getImportedConversation(input),
-      getPreview: (shareCode) => service.getPreview(shareCode),
-      getContinuation: (input) => service.getContinuation(input),
     };
   }
   const rejectMobileShare = async (): Promise<never> => {
@@ -57,14 +61,18 @@ export function scopeConversationShareServiceForAttachment(
   };
   return {
     getCapabilities: () => service.getCapabilities(),
+    canImport: async () => false,
     preflight: rejectMobileShare,
     publish: rejectMobileShare,
+    readExportChunk: rejectMobileShare,
+    releaseExport: async () => {},
     onDynamicPublishProgress: () => RpcEvent.None,
+    beginArchiveImport: rejectMobileShare,
+    appendArchiveImport: rejectMobileShare,
+    releaseArchiveImport: async () => {},
     importShare: rejectMobileShare,
     onDynamicImportProgress: () => RpcEvent.None,
     // 手机远控没有本地 workspace 副本，直接返回 null 即可（不渲染只读块）。
     getImportedConversation: async () => null,
-    getPreview: (shareCode: string) => service.getPreview(shareCode),
-    getContinuation: rejectMobileShare,
   };
 }

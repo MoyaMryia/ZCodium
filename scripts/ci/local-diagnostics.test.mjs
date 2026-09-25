@@ -143,7 +143,7 @@ test("legacy onboarding records retain preferences without persisting analytics 
     deviceMid: "legacy-device",
     entries: [entry],
   });
-  const { uploadState: _removed, ...preferences } = entry;
+  const { uploadState: _removed, userId: _identity, ...preferences } = entry;
   assert.deepEqual(JSON.parse(JSON.stringify(parsed)), { version: 1, entries: [preferences] });
 });
 

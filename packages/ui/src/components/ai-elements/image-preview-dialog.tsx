@@ -336,6 +336,10 @@ export function ImagePreviewDialog({
           suggestedName: `${safeDownloadBaseName(activeItem)}.png`,
         });
         if (result.canceled) return;
+        if (result.success && result.downloadStarted) {
+          toast(intl.formatMessage({ id: "markdownImage.downloadStarted" }));
+          return;
+        }
         if (!result.success || !result.path) throw new Error(result.error || "save_failed");
         toast(intl.formatMessage({ id: "markdownImage.downloadSucceeded" }, { path: result.path }));
         return;
@@ -365,6 +369,10 @@ export function ImagePreviewDialog({
           suggestedName: filename,
         });
         if (result.canceled) return;
+        if (result.success && result.downloadStarted) {
+          toast(intl.formatMessage({ id: "markdownImage.downloadStarted" }));
+          return;
+        }
         if (!result.success || !result.path) throw new Error(result.error || "save_failed");
         toast(intl.formatMessage({ id: "markdownImage.downloadSucceeded" }, { path: result.path }));
         return;

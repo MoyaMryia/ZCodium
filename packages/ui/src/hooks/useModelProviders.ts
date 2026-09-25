@@ -69,6 +69,8 @@ export function useModelProviders(target: {
       commitProviderSettingsView(view);
     } catch (err) {
       logger.error("[useModelProviders] 加载模型供应商失败", err);
+      // 刷新失败要回到调用页面供重试，保留当前权威 View，不能静默伪装为成功。
+      throw err;
     } finally {
       // 用户连续触发刷新时，旧请求可能先返回。
       // 若不做 token 守卫，旧请求 finally 会把 refreshing 提前置 false，导致标题 loading 提示闪灭。

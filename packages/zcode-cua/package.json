@@ -39,6 +39,10 @@
       "types": "./driver-host.d.ts",
       "import": "./driver-host.js"
     },
+    "./macos-permissions": {
+      "types": "./macos-permissions.d.ts",
+      "import": "./macos-permissions.js"
+    },
     "./pip-session": {
       "types": "./pip-session.d.ts",
       "import": "./pip-session.js"

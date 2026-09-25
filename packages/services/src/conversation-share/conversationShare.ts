@@ -1,10 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- Share 的错误/预检公共契约与跨 RPC 脱敏规则必须保持在同一边界，避免 UI、Host 和 API 各自漂移。 */
 import type {
-  ConversationShareAccessMode,
   ConversationShareCapabilities,
-  ConversationShareContinuation,
-  ConversationSharePreview,
-  ConversationShareRecord,
+  ConversationArchiveExport,
   Locale,
 } from "@zcode/shared";
 import { ServiceChannels } from "@zcode/shared";
@@ -12,7 +9,6 @@ import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import { Event as RpcEvent, type Event } from "@zcode/rpc";
 
 import { createServiceDescriptor } from "../descriptors.js";
-import type { ConversationShareClientErrorKind } from "./conversationShareHttpClient.js";
 
 export type ConversationShareSelection =
   | { kind: "all" }
@@ -25,11 +21,9 @@ export interface PublishTextConversationInput {
   remoteSessionId?: string;
   sessionId: string;
   title: string;
-  accessMode: ConversationShareAccessMode;
   selection: ConversationShareSelection;
   clientRequestId: string;
-  disclosureAcceptedAt: number;
-  /** 界面语言；决定返回的 share_url 落在中文站还是英文站。缺省不改写服务端下发的链接。 */
+  /** 界面语言。 */
   locale?: Locale;
 }
 
@@ -68,11 +62,19 @@ export interface ConversationSharePreflightResult {
 }
 
 export type ConversationShareServiceErrorKind =
-  | ConversationShareClientErrorKind
+  | "operation_busy"
+  | "feature_disabled"
+  | "invalid_contract"
+  | "invalid_conversation"
+  | "unsafe_structure"
+  | "artifact_not_allowed"
+  | "limit_exceeded"
+  | "not_found"
+  | "unsupported_schema_version"
+  | "unknown"
   | "artifact_protocol_not_ready"
   | "connection_unavailable"
-  | "invalid_selection"
-  | "safety_check_timeout";
+  | "invalid_selection";
 
 export type ConversationShareFailureReasonCode =
   | "running_turn"
@@ -107,7 +109,6 @@ export type ConversationShareFailureIssueCode =
   | "artifact_count_limit"
   | "artifact_total_size_limit"
   | "payload_size_limit"
-  | "upload_incomplete"
   | "unknown";
 
 export interface ConversationShareFailureIssue {
@@ -131,7 +132,7 @@ export interface ConversationShareFailureIssue {
   actual?: number;
   limit?: number;
   retryAfterMs?: number;
-  phase?: ConversationSharePublishProgress["phase"] | "downloading" | "installing" | "committing";
+  phase?: ConversationSharePublishProgress["phase"] | "validating" | "installing" | "committing";
   allowedFormats?: readonly string[];
   allowedArtifacts?: readonly ConversationShareAllowedArtifact[];
   availability?:
@@ -362,7 +363,7 @@ export class ConversationShareServiceError extends Error {
 
 export interface ConversationSharePublishProgress {
   operationId: string;
-  phase: "collecting" | "uploading" | "checking" | "complete";
+  phase: "collecting" | "packing" | "saving" | "complete";
   completedArtifacts: number;
   totalArtifacts: number;
   /**
@@ -375,19 +376,19 @@ export interface ConversationSharePublishProgress {
 
 export interface ConversationShareImportProgress {
   operationId: string;
-  phase: "downloading" | "installing" | "committing" | "complete";
+  phase: "validating" | "installing" | "committing" | "complete";
   completedArtifacts: number;
   totalArtifacts: number;
 }
 
 export interface ImportConversationShareInput {
-  shareCode: string;
+  archiveId: string;
   clientRequestId: string;
-  /** 当前 renderer 捕获的目标；Deep Link 本身不得携带路径或 identity。 */
+  /** 用户选文件时捕获的目标；归档内容不得决定目标路径或 identity。 */
   targetWorkspacePath?: string;
   targetWorkspaceIdentity?: string;
   targetWorkspaceKind?: "local" | "remote";
-  /** 界面语言；决定导入会话的标题前缀。回链本身固定存规范路径。 */
+  /** 界面语言；决定导入会话的标题前缀。 */
   locale?: Locale;
 }
 
@@ -415,7 +416,6 @@ export interface ImportConversationShareResult {
   workspaceIdentity?: string;
   sessionId: string;
   contextId: string;
-  shareUrl: string;
   title: string;
   reused: boolean;
   fallbackReason?: "remote_workspace" | "default_workspace";
@@ -423,12 +423,18 @@ export interface ImportConversationShareResult {
 
 export interface IConversationShareService {
   getCapabilities(): Promise<ConversationShareCapabilities>;
+  canImport(): Promise<boolean>;
   preflight(input: ConversationSharePreflightInput): Promise<ConversationSharePreflightResult>;
   publish(
     input: PublishTextConversationInput,
     operationId: string,
-  ): Promise<ConversationShareRecord>;
+  ): Promise<ConversationArchiveExport>;
+  readExportChunk(archiveId: string, offset: number): Promise<string>;
+  releaseExport(archiveId: string): Promise<void>;
   onDynamicPublishProgress(operationId: string): Event<ConversationSharePublishProgress>;
+  beginArchiveImport(byteLength: number): Promise<string>;
+  appendArchiveImport(archiveId: string, offset: number, base64: string): Promise<void>;
+  releaseArchiveImport(archiveId: string): Promise<void>;
   importShare(
     input: ImportConversationShareInput,
     operationId: string,
@@ -439,11 +445,6 @@ export interface IConversationShareService {
     workspacePath: string;
     contextId: string;
   }): Promise<ImportedConversationShare | null>;
-  getPreview(shareCode: string): Promise<ConversationSharePreview>;
-  getContinuation(input: {
-    shareCode: string;
-    clientRequestId: string;
-  }): Promise<ConversationShareContinuation>;
 }
 
 export const IConversationShareService = createServiceDescriptor<IConversationShareService>(
@@ -469,14 +470,18 @@ export function createUnsupportedConversationShareService(options: {
   const noEvents = () => RpcEvent.None;
   return {
     getCapabilities: reject("getCapabilities"),
+    canImport: async () => false,
     preflight: reject("preflight"),
     publish: reject("publish"),
+    readExportChunk: reject("readExportChunk"),
+    releaseExport: async () => {},
     onDynamicPublishProgress: noEvents,
+    beginArchiveImport: reject("beginArchiveImport"),
+    appendArchiveImport: reject("appendArchiveImport"),
+    releaseArchiveImport: async () => {},
     importShare: reject("importShare"),
     onDynamicImportProgress: noEvents,
     // 只读查询：不可用环境下返回 null 而不是抛错，会话里就是不渲染只读块。
     getImportedConversation: async () => null,
-    getPreview: reject("getPreview"),
-    getContinuation: reject("getContinuation"),
   };
 }

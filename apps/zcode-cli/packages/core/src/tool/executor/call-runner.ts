@@ -341,7 +341,6 @@ async function executeToolCallImpl(
       toolCallId: canonicalToolCall.id,
 
       automationTurn: options?.automationTurn,
-      offPeakTurn: options?.offPeakTurn,
       traceContext,
       traceId,
       spanId: traceContext.spanId,
@@ -374,7 +373,6 @@ async function executeToolCallImpl(
       workflowEscalatePort: deps.workflowEscalatePort,
       artifactStore: deps.artifactStore,
       automationPort: deps.automationPort,
-      offPeakPort: deps.offPeakPort,
       sessionStore: deps.sessionStore,
       sessionModePort: deps.sessionModePort,
       workflowPort: deps.workflowPort,

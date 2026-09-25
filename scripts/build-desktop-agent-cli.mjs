@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,10 +6,7 @@ import { runCommand } from "./spawn-command.mjs";
 
 // adapters tsc 在内存受限机器上会 OOM（exit 134），给整条构建链路提高堆上限。
 process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ? process.env.NODE_OPTIONS + " " : ""}--max-old-space-size=8192`;
-import {
-  stageBuiltinProviderConfig,
-  resolveBuiltinProviderBuildEnvironment,
-} from "./builtin-provider-config.mjs";
+import { resolveBuiltinProviderBuildEnvironment } from "./builtin-provider-config.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const useTurboBuild = process.env.ZCODE_DESKTOP_AGENT_BUILD_MODE === "turbo";
@@ -98,16 +94,7 @@ function stageDevAgentBundle() {
 }
 
 async function runBootstrapWithRemoteBuild() {
-  if (existsSync(resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/zcode.cjs"))) {
-    await stageBuiltinProviderConfig({
-      root: repoRoot,
-      env: pnpmRunEnv,
-      directory: resolve(repoRoot, "apps/zcode-cli/packages/cli/dist/provider"),
-    });
-    console.log("[build-desktop-agent-cli] reuse existing zcode-cli desktop agent bundle");
-    return;
-  }
-
+  // 仅有旧 bundle 文件不能证明它来自本次源码；远端资源必须重建当前 Agent。
   for (const { packageDir, prepareScript } of cliWorkspaceBuilds) {
     // bootstrap:with-remote 会在 remote assets 阶段构建 agent bundle。
     // 通过 pnpm 逐包执行 tsc 时会再走 shim/env node 层，低内存本地环境里容易长时间卡住。

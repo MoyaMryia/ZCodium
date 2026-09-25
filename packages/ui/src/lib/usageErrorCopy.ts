@@ -1,6 +1,6 @@
 import type { IntlInstance } from "@/i18n/IntlProvider.js";
 
-type UsageErrorSurface = "chatPlan" | "entitlement" | "stats";
+type UsageErrorSurface = "chatPlan" | "entitlement";
 
 const CREDENTIAL_ERROR_PATTERNS = [
   /token\s+(expired|incorrect)/i,

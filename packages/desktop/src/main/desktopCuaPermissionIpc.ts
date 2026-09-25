@@ -5,6 +5,10 @@ import { promisify } from "node:util";
 import { app, BrowserWindow, ipcMain, nativeImage, screen } from "electron";
 import { PlatformChannels, type CuaPermissionKind, type Locale } from "@zcode/shared";
 import {
+  openMacOSScreenRecordingSettingsPanel,
+  requestMacOSPermissionsFromHost,
+} from "@zcode/zcode-cua/macos-permissions";
+import {
   cuaHelperBundleFingerprintUnchanged,
   openCuaPermissionOnboarding,
   prepareCuaHelperPermissionDrag,
@@ -519,6 +523,30 @@ export function registerCuaPermissionIpcHandlers(options: {
     // 继续当作“已验证指纹”。成功后另起一次绑定 verify+fingerprint 的 prepare，供下次拖拽使用。
     if (result.success) void refreshVerifiedHelperAppPath();
     return result;
+  });
+
+  // cua-driver 路径：直接向系统申请 TCC。必须在 main 进程调用，授权才归属 ZCode.app；
+  // 拿不到入口（非 macOS / 原生库缺失）时 ok=false，由 UI 保持未授权态，不伪造成功。
+  ipcMain.handle(PlatformChannels.RequestCuaPermissions, async () => {
+    if (process.platform !== "darwin") {
+      return { ok: false, accessibility: false, screenRecording: false };
+    }
+    const status = await requestMacOSPermissionsFromHost();
+    if (!status) {
+      return {
+        ok: false,
+        accessibility: false,
+        screenRecording: false,
+        reason: "cua-driver permission entry unavailable",
+      };
+    }
+    return { ok: true, ...status };
+  });
+
+  // cua-driver 路径：打开「屏幕录制」设置面板。返回是否成功打开；失败不抛，UI 退回文字指引。
+  ipcMain.handle(PlatformChannels.OpenCuaPermissionSystemSettings, async () => {
+    if (process.platform !== "darwin") return false;
+    return await openMacOSScreenRecordingSettingsPanel();
   });
 
   // 2026-08 审计曾把 Prepare/StartCuaHelperPermissionDrag 当作死链路删除（当时渲染层无调用方，

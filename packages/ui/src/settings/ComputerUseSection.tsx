@@ -14,7 +14,7 @@ import {
   isRemoteWorkspaceIdentity,
   ZCODE_CUA_OFFICIAL_PLUGIN_ID,
 } from "@zcode/shared";
-import { isCuaPermissionStatusAvailable, type CuaPermissionRestartOptions } from "@zcode/services";
+import { isCuaPermissionStatusAvailable } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { Switch } from "@/components/ui/switch.js";
@@ -22,24 +22,11 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useCuaPermissionStatus } from "@/hooks/useCuaPermissionStatus.js";
-import {
-  claimCuaPermissionReturnRecovery,
-  completeCuaPermissionReturnRecovery,
-  captureCuaPermissionReturnRecovery,
-  createCuaPermissionReturnRecoveryState,
-  isCuaPermissionReturnRecoveryCurrent,
-  markCuaPermissionOnboardingOpened,
-  shouldRestartHelperAfterCuaPermissionReturn,
-  type CuaPermissionReturnRecoveryClaim,
-} from "@/lib/cuaPermissionAction.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { StatusDot, type StatusDotTone } from "@/settings/StatusDot.js";
 import { supportsLocalMacCuaPermissionOnboarding } from "@/lib/cuaPlatform.js";
 import { runAfterSuccessfulPluginEnabledChange } from "@/settings/pluginEnabledChange.js";
-import { createCuaPermissionOnboardingOperationId } from "@/lib/cuaPermissionOnboardingOperation.js";
-import { waitForAccessibilityNotStale } from "@/settings/cuaPermissionRestartVerify.js";
-import { requiredCuaPermissionsForFreshStatus } from "@/settings/cuaPermissionPreparation.js";
 import { ExternalLink } from "lucide-react";
 import {
   isComputerUseRemoteOrLinux,
@@ -72,8 +59,6 @@ export function ComputerUseSection({
   const services = useServices();
   const platform = usePlatform();
   const pluginManagementService = services.pluginManagementService;
-  // cuaPermissionService 在 main 是可选字段（远端 host 无 CUA）；下方各 handler 在缺失时早退。
-  const cuaPermissionService = services.cuaPermissionService;
   const isLocalWorkspace =
     !remoteSessionId &&
     !remoteTarget &&
@@ -159,20 +144,9 @@ export function ComputerUseSection({
     initializePlugins,
   ]);
 
-  const [restarting, setRestarting] = useState(false);
-  // 重启 single-flight：授权返回回调、双击和手动按钮共享同一 operation，不并发轮换 broker 凭据。
-  const restartPromiseRef = useRef<Promise<boolean> | null>(null);
-  const pendingGrantSessionIdRef = useRef<string | undefined>(undefined);
-  const returnRecoveryRef = useRef(createCuaPermissionReturnRecoveryState());
-  useEffect(() => {
-    returnRecoveryRef.current = createCuaPermissionReturnRecoveryState(
-      workspaceIdentity?.trim() || path || "<none>",
-    );
-    pendingGrantSessionIdRef.current = undefined;
-  }, [path, workspaceIdentity]);
-  // 重启 Helper 后验证仍持续 stale → 显示"重启 ZCode"兜底按钮。accessibility 变 granted 时自愈清除。
-  const [verifyTimedOut, setVerifyTimedOut] = useState(false);
-  // 卸载守卫：异步 fetch / 重启 / 切换完成时若组件已卸载，跳过 setState。
+  // 申请权限中的 in-flight 标记（按钮禁用 + 文案切换）。
+  const [requesting, setRequesting] = useState(false);
+  // 卸载守卫：异步申请 / 切换完成时若组件已卸载，跳过 setState。
   const mountedRef = useRef(true);
   const pluginToggleGenerationRef = useRef(0);
   const pluginToggleContextKey = [
@@ -184,11 +158,6 @@ export function ComputerUseSection({
   ].join("\u0000");
   const pluginToggleContextKeyRef = useRef(pluginToggleContextKey);
   pluginToggleContextKeyRef.current = pluginToggleContextKey;
-  const helperContextKey = [path ?? "", workspaceIdentity?.trim() ?? ""].join("\u0000");
-  const helperContextKeyRef = useRef(helperContextKey);
-  helperContextKeyRef.current = helperContextKey;
-  const activeOnboardingOperationIdRef = useRef<string | null>(null);
-  const permissionStatusCheckTokenRef = useRef<symbol | null>(null);
   const platformRef = useRef(platform);
   platformRef.current = platform;
   useEffect(() => {
@@ -196,137 +165,55 @@ export function ComputerUseSection({
     return () => {
       mountedRef.current = false;
       pluginToggleGenerationRef.current += 1;
-      permissionStatusCheckTokenRef.current = null;
-      const operationId = activeOnboardingOperationIdRef.current;
-      activeOnboardingOperationIdRef.current = null;
-      if (operationId) {
-        platformRef.current.cancelCuaPermissionOnboarding?.(operationId);
-      }
     };
   }, []);
 
-  // 同一设置页实例切换 workspace 时也要退出旧 participant；否则旧调用返回后会恢复错误的 Helper。
-  useEffect(
-    () => () => {
-      permissionStatusCheckTokenRef.current = null;
-      const operationId = activeOnboardingOperationIdRef.current;
-      activeOnboardingOperationIdRef.current = null;
-      if (operationId) {
-        platformRef.current.cancelCuaPermissionOnboarding?.(operationId);
+  // 申请 macOS TCC 授权。必须由 main 进程触发（平台能力 requestCuaPermissions），
+  // 这样弹窗归属 ZCode.app 而不是 MCP worker；拿不到入口时 ok=false，只提示不伪造成功。
+  const onRequestPermissions = useCallback(async (): Promise<void> => {
+    if (typeof platform.requestCuaPermissions !== "function") return;
+    setRequesting(true);
+    try {
+      const result = await platform.requestCuaPermissions();
+      if (!result?.ok && mountedRef.current) {
+        toast(
+          intl.formatMessage(
+            { id: "cuaPermission.modal.requestFailed" },
+            { error: result?.reason ?? "unknown error" },
+          ),
+        );
       }
-    },
-    [path, workspaceIdentity],
-  );
-
-  const onRestart = useCallback(
-    (
-      targetPath = path,
-      targetWorkspaceIdentity = workspaceIdentity,
-      restartOptions?: CuaPermissionRestartOptions,
-    ): Promise<boolean> => {
-      if (!targetPath || !services || !cuaPermissionService) return Promise.resolve(false);
-      if (restartPromiseRef.current) return restartPromiseRef.current;
-      const targetContextKey = [targetPath, targetWorkspaceIdentity?.trim() ?? ""].join("\u0000");
-      if (helperContextKeyRef.current === targetContextKey) {
-        setVerifyTimedOut(false);
+    } catch (error) {
+      if (mountedRef.current) {
+        toast(
+          intl.formatMessage(
+            { id: "cuaPermission.modal.requestFailed" },
+            { error: error instanceof Error ? error.message : String(error) },
+          ),
+        );
       }
-      setRestarting(true);
-      const operation = (async (): Promise<boolean> => {
-        let queuedActiveProbe = false;
-        try {
-          const result = await cuaPermissionService.restartHelper(
-            targetPath,
-            targetWorkspaceIdentity,
-            restartOptions,
-          );
-          if (!result.ok && mountedRef.current) {
-            toast(
-              intl.formatMessage(
-                { id: "cuaPermission.modal.restartFailed" },
-                { error: result.reason ?? "unknown error" },
-              ),
-            );
-            return false;
-          }
-          if (!result.ok) return false;
+    } finally {
+      if (mountedRef.current) setRequesting(false);
+    }
+    // 授权异步生效：申请后主动重查一次，让状态行尽快反映新授权。
+    refresh();
+  }, [platform, intl, refresh]);
 
-          // Helper socket 已健康不代表 tccd 状态已经传播完成；短轮询确认 stale 是否消失。
-          const stillStale = await waitForAccessibilityNotStale(() =>
-            cuaPermissionService.getStatus(targetPath, targetWorkspaceIdentity),
-          );
-          // 授权过程中可能切换 workspace；旧操作仍完成必要副作用，但不能污染新页面的升级提示。
-          if (mountedRef.current && helperContextKeyRef.current === targetContextKey) {
-            setVerifyTimedOut(stillStale);
-            // 后台权限轮询必须保持只读，真实截图只能跟随显式的授权返回/重启。
-            // restart single-flight 已经把同一 Helper 恢复合并为一次，这里只排一个主动探针；
-            // hook 会继续合并 focus/refresh，避免重复触发 macOS 隐私采集。
-            refresh({ includeFunctionalProbes: true });
-            queuedActiveProbe = true;
-          }
-          return true;
-        } catch (error) {
-          if (mountedRef.current) {
-            toast(
-              intl.formatMessage(
-                { id: "cuaPermission.modal.restartFailed" },
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                },
-              ),
-            );
-          }
-          return false;
-        } finally {
-          restartPromiseRef.current = null;
-          if (mountedRef.current) {
-            setRestarting(false);
-            // 失败路径仍只读刷新；成功路径已在当前 workspace 精确排入一次主动探针。
-            if (!queuedActiveProbe) refresh();
-          }
-        }
-      })();
-      restartPromiseRef.current = operation;
-      return operation;
-    },
-    [path, workspaceIdentity, services, refresh, intl],
-  );
-
-  const applyPendingGrant = useCallback(
-    async (
-      expectedClaim?: CuaPermissionReturnRecoveryClaim,
-      target?: { workspacePath: string; workspaceIdentity?: string },
-      onboardingSessionId?: string,
-    ): Promise<boolean> => {
-      const claim = expectedClaim ?? captureCuaPermissionReturnRecovery(returnRecoveryRef.current);
-      if (!claim || !isCuaPermissionReturnRecoveryCurrent(claim.state, claim)) {
-        return false;
+  // 打开 macOS 系统设置面板，让用户自己勾选授权。打不开只提示，不抛。
+  const onOpenSystemSettings = useCallback(async (): Promise<void> => {
+    if (typeof platform.openCuaPermissionSystemSettings !== "function") return;
+    try {
+      const opened = await platform.openCuaPermissionSystemSettings();
+      if (!opened && mountedRef.current) {
+        toast(intl.formatMessage({ id: "cuaPermission.modal.unavailable" }));
       }
-      // 授权前若已有 restart，先等它结束，再启动一个真正位于授权之后的新 Helper。
-      const existing = restartPromiseRef.current;
-      if (existing) await existing;
-      if (!isCuaPermissionReturnRecoveryCurrent(claim.state, claim)) return false;
-      // A 发起授权后切到 B，返回结果仍属于当前 renderer/host 的 A runtime。用点击时捕获的 identity
-      // 完成必要 restart；只让后续展示刷新服从当前 props，不能因 UI generation 变化丢掉副作用。
-      const ok = await onRestart(target?.workspacePath, target?.workspaceIdentity, {
-        reason: "permission_granted",
-        ...((onboardingSessionId ?? pendingGrantSessionIdRef.current)
-          ? {
-              onboardingSessionId: onboardingSessionId ?? pendingGrantSessionIdRef.current,
-            }
-          : {}),
-      });
-      completeCuaPermissionReturnRecovery(claim, ok);
-      return ok;
-    },
-    [onRestart],
-  );
+    } catch {
+      if (mountedRef.current) {
+        toast(intl.formatMessage({ id: "cuaPermission.modal.unavailable" }));
+      }
+    }
+  }, [platform, intl]);
 
-  // 兜底:重启 Helper 后仍持续 stale 时,用户可一键重启 ZCode(复用 OAuth 登出同款 RelaunchApp)。
-  // 新 ZCode 进程会干净地重新拉起 Helper,绕过当前进程里可能卡住的重启机制(孤儿/socket/状态污染)。
-  const onRelaunchApp = useCallback(async () => {
-    if (typeof platform.executeDesktopCommand !== "function") return;
-    await platform.executeDesktopCommand(DesktopCommandIds.RelaunchApp);
-  }, [platform]);
 
   const onTogglePlugin = useCallback(
     async (next: boolean) => {
@@ -370,187 +257,8 @@ export function ComputerUseSection({
   );
 
   // 打开 macOS 系统设置引导用户授权指定权限（Accessibility / Screen Recording）。
-  const openPermissionSettings = useCallback(
-    async (initialPermission: CuaPermissionKind): Promise<void> => {
-      if (
-        typeof platform.openCuaPermissionOnboarding !== "function" ||
-        activeOnboardingOperationIdRef.current ||
-        permissionStatusCheckTokenRef.current
-      ) {
-        return;
-      }
-      const checkToken = Symbol("cua-permission-status-check");
-      permissionStatusCheckTokenRef.current = checkToken;
-      const operationContextKey = helperContextKey;
-      let operationId: string | null = null;
-      const recoveryState = returnRecoveryRef.current;
-      const recoveryTarget = path
-        ? {
-            workspacePath: path,
-            ...(workspaceIdentity ? { workspaceIdentity } : {}),
-          }
-        : null;
-      try {
-        if (!path || !cuaPermissionService) {
-          toast(intl.formatMessage({ id: "cuaPermission.modal.unavailable" }));
-          return;
-        }
-        // 设置页行按钮过去直接使用 lastKnown 状态；另一窗口刚完成授权或当前刷新
-        // in-flight 时仍会打开过期 pane。点击边沿重新查询 Helper，只允许当前 denied/stale 的精确项。
-        let currentStatus = await cuaPermissionService.getStatus(path, workspaceIdentity, {
-          includeFunctionalProbes: false,
-        });
-        // 从系统设置授权返回后 App 会重启 Helper 才能读到新 TCC 授权，这段窗口内查询拿到的是
-        // 不可用状态（授权完立刻点行按钮，预检查退化成「暂时无法确认」
-        // 而非「已授权」）。状态不可用时短重试 2 次、间隔 2s，等 Helper 就绪后走到「已授权」
-        // 或真实缺权分支；期间守卫失效（卸载/重复点击/上下文切换）直接放弃，不再重试。
-        for (
-          let attempt = 0;
-          attempt < 2 && !isCuaPermissionStatusAvailable(currentStatus);
-          attempt += 1
-        ) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-          if (
-            !mountedRef.current ||
-            permissionStatusCheckTokenRef.current !== checkToken ||
-            helperContextKeyRef.current !== operationContextKey ||
-            returnRecoveryRef.current !== recoveryState
-          ) {
-            return;
-          }
-          currentStatus = await cuaPermissionService.getStatus(path, workspaceIdentity, {
-            includeFunctionalProbes: false,
-          });
-        }
-        // React concurrent commit 可能已经收到 workspace A→B 更新但 passive effect 尚未清理 A。
-        // render 同步更新的 context ref 是这段窗口内唯一可靠的失效信号；让出一个 macrotask后再判，
-        // 迟到的 A 状态不能为 B 打开原生设置页。
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        if (
-          !mountedRef.current ||
-          permissionStatusCheckTokenRef.current !== checkToken ||
-          helperContextKeyRef.current !== operationContextKey ||
-          returnRecoveryRef.current !== recoveryState
-        ) {
-          return;
-        }
-        if (
-          !isCuaPermissionStatusAvailable(currentStatus) ||
-          !requiredCuaPermissionsForFreshStatus(currentStatus).includes(initialPermission)
-        ) {
-          const permissionState = isCuaPermissionStatusAvailable(currentStatus)
-            ? initialPermission === "accessibility"
-              ? currentStatus.accessibility
-              : currentStatus.screenRecording
-            : null;
-          toast(
-            intl.formatMessage({
-              id:
-                permissionState === "granted"
-                  ? "cuaPermission.grantAlreadySatisfied"
-                  : "cuaPermission.modal.unavailable",
-            }),
-          );
-          refresh();
-          return;
-        }
-        operationId = createCuaPermissionOnboardingOperationId();
-        activeOnboardingOperationIdRef.current = operationId;
-        const result = await platform.openCuaPermissionOnboarding({
-          initialPermission,
-          operationId,
-          requiredPermissions: [initialPermission],
-        });
-        if (
-          !mountedRef.current ||
-          activeOnboardingOperationIdRef.current !== operationId ||
-          helperContextKeyRef.current !== operationContextKey
-        ) {
-          return;
-        }
-        if (shouldRestartHelperAfterCuaPermissionReturn(result)) {
-          markCuaPermissionOnboardingOpened(recoveryState);
-          pendingGrantSessionIdRef.current = result.sessionId;
-          const claim = claimCuaPermissionReturnRecovery(recoveryState);
-          if (claim && recoveryTarget) {
-            void applyPendingGrant(claim, recoveryTarget, result.sessionId);
-          }
-        } else if (result?.success && result.returnedFromSettings) {
-          // 同一 renderer 对 main session 的重复 join 只刷新；不同窗口各自会拿到本 host 的 recovery。
-          refresh();
-        }
-        if (result?.success === false && !result.canceled) {
-          toast(
-            intl.formatMessage(
-              { id: "chat.cuaPermission.openFailed" },
-              { error: result.error ?? "unknown error" },
-            ),
-          );
-        }
-      } catch (error) {
-        if (
-          mountedRef.current &&
-          permissionStatusCheckTokenRef.current === checkToken &&
-          helperContextKeyRef.current === operationContextKey
-        ) {
-          toast(
-            operationId
-              ? intl.formatMessage(
-                  { id: "chat.cuaPermission.openFailed" },
-                  {
-                    error: error instanceof Error ? error.message : String(error),
-                  },
-                )
-              : intl.formatMessage({ id: "cuaPermission.modal.unavailable" }),
-          );
-        }
-      } finally {
-        if (permissionStatusCheckTokenRef.current === checkToken) {
-          permissionStatusCheckTokenRef.current = null;
-        }
-        if (operationId && activeOnboardingOperationIdRef.current === operationId) {
-          activeOnboardingOperationIdRef.current = null;
-        }
-      }
-    },
-    [platform, path, services, workspaceIdentity, intl, applyPendingGrant, refresh],
-  );
-
-  const onManualRestart = useCallback((): void => {
-    void (returnRecoveryRef.current.pending ? applyPendingGrant() : onRestart());
-  }, [applyPendingGrant, onRestart]);
-
-  // 自愈:accessibility 在后续任一次查询里变成 granted 时,清除"重启 ZCode"兜底(说明问题已解决)。
-  useEffect(() => {
-    if (availableStatus?.accessibility === "granted") setVerifyTimedOut(false);
-  }, [availableStatus?.accessibility]);
-
-  const renderGrantDetail = (kind: CuaPermissionKind, labelId: string): ReactNode => {
-    if (typeof platform.openCuaPermissionOnboarding !== "function") return null;
-    return (
-      <Button
-        type="button"
-        variant="link"
-        size="sm"
-        className="text-sky-500 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300"
-        aria-label={intl.formatMessage({ id: labelId })}
-        title={intl.formatMessage({ id: labelId })}
-        disabled={!settled}
-        onClick={() => void openPermissionSettings(kind)}
-      >
-        <ExternalLink className="size-4" aria-hidden="true" />
-        <span className="hidden sm:inline">
-          {intl.formatMessage({
-            id: settled ? labelId : "cuaPermission.status.verifying",
-          })}
-        </span>
-      </Button>
-    );
-  };
-
   // 权限状态 → { 圆点颜色 tone, 文案 text }，保证圆点与文案同源（granted 绿/stale 黄/denied 红/unknown 灰）。
-  // TCC=granted 即稳定显示 granted（绿）；功能探针（functionalProbeOk）只用于 runtime 就绪判断，
-  // 不再让它在每次轮询时把显示态翻成 "verifying"（否则会 granted↔verifying 反复横跳）。
+  // TCC=granted 即稳定显示 granted（绿）；功能探针只用于 runtime 就绪判断，不再把显示态翻成 verifying。
   const statusView = (
     state: "granted" | "stale" | "denied" | "unknown" | undefined,
   ): { tone: StatusDotTone; text: string } => {
@@ -561,7 +269,7 @@ export function ComputerUseSection({
       };
     }
     if (state === "stale") {
-      // 仅兼容旧 Helper：可能是进程 lag，也可能是旧 ad-hoc CDHash 行，UI 同时提供重启与重新授权。
+      // stale 只表示状态需要重新确认；操作区统一给「申请权限 + 打开设置面板」，不再重启 Helper。
       return {
         tone: "amber",
         text: intl.formatMessage({ id: "cuaPermission.status.stale" }),
@@ -579,37 +287,47 @@ export function ComputerUseSection({
     };
   };
 
-  // 旧 Helper 的 stale 可能来自进程缓存，也可能来自旧 ad-hoc CDHash；先重启并验证，仍失败时同时
-  // 保留重新授权入口与“重启 ZCode”兜底，避免把不可由单次 Helper 重启修复的状态误导成已解决。
-  const renderRestartDetail = (): ReactNode => (
-    <div className="flex flex-col items-start gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={restarting || !path}
-        onClick={onManualRestart}
-      >
-        {restarting
-          ? intl.formatMessage({ id: "cuaPermission.modal.restarting" })
-          : intl.formatMessage({ id: "cuaPermission.modal.restartButton" })}
-      </Button>
-      {verifyTimedOut && !restarting ? (
-        <div className="flex flex-col items-start gap-1">
-          <span className="text-xs text-foreground-subtlest">
-            {intl.formatMessage({ id: "cuaPermission.modal.relaunchAppHint" })}
-          </span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => void onRelaunchApp()}>
-            {intl.formatMessage({
-              id: "cuaPermission.modal.relaunchAppButton",
-            })}
+  // 未授权 / 需重新确认时的操作区：主按钮向系统申请授权，次级链接打开对应设置面板
+  // 让用户自己勾选。两者都由 main 进程经 cua-driver 触发，TCC 归属 ZCode.app。
+  const renderGrantDetail = (labelId: string): ReactNode => {
+    const canRequest = typeof platform.requestCuaPermissions === "function";
+    const canOpenSettings = typeof platform.openCuaPermissionSystemSettings === "function";
+    if (!canRequest && !canOpenSettings) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {canRequest ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={requesting || !settled}
+            onClick={() => void onRequestPermissions()}
+          >
+            {requesting
+              ? intl.formatMessage({ id: "cuaPermission.modal.requesting" })
+              : intl.formatMessage({ id: "cuaPermission.modal.requestButton" })}
           </Button>
-        </div>
-      ) : null}
-    </div>
-  );
+        ) : null}
+        {canOpenSettings ? (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="text-sky-500 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300"
+            aria-label={intl.formatMessage({ id: labelId })}
+            title={intl.formatMessage({ id: labelId })}
+            disabled={!settled}
+            onClick={() => void onOpenSystemSettings()}
+          >
+            <ExternalLink className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">{intl.formatMessage({ id: labelId })}</span>
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
 
-  // 两项权限的状态视图（圆点 tone + 文案），与圆点同源，避免文案/颜色不同步。
+
   const acc = statusView(availableStatus?.accessibility);
   const screenPerm = statusView(availableStatus?.screenRecording);
 
@@ -677,7 +395,7 @@ export function ComputerUseSection({
         type="button"
         className="cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={view.text}
-        onClick={() => void openPermissionSettings(kind)}
+        onClick={() => void onOpenSystemSettings()}
       >
         {badge}
       </button>
@@ -787,9 +505,7 @@ export function ComputerUseSection({
                 detail={
                   availableStatus?.accessibility === "granted"
                     ? undefined
-                    : availableStatus?.accessibility === "stale"
-                      ? renderRestartDetail()
-                      : renderGrantDetail("accessibility", "chat.cuaPermission.openAccessibility")
+                    : renderGrantDetail("chat.cuaPermission.openAccessibility")
                 }
               />
               <SettingsRow
@@ -808,10 +524,7 @@ export function ComputerUseSection({
                 detail={
                   availableStatus?.screenRecording === "granted"
                     ? undefined
-                    : renderGrantDetail(
-                        "screen_recording",
-                        "chat.cuaPermission.openScreenRecording",
-                      )
+                    : renderGrantDetail("chat.cuaPermission.openScreenRecording")
                 }
               />
             </SettingsGroupCard>

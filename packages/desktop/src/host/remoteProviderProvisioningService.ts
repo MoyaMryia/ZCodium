@@ -44,7 +44,6 @@ function createRemoteProviderProvisioningExecutor(options: {
         syncId,
         status: "failed",
         personalProviderCount: 0,
-        credentialCount: 0,
         errorMessage: error instanceof Error ? error.message : String(error),
         rolledBack: true,
       } satisfies ProviderProvisioningResult;
@@ -74,7 +73,6 @@ function unsupportedResult(syncId: string, errorMessage: string): ProviderProvis
     syncId,
     status: "unsupported",
     personalProviderCount: 0,
-    credentialCount: 0,
     errorMessage,
     rolledBack: false,
   };

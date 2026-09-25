@@ -125,9 +125,7 @@ export function createScriptWorkflowAgentRuntime(input: {
     {
       ...createRuntimeDeps(input.deps, input.traceContext, input.childSessionId, {
         // 对外交互端口只能由父 runtime 铸造：子会话不是客户端认识的身份。
-        // 这里过去直接用 `appOptions.providerRuntimeHeadersPort` /
-        // `deps.permissionBroker`，于是 actor 带着 `sess_dwf-…` 去问桌面，桌面
-        // `requireSession` 抛错、response 永不发出，子代理在首个模型请求前挂死。
+        // 直接透传未改写的 permissionBroker 会让桌面无法匹配根会话，权限应答永久等待。
         agentId: input.childSessionId,
         agentType: input.request.opts?.agentType ?? "zcode-workflow",
         childSessionId: input.childSessionId,
@@ -212,7 +210,7 @@ function createRuntimeDeps(
     mcpPort: deps.mcpPort,
     modelFactory: deps.modelFactory,
     resolveEffectiveModelSelection: deps.appOptions.resolveEffectiveModelSelection,
-    // permissionBroker + providerRuntimeHeadersPort 都在这里面：父 runtime 派生，路由身份已改写成父会话。
+    // permissionBroker 由父 runtime 派生，路由身份已改写成父会话。
     ...deps.runtime.createChildClientPorts(clientPortsContext),
     permissionService: deps.permissionService,
     sessionStore: deps.sessionStore,

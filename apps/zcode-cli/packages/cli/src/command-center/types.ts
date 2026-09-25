@@ -130,60 +130,6 @@ export type CommandCenterTarget = {
   };
 };
 
-export type CommandCenterLoginResult = {
-  browser?: {
-    opened: boolean;
-    reason?: string;
-  };
-  configPath: string;
-  credentialsPath: string;
-  model: string;
-  providerId?: "bigmodel" | "zai";
-  user: {
-    email?: string;
-    name?: string;
-    user_id: string;
-  };
-};
-
-export type CommandCenterLoginAuthorizeData = {
-  authorize_url: string;
-  expires_at: number;
-  flow_id: string;
-  poll_interval_sec: number;
-};
-
-export type CommandCenterLoginOptions = {
-  abortSignal?: AbortSignal;
-  onAuthorizeUrl?: (data: CommandCenterLoginAuthorizeData) => Promise<void> | void;
-};
-export type CommandCenterBigmodelLoginOptions = CommandCenterLoginOptions;
-
-export type CommandCenterBigmodelLoginResult = {
-  browser?: {
-    opened: boolean;
-    reason?: string;
-  };
-  configPath: string;
-  model: string;
-  providerId: "bigmodel";
-};
-
-export type CommandCenterApiKeyOptions = {
-  apiKey: string;
-  providerId: "bigmodel" | "zai";
-};
-
-export type CommandCenterApiKeyResult = {
-  configPath: string;
-  model: string;
-  providerId: "bigmodel" | "zai";
-};
-
-export type CommandCenterLogoutResult = {
-  credentialsPath: string;
-};
-
 export type CommandCenterApp = {
   readonly sessionId: string;
   readonly traceId: string;
@@ -304,11 +250,6 @@ export type CommandCenterDeps = {
   listSessions?: () => Promise<CommandCenterSession[]>;
   listCustomCommands?: () => Promise<CommandCenterCustomCommandListOutcome>;
   listSkills?: () => Promise<CommandCenterSkillListOutcome>;
-  login?: (options?: CommandCenterLoginOptions) => Promise<CommandCenterLoginResult>;
-  loginBigmodel?: (
-    options?: CommandCenterBigmodelLoginOptions,
-  ) => Promise<CommandCenterBigmodelLoginResult>;
-  configureApiKey?: (options: CommandCenterApiKeyOptions) => Promise<CommandCenterApiKeyResult>;
   loadCustomCommand?: (name: string) => Promise<CommandCenterCustomCommandContent>;
   newApp?: () => Promise<CommandCenterApp>;
   recordInputHistory?: (
@@ -318,7 +259,6 @@ export type CommandCenterDeps = {
   resumeApp(sessionId?: string): Promise<CommandCenterApp>;
   /** 用户主动切换成功后保存完整默认选择；恢复会话与自动初始化不调用。 */
   saveDefaultModelSelection?: (selection: ModelSelection) => Promise<void>;
-  logout?: () => Promise<CommandCenterLogoutResult>;
   setLocale?: (locale: UiLocale) => Promise<CommandCenterLocaleResult> | CommandCenterLocaleResult;
   setMode?: (mode: SwitchableCommandCenterMode) => Promise<CommandCenterMode> | CommandCenterMode;
 };

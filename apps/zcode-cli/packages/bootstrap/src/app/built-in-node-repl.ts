@@ -40,9 +40,9 @@ export function resolveBuiltInNodeReplMcpServers(input: {
         ? {
             ZCODE_CUA_PLUGIN_ROOT: cuaPackage.rootPath,
             // cua-driver 运行时开关（定向给官方 node_repl server，不进其它子进程）：
-            // Linux 用同进程 SDK；macOS 待嵌入宿主铸造 socket 后经 ZCODE_CUA_DRIVER_SOCKET 注入；
-            // Windows 由另一路负责。
-            ...(process.platform === "linux"
+            // 修复：Windows 没有另一条装配路径，和 Linux 一样使用随包的同进程 SDK。
+            // macOS 仍由嵌入宿主铸造 socket，经 ZCODE_CUA_DRIVER_SOCKET 注入。
+            ...(process.platform === "linux" || process.platform === "win32"
               ? { ZCODE_CUA_DRIVER_EMBEDDED: "1" }
               : process.platform === "darwin" && process.env.ZCODE_CUA_DRIVER_SOCKET?.trim()
                 ? { ZCODE_CUA_DRIVER_SOCKET: process.env.ZCODE_CUA_DRIVER_SOCKET.trim() }

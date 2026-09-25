@@ -1,10 +1,10 @@
-import { mkdir, mkdtemp, stat, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { ZipFile } from "yazl";
-import { getAppConfigDir, getExportLogDir, getFeedbackLogArchiveDir } from "@zcode/services/node";
+import { getAppConfigDir, getExportLogDir } from "@zcode/services/node";
 import { ZCODE_USER_DATA_DIR_NAME, ZCODE_VERSION } from "@zcode/shared";
 import { readSafeDiagnosticArchive } from "./safeDiagnosticArchive.js";
 import { logger, flushDesktopLogs } from "./logger.js";
@@ -66,22 +66,4 @@ export async function exportLogs(
     logger.warn("[diagnostics] archive failed");
     return { success: false, error: "Diagnostic archive could not be created" };
   }
-}
-export async function createFeedbackLogArchiveFromExportLogs(
-  sourceDir: string,
-  options: {
-    now?: () => Date;
-    outputRootDir?: string;
-    stageRootDir?: string;
-    onProgress?: (event: { processedBytes: number; totalBytes: number }) => void;
-  } = {},
-): Promise<{ path: string; size: number }> {
-  const outputRoot = options.outputRootDir ?? getFeedbackLogArchiveDir();
-  await mkdir(outputRoot, { recursive: true });
-  const output = await mkdtemp(join(outputRoot, "safe-diagnostics-"));
-  const path = join(output, "diagnostics.zip");
-  await writeZip(path, await archiveContents(sourceDir));
-  const size = (await stat(path)).size;
-  options.onProgress?.({ processedBytes: size, totalBytes: size });
-  return { path, size };
 }

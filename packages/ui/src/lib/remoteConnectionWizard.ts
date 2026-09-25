@@ -1,4 +1,4 @@
-import type { RemoteAssetInstallMode, RemoteTarget } from "@zcode/shared";
+import type { RemoteTarget } from "@zcode/shared";
 import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@zcode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
@@ -13,7 +13,6 @@ interface RemoteConnectionFormSnapshot {
   port: string;
   username: string;
   sshAuthMethod: SSHAuthMethod;
-  assetInstallMode?: RemoteAssetInstallMode;
   selectedSshConfigAlias?: string | null;
   password: string;
   privateKeyPath: string;
@@ -96,7 +95,6 @@ export function buildRemoteTarget(
           port: snapshot.port ? Number(snapshot.port) : undefined,
           username: snapshot.username,
           ...(sshConfigAlias ? { sshConfigAlias } : {}),
-          assetInstallMode: snapshot.assetInstallMode,
           ...(snapshot.sshAuthMethod === "password" && snapshot.password
             ? { password: snapshot.password }
             : {}),

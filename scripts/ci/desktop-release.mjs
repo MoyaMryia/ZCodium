@@ -6,6 +6,12 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+// Draft release 的首行固定为本仓库的立意句，其后才是构建说明。
+const RELEASE_MESSAGE_HEADING =
+  "He who seeks to stand, shall raise others; he who aspires to flourish, shall see others flourish. " +
+  "己欲立而立人，己欲达而达人。";
+const RELEASE_MESSAGE_BODY =
+  "Linux x64 and Windows x64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.";
 // electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
 const extensions = {
   linux: { AppImage: "x86_64", deb: "amd64", rpm: "x86_64", "pkg.tar.zst": "x64" },
@@ -96,7 +102,7 @@ export async function publishDraft({ tag, repo, files, run = execFileAsync }) {
       `ZCodium ${tag}`,
       "--generate-notes",
       "--notes",
-      "Linux x64 and Windows x64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.",
+      `${RELEASE_MESSAGE_HEADING}\n\n${RELEASE_MESSAGE_BODY}`,
     ]);
   }
   await gh(["release", "upload", tag, ...files, "--clobber"]);

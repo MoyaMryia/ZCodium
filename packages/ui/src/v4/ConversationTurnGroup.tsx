@@ -538,13 +538,7 @@ function CronAutomationTurnCards({
   );
 }
 
-function OffPeakTurnCards({
-  cards,
-  context,
-}: {
-  cards: readonly OffPeakTurnCard[];
-  context: ConversationRowRenderContext;
-}) {
+function OffPeakTurnCards({ cards }: { cards: readonly OffPeakTurnCard[] }) {
   if (cards.length === 0) {
     return null;
   }
@@ -552,11 +546,7 @@ function OffPeakTurnCards({
   return (
     <div className="flex flex-col gap-3">
       {cards.map((card) => (
-        <OffPeakCreateTaskCard
-          key={`${card.rowId}:${card.toolCallId}`}
-          task={card.task}
-          onOpenAutomationsMain={context.onOpenAutomationsMain}
-        />
+        <OffPeakCreateTaskCard key={`${card.rowId}:${card.toolCallId}`} task={card.task} />
       ))}
     </div>
   );
@@ -1398,7 +1388,7 @@ function ConversationTurnGroupImpl({
           {/* CronCreate/CronUpdate 工具本身仍按普通工具行展示；成功卡片属于整轮
               完成后的结果摘要，必须等回复结束再跟随最终 assistant 正文收尾。 */}
           <CronAutomationTurnCards cards={cronAutomationTurnCards} context={context} />
-          <OffPeakTurnCards cards={offPeakTurnCards} context={context} />
+          <OffPeakTurnCards cards={offPeakTurnCards} />
           {!isOfficeMode && unit.header?.fileChanges ? (
             <ConversationFileSummaryPanel header={unit.header} context={context} />
           ) : null}

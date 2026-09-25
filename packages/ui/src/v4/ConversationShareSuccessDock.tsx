@@ -1,4 +1,4 @@
-import { CheckCircle2, Copy, ExternalLink, X } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ConversationShareDisplayWarnings } from "@/store/conversationShareSelectionStore.js";
@@ -11,8 +11,7 @@ import {
 interface ConversationShareSuccessDockProps {
   title: string;
   warnings?: ConversationShareDisplayWarnings | null;
-  onOpen: () => void;
-  onCopy: () => void;
+  downloadStarted?: boolean;
   onDismiss: () => void;
 }
 
@@ -29,8 +28,7 @@ function formatValue(value: number | undefined, code: string): string {
 export function ConversationShareSuccessDock({
   title,
   warnings = null,
-  onOpen,
-  onCopy,
+  downloadStarted = false,
   onDismiss,
 }: ConversationShareSuccessDockProps) {
   const { intl, locale } = useZCodeIntl();
@@ -53,7 +51,11 @@ export function ConversationShareSuccessDock({
           <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-ui-base font-medium text-foreground">
-              {intl.formatMessage({ id: "conversationShare.result.title" })}
+              {intl.formatMessage({
+                id: downloadStarted
+                  ? "conversationShare.export.downloadStarted"
+                  : "conversationShare.result.title",
+              })}
             </p>
             <p className="mt-1 text-ui-sm leading-4 text-foreground-subtle">
               {intl.formatMessage({ id: "conversationShare.result.description" })}
@@ -73,7 +75,7 @@ export function ConversationShareSuccessDock({
 
       <div className="grid gap-1 px-4 pb-3">
         <span className="text-ui-sm text-foreground-subtle">
-          {intl.formatMessage({ id: "conversationShare.shareTitle" })}
+          {intl.formatMessage({ id: "conversationShare.export.fileName" })}
         </span>
         <p
           data-testid="conversation-share-result-title"
@@ -130,19 +132,8 @@ export function ConversationShareSuccessDock({
         data-testid="conversation-share-success-actions"
         className="flex flex-wrap justify-end gap-2 border-t border-input-border px-4 pb-3 pt-2.5"
       >
-        <Button
-          type="button"
-          size="lg"
-          variant="outline"
-          data-testid="conversation-share-open-browser"
-          onClick={onOpen}
-        >
-          <ExternalLink aria-hidden="true" />
-          {intl.formatMessage({ id: "conversationShare.result.openInBrowser" })}
-        </Button>
-        <Button type="button" size="lg" data-testid="conversation-share-copy-link" onClick={onCopy}>
-          <Copy aria-hidden="true" />
-          {intl.formatMessage({ id: "conversationShare.copyLink" })}
+        <Button type="button" size="lg" onClick={onDismiss}>
+          {intl.formatMessage({ id: "common.close" })}
         </Button>
       </div>
     </section>
