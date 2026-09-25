@@ -19,6 +19,7 @@ const allNames = [
   "ZCodium-3.14.0-linux-x86_64.rpm",
   "ZCodium-3.14.0-linux-x64.pkg.tar.zst",
   "ZCodium-3.14.0-win-x64.exe",
+  "ZCodium-3.14.0-win-arm64.exe",
 ];
 
 async function fixture(t, names = allNames) {
@@ -66,7 +67,7 @@ test("missing, empty, wrong-version and extra assets block release", async (t) =
   await assert.rejects(verifyReleaseAssets(wrongVersion, version));
 });
 
-test("checksums cover exactly the five validated installers and can be regenerated", async (t) => {
+test("checksums cover exactly the six validated installers and can be regenerated", async (t) => {
   const directory = await fixture(t);
   const paths = await verifyReleaseAssets(directory, version);
   const expected = allNames
@@ -77,7 +78,7 @@ test("checksums cover exactly the five validated installers and can be regenerat
     })
     .join("");
   assert.equal(await readFile(join(directory, "SHA256SUMS"), "utf8"), expected);
-  assert.equal(paths.length, 6);
+  assert.equal(paths.length, 7);
   await verifyReleaseAssets(directory, version);
 });
 

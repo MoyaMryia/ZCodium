@@ -138,7 +138,7 @@ jobs:
           retention-days: 7
 
   build:
-    name: Build (${{ matrix.platform }} x64)
+    name: Build (${{ matrix.platform }} ${{ matrix.arch }})
     needs: [checks, remote-assets]
     strategy:
       fail-fast: false
@@ -146,8 +146,15 @@ jobs:
         include:
           - platform: linux
             runner: ubuntu-24.04
+            arch: x64
           - platform: win
             runner: windows-2025
+            arch: x64
+          # Windows arm64：electron-builder 在 x64 runner 上交叉构建；原生库
+          # @trycua/cua-driver-win32-arm64-msvc 已随 SDK optionalDependencies 分发。
+          - platform: win
+            runner: windows-2025
+            arch: arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     defaults:
@@ -155,7 +162,7 @@ jobs:
         shell: bash
     env:
       ZCODE_TARGET_OS: ${{ matrix.platform }}
-      ZCODE_TARGET_ARCH: x64
+      ZCODE_TARGET_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -179,14 +186,14 @@ jobs:
       - name: Build workspace and desktop
         run: pnpm build:bootstrap
       - name: Package and verify desktop
-        run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch x64 --skip-prepare --skip-build
+        run: pnpm bundle:desktop -- --os "$ZCODE_TARGET_OS" --arch "$ZCODE_TARGET_ARCH" --skip-prepare --skip-build
       - name: Verify CUA with the packaged Electron runtime
         run: node scripts/ci/cua-driver-smoke.mjs --packaged
       - name: Collect installers
         run: node scripts/ci/desktop-release.mjs collect "$ZCODE_TARGET_OS"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: desktop-${{ matrix.platform }}-x64
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/release-assets/*
           if-no-files-found: error
           compression-level: 0
@@ -214,6 +221,10 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: desktop-win-x64
+          path: dist/release-assets
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: desktop-win-arm64
           path: dist/release-assets
       - name: Verify assets and create or update draft
         run: node scripts/ci/desktop-release.mjs publish

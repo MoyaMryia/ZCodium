@@ -11,11 +11,21 @@ const RELEASE_MESSAGE_HEADING =
   "He who seeks to stand, shall raise others; he who aspires to flourish, shall see others flourish. " +
   "己欲立而立人，己欲达而达人。";
 const RELEASE_MESSAGE_BODY =
-  "Linux x64 and Windows x64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.";
+  "Linux x64 and Windows x64/arm64. Unsigned builds; review and test both platforms before publishing. Verify downloads with SHA256SUMS.";
 // electron-builder 按发行格式改写 ${arch}，必须匹配实际产物而非统一猜测 x64。
+// Windows 同时发 x64 与 arm64：electron-builder 可在 x64 runner 上交叉构建 arm64，
+// 原生库 @trycua/cua-driver-win32-arm64-msvc 已随 SDK 的 optionalDependencies 分发。
 const extensions = {
-  linux: { AppImage: "x86_64", deb: "amd64", rpm: "x86_64", "pkg.tar.zst": "x64" },
-  win: { exe: "x64" },
+  linux: [
+    { extension: "AppImage", arch: "x86_64" },
+    { extension: "deb", arch: "amd64" },
+    { extension: "rpm", arch: "x86_64" },
+    { extension: "pkg.tar.zst", arch: "x64" },
+  ],
+  win: [
+    { extension: "exe", arch: "x64" },
+    { extension: "exe", arch: "arm64" },
+  ],
 };
 const number = "(?:0|[1-9][0-9]*)";
 const identifier = `(?:${number}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)`;
@@ -37,8 +47,8 @@ export function validateTag(tag, version) {
 export function artifactNames(platform, version) {
   validateVersion(version);
   if (!Object.hasOwn(extensions, platform)) throw new Error(`Unsupported platform: ${platform}`);
-  return Object.entries(extensions[platform]).map(
-    ([ext, arch]) => `ZCodium-${version}-${platform}-${arch}.${ext}`,
+  return extensions[platform].map(
+    ({ extension, arch }) => `ZCodium-${version}-${platform}-${arch}.${extension}`,
   );
 }
 
