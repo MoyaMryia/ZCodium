@@ -432,6 +432,12 @@ function resolveDynamicWorkflowModeHostEnv(options: {
 }
 
 export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>) {
+  // 上游 9976f24 拆除 Computer Use Helper 链路时删除了本声明，但漏删下方
+  // resolveDynamicWorkflowModeHostEnv({ isPackaged: packagedDesktop }) 处的引用，
+  // 打包产物启动即抛 ReferenceError: packagedDesktop is not defined，
+  // 主进程启动链断裂、host 进程不再 spawn，窗口卡在启动页（startup_status_timeout）。
+  // 补回声明；isElectronAppPackaged 的 import 本文件本就存在。
+  const packagedDesktop = isElectronAppPackaged();
   const glmBinaryPath = resolveBundledGlmBinaryPath();
   const larkCliBinaryPath = resolveBundledLarkCliBinaryPath();
   const resolvedGlmBinaryPath = resolveHostProcessBinaryEnv(
