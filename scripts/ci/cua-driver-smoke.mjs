@@ -12,9 +12,50 @@ import { resolveDesktopProductIdentity } from "../../packages/desktop/scripts/de
 
 const run = promisify(execFile);
 
+// 交叉打包时 staged 资产按**目标** platform/arch 落盘（见 prepare-agent-node-bundle.mjs），
+// 所以校验也必须用目标值，不能用 runner 自身的 process.arch。
+function normalizeTargetOs(raw) {
+  switch ((raw ?? "").toLowerCase()) {
+    case "mac":
+    case "macos":
+    case "darwin":
+    case "osx":
+      return "darwin";
+    case "win":
+    case "windows":
+    case "win32":
+      return "win32";
+    case "linux":
+      return "linux";
+    default:
+      return undefined;
+  }
+}
+
+function normalizeTargetArch(raw) {
+  switch ((raw ?? "").toLowerCase()) {
+    case "x64":
+    case "amd64":
+    case "x86_64":
+      return "x64";
+    case "arm64":
+    case "aarch64":
+      return "arm64";
+    default:
+      return undefined;
+  }
+}
+
+function resolveCuaSmokeTarget() {
+  const platform = normalizeTargetOs(process.env.ZCODE_TARGET_OS) ?? process.platform;
+  const arch = normalizeTargetArch(process.env.ZCODE_TARGET_ARCH) ?? process.arch;
+  return { platform, arch };
+}
+
 /** Actual shipped files, isolated from the repository's ancestor node_modules. No screen capture. */
 export async function smokeCuaDriverRuntime(pluginRoot, nodeExecutable = process.execPath) {
-  await validateCuaDriverRuntime(pluginRoot, { platform: process.platform, arch: process.arch });
+  const target = resolveCuaSmokeTarget();
+  await validateCuaDriverRuntime(pluginRoot, target);
   const root = await mkdtemp(join(tmpdir(), "zcodium-cua-packaged-"));
   let client;
   try {
@@ -69,7 +110,7 @@ export async function smokeCuaDriverRuntime(pluginRoot, nodeExecutable = process
     assert.ok(!result.isError, JSON.stringify(result));
     assert.match(JSON.stringify(result), /shared-host-ready/);
     console.log(
-      `CUA native libraries and shared MCP host passed: ${process.platform}-${process.arch}`,
+      `CUA native libraries and shared MCP host passed: ${target.platform}-${target.arch}`,
     );
   } finally {
     await client?.close();
@@ -78,15 +119,16 @@ export async function smokeCuaDriverRuntime(pluginRoot, nodeExecutable = process
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const target = resolveCuaSmokeTarget();
   let pluginRoot =
     process.argv[2] ??
     resolve(
       import.meta.dirname,
-      `../../packages/desktop/bundled-agents/${process.platform}-${process.arch}/glm/packages/node-repl-host`,
+      `../../packages/desktop/bundled-agents/${target.platform}-${target.arch}/glm/packages/node-repl-host`,
     );
   let nodeExecutable = process.argv[3];
   if (process.argv[2] === "--packaged") {
-    const platform = process.platform;
+    const platform = target.platform;
     assert.ok(
       platform === "linux" || platform === "win32",
       "Desktop smoke supports Linux and Windows",

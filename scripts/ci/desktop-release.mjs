@@ -52,11 +52,24 @@ export function validateTag(tag, version) {
   if (tag !== `v${version}`) throw new Error(`Expected tag v${version}, received ${tag}`);
 }
 
-export function artifactNames(platform, version) {
+// 同一架构在不同产物格式里的写法不同（deb=amd64、AppImage/rpm=x86_64、exe=x64），
+// 按架构族过滤时必须归一，否则 "x64" 匹配不到 Linux 的 deb/AppImage。
+const ARCH_ALIASES = {
+  x64: ["x64", "amd64", "x86_64"],
+  arm64: ["arm64", "aarch64"],
+};
+
+export function artifactNames(platform, version, arch) {
   validateVersion(version);
   if (!Object.hasOwn(extensions, platform)) throw new Error(`Unsupported platform: ${platform}`);
-  return extensions[platform].map(
-    ({ extension, arch }) => `ZCodium-${version}-${platform}-${arch}.${extension}`,
+  const aliases = arch ? ARCH_ALIASES[arch] : undefined;
+  if (arch && !aliases) throw new Error(`Unsupported ${platform} architecture: ${arch}`);
+  const entries = extensions[platform].filter((entry) => !aliases || aliases.includes(entry.arch));
+  if (aliases && entries.length === 0) {
+    throw new Error(`Unsupported ${platform} architecture: ${arch}`);
+  }
+  return entries.map(
+    ({ extension, arch: entryArch }) => `ZCodium-${version}-${platform}-${entryArch}.${extension}`,
   );
 }
 
@@ -65,8 +78,8 @@ async function assertInstaller(file) {
   if (!info.isFile() || info.size === 0) throw new Error(`Invalid or empty installer: ${file}`);
 }
 
-export async function collectArtifacts(source, destination, platform, version) {
-  const names = artifactNames(platform, version);
+export async function collectArtifacts(source, destination, platform, version, arch) {
+  const names = artifactNames(platform, version, arch);
   for (const name of names) await assertInstaller(join(source, name));
   await mkdir(destination, { recursive: true });
   if ((await readdir(destination)).length)
@@ -136,7 +149,13 @@ async function main() {
     if (process.env.GITHUB_REF_TYPE === "tag") validateTag(process.env.GITHUB_REF_NAME, version);
     console.log(`Release version: ${version}`);
   } else if (command === "collect") {
-    await collectArtifacts(join(root, "packages/desktop/dist"), artifacts, platform, version);
+    await collectArtifacts(
+      join(root, "packages/desktop/dist"),
+      artifacts,
+      platform,
+      version,
+      process.env.ZCODE_TARGET_ARCH,
+    );
   } else if (command === "publish") {
     if (process.env.GITHUB_EVENT_NAME !== "push" || process.env.GITHUB_REF_TYPE !== "tag") {
       throw new Error("Draft releases require a tag push");

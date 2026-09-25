@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -45,10 +45,33 @@ test("collect only installers, excluding unpacked app and builder metadata", asy
   const source = await fixture(t);
   const output = await fixture(t, []);
   await writeFile(join(source, "latest-linux.yml"), "metadata");
-  await collectArtifacts(source, output, "linux", version);
+  await collectArtifacts(source, output, "linux", version, "x64");
   assert.equal(await readFile(join(output, allNames[0]), "utf8"), `artifact: ${allNames[0]}`);
   await assert.rejects(readFile(join(output, "latest-linux.yml")), { code: "ENOENT" });
   await assert.rejects(readFile(join(output, allNames[4])), { code: "ENOENT" });
+});
+
+test("Windows x64 and arm64 artifacts are collected independently", async (t) => {
+  // 交叉打包：x64 job 与 arm64 job 各自只收自己的产物；不传 arch 才收全部。
+  const source = await fixture(t);
+  const x64 = await fixture(t, []);
+  await collectArtifacts(source, x64, "win", version, "x64");
+  assert.equal((await readdir(x64)).length, 1);
+  assert.equal((await readdir(x64))[0], "ZCodium-3.14.0-win-x64.exe");
+
+  const arm64 = await fixture(t, []);
+  await collectArtifacts(source, arm64, "win", version, "arm64");
+  assert.equal((await readdir(arm64)).length, 1);
+  assert.equal((await readdir(arm64))[0], "ZCodium-3.14.0-win-arm64.exe");
+
+  const both = await fixture(t, []);
+  await collectArtifacts(source, both, "win", version);
+  assert.deepEqual((await readdir(both)).sort(), [
+    "ZCodium-3.14.0-win-arm64.exe",
+    "ZCodium-3.14.0-win-x64.exe",
+  ]);
+
+  await assert.rejects(collectArtifacts(source, await fixture(t, []), "win", version, "riscv64"));
 });
 
 test("missing, empty, wrong-version and extra assets block release", async (t) => {
