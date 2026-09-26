@@ -1,5 +1,39 @@
 # Changelog
 
+## [](https://github.com/axiom-desu/ZCodium/compare/v3.14.3-1...vnull) (2026-09-26)
+
+### Bug Fixes
+
+* **desktop:** 补回被上游 CUA 拆除重构误删的 packagedDesktop 声明 ([#21](https://github.com/axiom-desu/ZCodium/issues/21)) ([bc1703c](https://github.com/axiom-desu/ZCodium/commit/bc1703cc2297a205202d10381114100f881d945a))
+
+* **ui:** 偏好设置按钮悬停底色形状与宽度修正 ([#20](https://github.com/axiom-desu/ZCodium/issues/20)) ([95429ef](https://github.com/axiom-desu/ZCodium/commit/95429efd617415dcca8a247547342a9892f78337))
+  * ci: add macOS arm64 desktop build workflow
+  * fix(auto-update): own the update source and isolate the update cache
+  * initAutoUpdater 不配置 provider、不轮询，直接返回；
+  * force-update gate 直接放行，不读上游配置。
+  * fix(desktop): isolate updater cache dir from upstream ZCode
+  * fix(desktop): pad macOS app icon to the 1024/824 grid
+  * Contents/Resources/icon.icns 供 Finder / Launchpad / 切换器；
+  * Contents/Resources/icon.png 由 index.ts 的 iconPath 交给 applyAppIcon()，
+  * fix(ui): render draft watermark as inline SVG
+  * fix(ui): keep message layer mask from leaking into draft empty state
+  * fix(ui): fade the draft watermark out above the composer
+  * ci(macos): bundle Linux remote assets before packaging
+  * fix(ui): fit preferences trigger hover pill to its content
+  * 左侧圆角单独设为 2xl（16px，恰为按钮高 32px 的一半），视觉上是半圆，
+  * 按钮以 flex-1 撑满整行，底色右缘一直拖到相邻的设置齿轮按钮跟前；
+  * pl-0 是底色贯穿整行时代为贴齐侧栏左缘的遗产，底色收窄后导致内容
+
+
+### Chores
+
+* **release:** draft release 首段立意句换成《滕王阁序》「老当益壮」 ([849980b](https://github.com/axiom-desu/ZCodium/commit/849980b53e266db5f4b4e67d886623fea86a2e23))
+
+
+### Documentation
+
+* **changelog:** 去掉重发 release 产生的重复 3.14.3-1 段 ([46927de](https://github.com/axiom-desu/ZCodium/commit/46927de6d2f12ac1c21af81f5dbb7aa89b849ade))
+
 ## 3.14.3-1 (2026-09-25)
 
 ### Features
