@@ -132,6 +132,44 @@ try {
         providerId: "personal:fixture-2",
         modelId: "fixture-model",
       });
+      // 编辑已添加模型的配置并保存：savePersonalModelDraft 按 revision 做并发校验，
+      // 设置页漏传 settingsRevision 时 basedOnRevision 恒为 0，这里会以冲突报错。
+      await page
+        .getByTitle(locale === "zh-CN" ? "编辑模型配置" : "Edit model settings", { exact: true })
+        .click();
+      const editDialog = page.getByRole("dialog");
+      const contextWindowInput = editDialog.getByLabel(
+        locale === "zh-CN" ? "上下文窗口" : "Context window",
+        { exact: true },
+      );
+      await contextWindowInput.fill("16000");
+      await editDialog
+        .getByRole("button", { name: locale === "zh-CN" ? "保存" : "Save", exact: true })
+        .click();
+      await editDialog.waitFor({ state: "hidden", timeout: 5000 }).catch(async (error) => {
+        console.error(await editDialog.innerText());
+        throw error;
+      });
+      assert.equal(await page.evaluate(() => window.modelFixture.draftSaves.length), 1);
+      assert.deepEqual(
+        await page.evaluate(() => ({
+          providerId: window.modelFixture.draftSaves[0].providerId,
+          originalModelId: window.modelFixture.draftSaves[0].originalModelId,
+          nextModelId: window.modelFixture.draftSaves[0].nextModelId,
+        })),
+        {
+          providerId: "personal:fixture-2",
+          originalModelId: "fixture-model",
+          nextModelId: "fixture-model",
+        },
+      );
+      assert.ok(
+        await page.evaluate(() => {
+          const save = window.modelFixture.draftSaves[0];
+          return save.basedOnRevision === save.serverRevisionAtSave && save.basedOnRevision !== 0;
+        }),
+        "savePersonalModelDraft must submit the current settings revision, not a stale constant",
+      );
       await page.getByTestId("model-provider-fetch-models-button").click();
       await modelDialog.getByRole("checkbox", { name: "catalog-model", exact: true }).waitFor();
       await page.keyboard.press("Escape");
@@ -221,7 +259,7 @@ try {
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
   console.log(
-    "Model settings walkthrough passed: actual editor, empty-state templates, create/retry, API address/key persistence, model addition/connectivity/catalog, refresh failure/retry, delete cancel/failure/retry/success, double creation guard, navigation while creating, quiet autosave and failure recovery, old target and read failure, zh/en narrow/wide, no account service or external requests.",
+    "Model settings walkthrough passed: actual editor, empty-state templates, create/retry, API address/key persistence, model addition/connectivity/catalog, model config edit save with revision check, refresh failure/retry, delete cancel/failure/retry/success, double creation guard, navigation while creating, quiet autosave and failure recovery, old target and read failure, zh/en narrow/wide, no account service or external requests.",
   );
 } finally {
   await browser?.close();

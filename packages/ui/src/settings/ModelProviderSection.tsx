@@ -47,6 +47,7 @@ export function ModelProviderSection({
   const {
     modelProviders,
     providerTemplates,
+    providerSettingsView,
     displayOrder,
     loading,
     loadError,
@@ -297,6 +298,9 @@ export function ModelProviderSection({
         <InlineEditableProviderCard
           key={selectedProvider.providerId}
           provider={selectedProvider}
+          // 保存模型草稿按 revision 做乐观并发校验；968a868 重构删掉 Detail.tsx 时
+          // 丢了这条传递，导致 basedOnRevision 恒为 0、编辑保存必然冲突。
+          settingsRevision={providerSettingsView?.revision}
           onSave={handleSave}
           onAddPersonalModel={addPersonalModel}
           onSavePersonalModelDraft={savePersonalModelDraft}
